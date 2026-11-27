@@ -351,4 +351,5 @@
     <string name="settings_hint_password_confirm">Confirm password</string>
 
     <string name="settings_label_short_password">Password must be at least %1$d characters.</string>
+    <string name="settings_backup_vault_copy_requires_migration">Full file copies require a self-contained vault. Open Backups, choose the legacy migration action and verify the current vault password first. Device-only vaults must first switch to password authentication and password encryption.</string>
 </resources>

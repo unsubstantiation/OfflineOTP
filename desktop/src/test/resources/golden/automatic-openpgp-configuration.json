@@ -1,0 +1,12 @@
+{
+  "description": "Local encrypted-record plaintext schema only; synthetic public bytes, not real OpenPGP keys. Version 1 remains the password mode. No bookmark/file grant in this portable test vector.",
+  "configuration": {
+    "version": 2,
+    "mode": "openpgp",
+    "folder": "/synthetic/automatic-backups",
+    "password": "",
+    "minutes": 15,
+    "keep": 3,
+    "recipientKeys": ["cHVibGljLW9uZQ==", "cHVibGljLXR3bw=="]
+  }
+}

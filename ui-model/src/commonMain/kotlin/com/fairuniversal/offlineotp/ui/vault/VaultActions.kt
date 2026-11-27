@@ -79,13 +79,15 @@ class VaultActions(
     val onImportPreferences: (() -> Unit)? = null,
     val onToggleBackupTimestamp: (() -> Unit)? = null,
     val onOpenSettings: (() -> Unit)? = null,
-    val onOpenAbout: (() -> Unit)? = null
+    val onOpenAbout: (() -> Unit)? = null,
+    val onAutomaticBackup: (() -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
      * Optional actions remain null so unavailable features stay hidden.
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onAutomaticBackup = onAutomaticBackup?.let { action -> { if (isActive()) action() } },
         onImportPreferences = onImportPreferences?.let { action -> { if (isActive()) action() } },
         onToggleBackupTimestamp = onToggleBackupTimestamp?.let { action -> { if (isActive()) action() } },
         onOpenSettings = onOpenSettings?.let { action -> { if (isActive()) action() } },

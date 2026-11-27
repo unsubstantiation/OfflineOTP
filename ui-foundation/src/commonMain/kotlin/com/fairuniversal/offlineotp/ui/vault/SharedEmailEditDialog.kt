@@ -110,7 +110,7 @@ fun SharedEmailEditDialog(
                         }
                     )
                 }
-                error?.let { Text(it) }
+                SharedStatusMessage(error)
             }
         },
         confirmButton = {

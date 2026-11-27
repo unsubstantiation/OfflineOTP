@@ -29,6 +29,11 @@ object NativeApi {
     }
 
     @JvmStatic
+    fun encryptSigned(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>, signingKeyBlock: ByteArray, passphrase: String?): ByteArray =
+        uniffi.offlineotp_openpgp.encryptSigned(plaintext.toUByteList(), recipientKeyBlocks.map { it.toUByteList() },
+            signingKeyBlock.toUByteList(), passphrase).toByteArray()
+
+    @JvmStatic
     fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: String?): ByteArray {
         return uniffi.offlineotp_openpgp.decrypt(
             message.toUByteList(),

@@ -65,6 +65,23 @@ class BackupRestoreDeviceTest {
     }
 
     @Test
+    fun portableVaultFileVectorsRestoreThroughTheSameAndroidTask() {
+        val root = org.json.JSONObject(String(golden("vault-container.json"), StandardCharsets.UTF_8))
+        val vectors = root.getJSONArray("vectors")
+        for (i in 0 until vectors.length()) {
+            val row = vectors.getJSONObject(i)
+            val bytes = row.getString("fileHex").chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            val file = writeDocument(bytes)
+            try {
+                val restored = restoreEncrypted(file, row.getString("password"))
+                assertTrue("portable vault did not restore", restored.success)
+                assertEquals(row.getString("plaintext"), restored.payload)
+                assertFalse(restoreEncrypted(file, "wrong password").success)
+            } finally { file.delete(); bytes.fill(0) }
+        }
+    }
+
+    @Test
     fun sharedDesktopInteropVectorsRestoreThroughAndroidTask() {
         val expected = String(golden("expected-vault.json"), StandardCharsets.UTF_8)
         for (name in listOf("otp_accounts.json.aes", "desktop-export.json.aes")) {

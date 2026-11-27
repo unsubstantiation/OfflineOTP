@@ -31,7 +31,10 @@ fun EntryConfirmationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
-        text = { Text(text = if (error == null) message else "$message\n\n$error") },
+        text = { androidx.compose.foundation.layout.Column {
+            Text(text = message)
+            SharedStatusMessage(error)
+        } },
         confirmButton = { ForestTextAction(text = confirmLabel, onClick = onConfirm) },
         dismissButton = { ForestTextAction(text = dismissLabel, onClick = onDismiss) }
     )

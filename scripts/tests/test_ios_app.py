@@ -42,7 +42,8 @@ class IosAppTest(unittest.TestCase):
         # The app is a client of the shared format layer, not a copy of it.
         self.assertEqual(
             [{"framework": "Frameworks/OfflineOTPPresentation.xcframework", "embed": False},
-             {"package": "OfflineOTPKit", "product": "OfflineOTPKit"}], target["dependencies"])
+             {"package": "OfflineOTPKit", "product": "OfflineOTPKit"},
+             {"package": "YubiKit", "product": "YubiKit"}, {"package": "SwiftLog", "product": "Logging"}], target["dependencies"])
         self.assertIn("OfflineOTPKit", project["packages"])
         self.assertEqual(".", project["packages"]["OfflineOTPKit"]["path"])
         # One shared scheme drives both the build and the app's unit tests.
@@ -55,6 +56,269 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("ios/App/Info.plist", gitignore)
         self.assertFalse((IOS / "OfflineOTP.xcodeproj").exists(),
                          "a generated project was committed")
+
+    def test_hardware_oath_has_explicit_transports_and_guarded_calculation(self):
+        project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
+        sdk = project["packages"]["YubiKit"]
+        self.assertEqual("https://github.com/Yubico/yubikit-swift.git", sdk["url"])
+        self.assertEqual("03fe66d15b6e863e87a44c7a263b7bffedda9d79", sdk["revision"])
+        target = project["targets"]["OfflineOTP"]
+        self.assertEqual(["TAG"], target["entitlements"]["properties"]["com.apple.developer.nfc.readersession.formats"])
+        info = target["info"]["properties"]
+        self.assertEqual(["A0000005272101", "A0000006472F0001"], info["com.apple.developer.nfc.readersession.iso7816.select-identifiers"])
+        self.assertIn("NFCReaderUsageDescription", info)
+        reader = app_sources()["HardwareOathReader.swift"]
+        native = app_sources()["HardwareNativeOperation.swift"]
+        for marker in ["NFCTagReaderSession.readingAvailable", "TKSmartCardSlotManager.default", "NFCSmartCardConnection.makeConnection()",
+                       "USBSmartCardConnection.makeConnection()", "self.epoch == id", "Task.checkCancellation()", "timeoutSeconds: TimeInterval = 30",
+                       "SwiftLogNoOpLogHandler"]:
+            self.assertIn(marker, native)
+        self.assertIn("session.listCredentials()", reader)
+        for command in ["calculateAll", "session.put(", "session.delete(", "session.reset(", "session.setPassword("]:
+            self.assertNotIn(command, reader)
+        host = app_sources()["ComposeVaultHost.swift"]
+        self.assertIn('case "hardwareNFC", "hardwareUSB":', host)
+        self.assertIn("self.store.generation == generation", host)
+        self.assertIn("session.unlock(password: password)", reader)
+        self.assertIn("account?.credential.deviceId == deviceID", reader)
+        self.assertIn("HardwareOathPolicy.uniqueMatch(selected.identity", reader)
+        self.assertEqual(1, reader.count("session.calculateCredentialCode("))
+        self.assertIn("allowCounterAdvance", reader)
+        self.assertIn("code.validTo", reader)
+        self.assertIn('draft["hardwareCounterConsent"] = "false"', host)
+        self.assertIn('draft.removeValue(forKey: "hardwarePassword")', host)
+        self.assertIn("hardwareCodeExpiry", host)
+
+    def test_hardware_transport_capabilities_are_separate_and_native_dependencies_are_noticed(self):
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/HardwareTransportDialog.kt").read_text()
+        self.assertIn('"Use NFC", enabled = !busy && nfcAvailable', dialog)
+        self.assertIn('"Use USB-C", enabled = !busy && usbAvailable', dialog)
+        self.assertIn("if (busy || (if (usb) !usbAvailable else !nfcAvailable)) return", dialog)
+        host = app_sources()["ComposeUnlockHost.swift"]
+        self.assertIn("nfcAvailable: HardwareNativeOperation.supportsNFC", host)
+        self.assertIn("usbAvailable: HardwareNativeOperation.supportsUSBC", host)
+        vault = app_sources()["ComposeVaultHost.swift"]
+        for action, label, capability in [("hardwareEnrollNFC", "Enroll using NFC", "supportsNFC"),
+                                          ("hardwareEnrollUSB", "Enroll using USB-C", "supportsUSBC"),
+                                          ("hardwareSeedNFC", "Copy seed using NFC", "supportsNFC"),
+                                          ("hardwareSeedUSB", "Copy seed using USB-C", "supportsUSBC")]:
+            self.assertIn(f'row("{action}", "{label}", enabled: !hardwareBusy && HardwareNativeOperation.{capability})', vault)
+        catalog = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt").read_text()
+        self.assertIn("Yubico YubiKit Swift 1.5.0", catalog)
+        self.assertIn("Apple SwiftLog 1.6.4", catalog)
+
+    def test_background_fences_queued_backup_restore_and_authentication_actions(self):
+        host = app_sources()["ComposeVaultHost.swift"]
+        self.assertIn("foreground = false", host)
+        self.assertIn("selector: #selector(backgroundSensitiveOperations)", host)
+        self.assertIn("selector: #selector(resumeSensitiveOperations)", host)
+        self.assertIn("guard active, foreground, store.isUnlocked, !automaticBackup.enabled", host)
+        self.assertIn("self.foreground, self.store.isUnlocked", host)
+        unlock = app_sources()["ComposeUnlockHost.swift"]
+        self.assertIn("foreground = false; hardwareCancel()", unlock)
+        self.assertGreaterEqual(unlock.count("guard foreground else { return }"), 8)
+        native = app_sources()["HardwareNativeOperation.swift"]
+        self.assertIn("defer { dispose(&result) }", native)
+        self.assertLess(native.index("defer { dispose(&result) }"), native.index("completion(.success(result))"))
+        fido = app_sources()["HardwareFidoReader.swift"]
+        self.assertIn("pendingKey?.clear(); pendingKey = nil; native.cancel()", fido)
+        self.assertIn("guard var key = material.take() else { throw CancellationError() }", fido)
+        self.assertIn("vaultKey: key)", fido)
+        self.assertNotIn("prf: prf, vaultKey: vaultKey)", fido)
+
+    def test_hardware_seed_export_is_explicit_bounded_and_never_retries_or_overwrites(self):
+        writer = app_sources()["HardwareOathWriter.swift"]
+        self.assertEqual(1, writer.count("session.addCredential(template:"))
+        self.assertLess(writer.index("session.listCredentials()"), writer.index("session.addCredential(template:"))
+        self.assertIn("!credentials.contains(where: { $0.id == id })", writer)
+        self.assertIn("template.identifier == names.identifier", writer)
+        self.assertIn("Task.checkCancellation() // No retry", writer)
+        self.assertNotIn("session.calculateCredentialCode", writer)
+        self.assertNotIn("session.deleteCredential", writer)
+        self.assertIn("seed[index] = 0", writer)
+        host = app_sources()["ComposeVaultHost.swift"]
+        for marker in ['case "hardwareSeedNFC", "hardwareSeedUSB":',
+                       'draft["hardwareSeedConsent"] == "true"',
+                       'draft["hardwareSeedConsent"] = "false"',
+                       'draft.removeValue(forKey: "hardwareSeedPassword")',
+                       'store.entries[index].fields == hardwareCopyFields',
+                       'hardwareWriter.cancel()', 'self.store.generation == generation']:
+            self.assertIn(marker, host)
+        policy = (KIT / "HardwareOathCopyPolicy.swift").read_text()
+        for marker in ["identifier.utf8.count <= 64", "Int64(Int32.max)", "(6...8).contains(entry.digits)", ".format"]:
+            self.assertIn(marker, policy)
+
+    def test_native_file_reader_owns_revocable_scopes_and_dispatches_identity_bound_results(self):
+        sources = app_sources()
+        reader = sources["NativeFileReader.swift"]
+        self.assertIn('DispatchQueue(label: "OfflineOTP.file-import"', reader)
+        self.assertIn("Work(Scope(url), completion)", reader)
+        self.assertIn("guard let scope = task.takeScope(), task.active()", reader)
+        self.assertIn("self.work === task", reader)
+        self.assertIn("completion = nil; scope = nil", reader)
+        self.assertIn("data.count <= maxBytes", reader)
+        root = sources["AppRootViewController.swift"]
+        self.assertIn("filePicker.cancel(); fileReader.cancel()", root)
+        self.assertIn("self.nativeEpoch == epoch, self.store.generation == generation", root)
+        self.assertNotIn("startAccessingSecurityScopedResource", root)
+
+    def test_automatic_backup_form_navigation_releases_private_not_public_inputs(self):
+        host = app_sources()["ComposeVaultHost.swift"]
+        helper = host.split("private func clearAutomaticBackupDraftSecrets()")[1].split("private func openSurface")[0]
+        self.assertIn("automaticSigningKey = nil", helper)
+        self.assertIn('draft.removeValue(forKey: "automaticSigningPassphrase")', helper)
+        self.assertNotIn("automaticRecipientKeys = []", helper)
+        self.assertIn('if surfaceKey == "automaticBackup" && key != surfaceKey { clearAutomaticBackupDraftSecrets() }', host)
+        configure = host.split("private func configureAutomaticBackups")[1].split("func selectedAutomaticBackupFolder")[0]
+        self.assertNotIn('draft["automaticOpenPgp"]', configure)
+        self.assertIn("automaticRecipientKeys = recipientKeys", configure)
+
+    def test_session_signing_credentials_never_enter_persistent_backup_configuration(self):
+        sources = app_sources()
+        config = sources["AutomaticBackupCredentialStore.swift"]
+        self.assertIn("let requiresSigning: Bool?", config)
+        self.assertNotIn("let signingKey", config)
+        self.assertNotIn("let signingPassphrase", config)
+        host = sources["ComposeVaultHost.swift"]
+        self.assertIn("if config.requiresSigning == true", host)
+        self.assertIn("automaticBackup.reportSigningRequired()", host)
+        self.assertIn("requiresSigning: signingKey != nil", host)
+        self.assertIn("signingKey: signingKey, signingPassphrase: signingPassphrase", host)
+        self.assertIn('asCopy: kind != "openpgpAutomaticSigningKey"', sources["AppRootViewController.swift"])
+        self.assertIn("sealSigned(input.document, input.recipients, key, input.signingPassphrase)", sources["SessionAutomaticBackup.swift"])
+        self.assertIn("signingKey = nil; signingPassphrase = \"\"; sealSigned = nil", sources["SessionAutomaticBackup.swift"])
+
+    def test_automatic_openpgp_uses_snapshotted_bounded_certificates_and_mode_scoped_retention(self):
+        sources = app_sources()
+        self.assertIn('mode == "openpgp" && password.isEmpty', sources["AutomaticBackupCredentialStore.swift"])
+        self.assertIn("Set(keys).count == keys.count", sources["AutomaticBackupCredentialStore.swift"])
+        backup = sources["SessionAutomaticBackup.swift"]
+        self.assertIn("sealRecipients(input.document, input.recipients)", backup)
+        self.assertIn("fileExtension: input.fileExtension", backup)
+        self.assertIn('guard ["aes", "pgp", "offlineotp"].contains(fileExtension)', backup)
+        self.assertIn("guard admitted() else { return false }", backup)
+        host = sources["ComposeVaultHost.swift"]
+        self.assertIn('onImport("openpgpAutomaticRecipient")', host)
+        self.assertIn("recipientKeys: config.recipientKeys ?? []", host)
+        self.assertIn("store.automaticOpenPgpEncoder()", host)
+        self.assertIn("AutomaticBackupConfiguration.validRecipients(automaticRecipientKeys + [data])", host)
+
+    def test_card_display_form_commits_once_before_publishing_on_both_native_hosts(self):
+        sources = app_sources()
+        action = sources["ComposeVaultHost.swift"].split('case "cardLayout":')[-1].split('case "searchIncludes":')[0]
+        self.assertIn("try store.saveCardDisplaySettings(draft)", action)
+        self.assertNotIn("store.setCardLayout", action)
+        self.assertIn("No changes were applied", action)
+        store = sources["VaultStore.swift"]
+        batch = store.split("public func saveCardDisplaySettings")[1].split("/// Persists the Compose vault card density")[0]
+        self.assertLess(batch.index("writeBatch(changes)"), batch.index("reloadInactivityLock()"))
+        self.assertIn('raw == "true" || raw == "false"', batch)
+        desktop = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control"
+        self.assertIn("settings.putAll(mapOf(", (desktop / "VaultController.kt").read_text())
+        self.assertIn("writeSelection.invoke(selection)", (desktop / "DesktopLayoutSettings.kt").read_text())
+        host = ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt"
+        self.assertIn("writeSelection = controller::trySaveCardDisplaySelection", host.read_text())
+
+    def test_preferences_import_uses_throwing_atomic_batch_and_publishes_cache_after_disk(self):
+        codec = (KIT / "PreferencesExport.swift").read_text()
+        self.assertIn("public protocol AtomicSettingsPort: SettingsPort", codec)
+        self.assertIn("try atomic.writeBatch", codec)
+        store = (KIT / "PasswordVault.swift").read_text()
+        merge = store[store.index("public func mergeAtomic"):store.index("private func persist()")]
+        self.assertLess(merge.index("try data.write"), merge.index("values = next"))
+        self.assertNotIn("try?", merge)
+        host = app_sources()["VaultStore.swift"]
+        self.assertIn("PreferencesExport.AtomicSettingsPort", host)
+        self.assertIn("try settings.mergeAtomic(changes)", host)
+        self.assertIn("No settings were imported", app_sources()["ComposeVaultHost.swift"])
+
+    def test_native_file_results_are_picker_session_surface_bound_and_reads_are_stream_bounded(self):
+        sources = app_sources()
+        picker = sources["NativeFilePicker.swift"]
+        self.assertEqual(2, picker.count("guard controller === activePicker else { return }"))
+        self.assertIn("prior?.delegate = nil", picker)
+        self.assertIn('"OfflineOTP-export-" + UUID().uuidString', picker)
+        self.assertIn(".posixPermissions: 0o700", picker)
+        self.assertIn(".completeFileProtection", picker)
+        self.assertIn("deinit { cleanupPendingExport() }", picker)
+        root = sources["AppRootViewController.swift"]
+        self.assertIn("foreground = false; nativeEpoch = UUID(); filePicker.cancel()", root)
+        self.assertGreaterEqual(root.count("coordinator.acceptsNativeResult(request)"), 6)
+        self.assertIn("fileReader.start(url, maxBytes: InputPolicy.maxDocumentBytes)", root)
+        self.assertIn("try BoundedFileReader.read($0, maxBytes: $1)", sources["NativeFileReader.swift"])
+        self.assertNotIn("Data(contentsOf: url)", root)
+        reader = (KIT / "BoundedFileReader.swift").read_text()
+        self.assertIn("remaining + 1", reader)
+        self.assertIn("guard next.count <= remaining", reader)
+        self.assertIn("result.append(next)", reader)
+        host = sources["ComposeVaultHost.swift"]
+        self.assertIn("nativeRequestID == request", host)
+        self.assertGreaterEqual(host.count("nativeRequestID = UUID()"), 4)
+
+    def test_automatic_backup_forms_display_restored_destination_interval_and_retention_without_passwords(self):
+        host = app_sources()["ComposeVaultHost.swift"]
+        self.assertIn('row("automaticActiveFolder", "Destination folder"', host)
+        self.assertIn('row("automaticActivePolicy", "Periodic interval / retention"', host)
+        self.assertIn("automaticFolder = destination; automaticMinutes = minutes; automaticKeep = keep", host)
+        self.assertIn('draft["automaticMinutes"] ?? String(automaticMinutes)', host)
+        compose = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("automaticBackupFolder = config.folder; automaticBackupMinutes = config.minutes; automaticBackupRetention = config.keep", compose)
+        self.assertIn("initialFolder = automaticBackupFolder", compose)
+        self.assertIn("initialMinutes = automaticBackupMinutes, initialRetention = automaticBackupRetention", compose)
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutomaticBackupDialog.kt").read_text()
+        self.assertIn('Text("Destination: $initialFolder")', dialog)
+        self.assertIn('var password by remember(inputKey) { mutableStateOf("") }', dialog)
+        self.assertIn('var confirmation by remember(inputKey) { mutableStateOf("") }', dialog)
+
+    def test_automatic_backups_follow_successful_saves_and_revoke_queued_inputs(self):
+        host = app_sources()["ComposeVaultHost.swift"]
+        self.assertIn("store.$persistedRevision.dropFirst().map", host)
+        self.assertIn("generation == self.store.generation", host)
+        self.assertIn("self.automaticBackup.vaultChanged()", host)
+        self.assertIn("backupChanges?.cancel()", host)
+        backup = app_sources()["SessionAutomaticBackup.swift"]
+        for marker in ["func vaultChanged()", "pendingChange = true", "AutomaticBackupPolicy.changeDelay",
+                       "input = nil", "guard let input = task.take()", "self.timerEpoch == id"]:
+            self.assertIn(marker, backup)
+        self.assertNotIn("[weak self, scope]", backup)
+        desktop = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopAutomaticBackup.kt").read_text()
+        for marker in ["fun vaultChanged()", "CHANGE_DELAY_MILLIS", "input?.close(); input = null", "timer === scheduled"]:
+            self.assertIn(marker, desktop)
+        compose = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("controller.persistedRevision", compose)
+        self.assertIn("automaticBackup.vaultChanged()", compose)
+
+    def test_automatic_backups_use_session_credentials_and_scoped_native_folder_selection(self):
+        sources = app_sources()
+        backup = sources["SessionAutomaticBackup.swift"]
+        for marker in ["EncryptedBackup.sealWithFreshParameters", "task.active()", "self.work === task",
+                       ".withoutOverwriting", ".completeFileProtection", "encrypted.resetBytes",
+                       "startAccessingSecurityScopedResource", "stopAccessingSecurityScopedResource",
+                       "values.isSymbolicLink != true", "owned.dropFirst(keep)"]:
+            self.assertIn(marker, backup)
+        self.assertNotIn("UserDefaults", backup)
+        self.assertNotIn("setString", backup)
+        host = sources["ComposeVaultHost.swift"]
+        self.assertIn('case "automaticEnable":', host)
+        self.assertIn('draft.removeValue(forKey: "automaticPassword")', host)
+        self.assertIn('draft.removeValue(forKey: "automaticConfirmation")', host)
+        self.assertIn("UIScene.didEnterBackgroundNotification", host)
+        self.assertIn("toast: automaticBackup.failed ? automaticBackup.message : toast", host)
+        self.assertIn("automaticBackup.dismissNotice()", host)
+        root = sources["AppRootViewController.swift"]
+        self.assertIn("self.store.generation == generation", root)
+        self.assertIn("coordinator.selectedAutomaticBackupFolder(folder)", root)
+        self.assertIn("forOpeningContentTypes: [.folder], asCopy: false", sources["NativeFilePicker.swift"])
+
+    def test_hardware_unlock_format_is_shared_but_not_exposed_as_fake_prf_transport(self):
+        envelope = (IOS / "Sources/OfflineOTPKit/HardwareUnlockEnvelope.swift").read_text()
+        self.assertIn('"OfflineOTP hardware unlock key v1"', envelope)
+        self.assertIn("authenticating: header", envelope)
+        self.assertIn("(83...1122).contains(envelope.count)", envelope)
+        self.assertNotIn("HardwareUnlockEnvelope.open", app_sources()["HardwareOathReader.swift"])
+        for name in ["hardware-unlock-envelope.json", "automatic-backup-options.json"]:
+            self.assertTrue((ROOT / "desktop/src/test/resources/golden" / name).is_file())
+            self.assertTrue(any(name in path.read_text() for path in (IOS / "Tests/OfflineOTPKitTests").glob("*Tests.swift")))
 
     def test_the_project_format_is_one_the_runner_can_open(self):
         """The project has to open on the runner's Xcode, and on older ones.
@@ -118,6 +382,10 @@ class IosAppTest(unittest.TestCase):
                 # Fixed About URLs are handed to the system browser only after a tap.
                 # The generated catalog has no networking code; the fresh-output test pins it.
                 if path.name == "AboutInfo.swift" and forbidden in ("http://", "https://"):
+                    continue
+                if path.name == "HardwareFidoReader.swift" and forbidden == "https://":
+                    self.assertEqual(1, text.count("https://"))
+                    self.assertIn('WebAuthn.Origin("https://offlineotp.invalid")', text)
                     continue
                 self.assertNotIn(forbidden, text, f"{path.name} must not use {forbidden}")
 
@@ -799,6 +1067,39 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("SecureCaptureActivity::class.java", scanner)
         self.assertIn("IntentIntegrator.parseActivityResult", main)
         self.assertIn("addQRCode(result.getContents())", main)
+
+
+class HardwareOathDeletionTests(unittest.TestCase):
+    def test_rename_refuses_sdk_old_id_reconstruction_and_new_id_collisions(self):
+        reader = (Path(__file__).resolve().parents[2] / "ios/App/Sources/HardwareOathReader.swift").read_text()
+        host = (Path(__file__).resolve().parents[2] / "ios/App/Sources/ComposeVaultHost.swift").read_text()
+        self.assertIn("HardwareOathRenamePolicy.sdkIdentifier", reader)
+        self.assertIn("issuer: credential.issuer, account: credential.name).utf8) == credential.id", reader)
+        branch = reader[reader.index("            if let rename {"):reader.index("            if deleteConfirmed {")]
+        for check in ("selected.canRename", "newID != selected.credential.id", "!credentials.contains(where: { $0.id == newID })", "Task.checkCancellation()"):
+            self.assertLess(branch.index(check), branch.index("session.renameCredential"))
+        self.assertEqual(1, reader.count("session.renameCredential"))
+        self.assertIn("return Result(accounts: [], code: nil, expires: nil)", branch)
+        self.assertIn('draft["hardwareRenameConfirmation"] == "RENAME"', host)
+        selection = host[host.index('case "hardwareRenameSelect":'):host.index('case "hardwareRenameConfirm":')]
+        self.assertIn('draft.removeValue(forKey: "hardwarePassword")', selection)
+        self.assertIn("clearHardwareRenameDraft()", selection)
+        self.assertIn("if rename != nil { self.hardwareAccounts = [] }", host)
+
+    def test_deletion_revalidates_identity_and_cancels_before_single_command(self):
+        reader = (Path(__file__).resolve().parents[2] / "ios/App/Sources/HardwareOathReader.swift").read_text()
+        host = (Path(__file__).resolve().parents[2] / "ios/App/Sources/ComposeVaultHost.swift").read_text()
+        self.assertIn("account?.credential.deviceId == deviceID", reader)
+        self.assertLess(reader.index("HardwareOathPolicy.uniqueMatch"), reader.index("session.deleteCredential"))
+        branch = reader[reader.index("if deleteConfirmed {"):reader.index("// One calculation only")]
+        self.assertLess(branch.index("Task.checkCancellation()"), branch.index("session.deleteCredential"))
+        self.assertEqual(1, reader.count("session.deleteCredential"))
+        self.assertIn("return Result(accounts: [], code: nil, expires: nil)", branch)
+        self.assertIn('draft["hardwareDeleteConfirmation"] == "DELETE"', host)
+        selection = host[host.index('case "hardwareDeleteSelect":'):host.index('case "hardwareDeleteConfirm":')]
+        self.assertIn('draft.removeValue(forKey: "hardwarePassword")', selection)
+        self.assertIn("if deleteConfirmed { self.hardwareAccounts = [] }", host)
+        self.assertIn("It may already have completed", reader)
 
 
 if __name__ == "__main__":

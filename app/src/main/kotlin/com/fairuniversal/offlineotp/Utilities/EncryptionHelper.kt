@@ -99,7 +99,9 @@ object EncryptionHelper {
             if (key == null) return EncryptionChangeResult.MISSING_NEW_KEY
             val settings = Settings(context)
             val generation = VaultSession.generation()
-            val write = DatabaseHelper.changeVaultEncryption(context, oldKey, key, false) { id ->
+            val header = if (newType == Constants.EncryptionType.PASSWORD) VaultContainer.fromParameters(
+                settings.getAuthKdf(), settings.getSalt(), settings.getAuthMemoryKiB(), settings.getIterations(), settings.getAuthParallelism()) else null
+            val write = DatabaseHelper.changeVaultEncryptionWithContainer(context, oldKey, key, false, null, header) { id ->
                 if (!permitted.getAsBoolean() || !VaultSession.isCurrent(generation)) VaultCommitDecision.CANCELED
                 else VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, newType, null, null, false))
             }

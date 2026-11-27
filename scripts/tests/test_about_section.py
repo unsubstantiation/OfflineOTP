@@ -29,27 +29,25 @@ class AboutSectionTest(unittest.TestCase):
         # Find the about_copyright line
         self.assertIn(WEBSITE + " and " + RELEASES, strings.replace("\n", ""))
 
-    def test_android_layout_has_website_and_releases_rows(self):
-        layout = LAYOUT.read_text(encoding="utf-8")
-        self.assertIn("about_layout_website", layout)
-        self.assertIn("about_layout_releases", layout)
-        self.assertIn("aboutImgWebsite", layout)
-        self.assertIn("aboutImgReleases", layout)
-        self.assertIn(WEBSITE, layout)
-        self.assertIn(RELEASES, layout)
+    def test_android_uses_shared_catalog_page_not_legacy_fragments(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AboutActivity.kt").read_text()
+        self.assertIn("AboutScreenComposeView(this, version, libraries, AboutFlavorLinks.extras()", activity)
+        self.assertNotIn("AboutFragment", activity)
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt").read_text()
+        self.assertIn("AboutInfo.links", dialog)
+        self.assertIn("onOpenLink(link.url)", dialog)
+        self.assertFalse(LAYOUT.exists())
+        self.assertFalse(FRAGMENT.exists())
 
-    def test_android_fragment_opens_website_and_releases(self):
-        kt = FRAGMENT.read_text(encoding="utf-8")
-        self.assertIn("WEBSITE_URI", kt)
-        self.assertIn("RELEASES_URI", kt)
-        self.assertIn('WEBSITE_URI = AboutInfo.url("website")', kt)
-        self.assertIn('RELEASES_URI = AboutInfo.url("releases")', kt)
-        self.assertIn("about_layout_website", kt)
-        self.assertIn("about_layout_releases", kt)
-        self.assertIn("aboutImgWebsite", kt)
-        self.assertIn("aboutImgReleases", kt)
-
-
+    def test_flavor_metadata_preserves_donations_without_fragment_ui(self):
+        fdroid = (ROOT / "app/src/fdroid/kotlin/com/fairuniversal/offlineotp/Utilities/AboutFlavorLinks.kt").read_text()
+        play = (ROOT / "app/src/play/kotlin/com/fairuniversal/offlineotp/Utilities/AboutFlavorLinks.kt").read_text()
+        self.assertIn("https://flocke.shadowice.org/donate.html", fdroid)
+        self.assertIn("https://richyhbm.co.uk/donate", fdroid)
+        self.assertIn("emptyList()", play)
+        for metadata in (fdroid, play):
+            self.assertNotIn("Fragment", metadata)
+            self.assertNotIn("onCreateView", metadata)
 
     def test_generated_content_is_fresh_for_all_three_clients(self):
         result = subprocess.run([sys.executable, str(ROOT / "scripts/generate-about.py"), "--check"], capture_output=True, text=True)

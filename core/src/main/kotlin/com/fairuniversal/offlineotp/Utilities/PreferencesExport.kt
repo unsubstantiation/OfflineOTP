@@ -458,7 +458,7 @@ object PreferencesExport {
             throw InvalidPreferencesException("Invalid document")
         }
         if (document.optString("format") != FORMAT) throw InvalidPreferencesException("Not a preferences file")
-        if (document.optInt("version", -1) != VERSION) throw InvalidPreferencesException("Unsupported version")
+        if (exactInteger(document.opt("version")) != VERSION) throw InvalidPreferencesException("Unsupported version")
         // Addressed to one client: see [PLATFORM_ANDROID]. A mismatch is refused before any write.
         val sourcePlatform = document.optString("platform") ?: ""
         if (sourcePlatform != platform) throw WrongPlatformException(sourcePlatform, platform)
@@ -506,6 +506,7 @@ object PreferencesExport {
             Kind.STRING_SET -> {
                 val values = (value as? Value.TextSet ?: throw fail("${entry.key} is not a set")).values
                 require(values.size <= MAX_SET_VALUES) { "${entry.key} has too many values" }
+                require(values.all { it.length <= MAX_STRING_CHARS }) { "${entry.key} has an oversized value" }
                 JSONArray(values)
             }
             Kind.DEVICE_BOUND -> throw fail("${entry.key} never leaves this device")
@@ -513,13 +514,23 @@ object PreferencesExport {
         target.put(entry.key, json)
     }
 
+    // Do not coerce floating point, numeric strings or overflowing longs. In particular, a
+    // wrapped inactivity timeout can silently disable locking after settings import.
+    private fun exactInteger(value: Any?): Int? = when (value) {
+        is Int -> value
+        is Long -> if (value in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) value.toInt() else null
+        is Short -> value.toInt()
+        is Byte -> value.toInt()
+        else -> null
+    }
+
     private fun read(source: JSONObject, entry: Setting): Value {
         val value = source.opt(entry.key) ?: throw InvalidPreferencesException("Missing ${entry.key}")
         return when (entry.kind) {
             Kind.BOOLEAN -> Value.Bool(value as? Boolean
                 ?: throw InvalidPreferencesException("${entry.key} is not a boolean"))
-            Kind.INTEGER -> Value.IntValue((value as? Number)?.toInt()
-                ?: throw InvalidPreferencesException("${entry.key} is not an integer"))
+            Kind.INTEGER -> Value.IntValue(exactInteger(value)
+                ?: throw InvalidPreferencesException("${entry.key} is not a bounded integer"))
             Kind.STRING, Kind.SECRET -> {
                 val text = value as? String
                     ?: throw InvalidPreferencesException("${entry.key} is not text")
@@ -531,8 +542,10 @@ object PreferencesExport {
                     ?: throw InvalidPreferencesException("${entry.key} is not a set")
                 if (array.length() > MAX_SET_VALUES) throw InvalidPreferencesException("${entry.key} has too many values")
                 Value.TextSet((0 until array.length()).map { index ->
-                    array.opt(index) as? String
+                    val text = array.opt(index) as? String
                         ?: throw InvalidPreferencesException("${entry.key} has a non-text value")
+                    if (text.length > MAX_STRING_CHARS) throw InvalidPreferencesException("${entry.key} has an oversized value")
+                    text
                 })
             }
             Kind.DEVICE_BOUND -> throw InvalidPreferencesException("${entry.key} never leaves this device")

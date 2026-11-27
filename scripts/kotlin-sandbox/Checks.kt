@@ -120,8 +120,7 @@ import com.fairuniversal.offlineotp.Activities.AboutActivity
 import com.fairuniversal.offlineotp.Activities.BaseActivity
 import com.fairuniversal.offlineotp.Activities.PanicResponderActivity
 import com.fairuniversal.offlineotp.Activities.SecureCaptureActivity
-import com.fairuniversal.offlineotp.Fragments.AboutFragment
-import com.fairuniversal.offlineotp.Fragments.BaseAboutFragment
+import com.fairuniversal.offlineotp.Utilities.AboutFlavorLinks
 import com.fairuniversal.offlineotp.Receivers.BackupBroadcastReceiver
 import com.fairuniversal.offlineotp.Receivers.EncryptedBackupBroadcastReceiver
 import com.fairuniversal.offlineotp.Tasks.EncryptedBackupWorker
@@ -1243,14 +1242,6 @@ private class SettingsFixture(fixtureContext: SettingsContext = SettingsContext(
 
 // --- fakes for the about-screen checks ----------------------------------------------------------
 
-/** An inflated about layout: scripted children per id, so lookups return the check's widgets. */
-private class AboutRoot : View() {
-    val children = HashMap<Int, View>()
-
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : View> findViewById(id: Int): T? = children[id] as T?
-}
-
 /** The intro wizard, with the protected lifecycle method the platform calls for the check. */
 private class IntroWizard : IntroScreenActivity() {
     private val pager = ViewPager()
@@ -1385,30 +1376,11 @@ private class AboutHost : FragmentActivity() {
 }
 
 /**
- * The converted about activity, driven by the checks: it serves the scripted toolbar/layout
- * stub/pager children, the mapped resource strings and a scripted raw library list.
+ * Active shared About activity fixture: localized strings and generated library metadata.
  */
 private class AboutScreenActivity(private val libJson: String) : AboutActivity() {
-    val toolbar = Toolbar(this)
-    val root = AboutRoot()
-    val pager = ViewPager()
-    val tabs = TabLayout(this)
-    val stub = ScriptedViewStub(root)
-
-    init {
-        // Shared About no longer inflates the native pager/tab layout.
-    }
-
     override fun getString(resId: Int): String = settingsKey(resId)
-
     override val resources: Resources get() = AboutLibResources(libJson)
-
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : View> findViewById(id: Int): T? = when (id) {
-        R.id.container_toolbar -> toolbar as T?
-        R.id.container_stub -> stub as T?
-        else -> null
-    }
 
     fun create() {
         onCreate(null)
@@ -1421,86 +1393,46 @@ private class AboutScreenActivity(private val libJson: String) : AboutActivity()
     }
 }
 
-/** One about page with its scripted layout children and the host it runs against. */
-private class AboutPageFixture {
-    val host = AboutHost()
-    val root = AboutRoot()
-    val versionLayout = LinearLayout(host)
-    val license = LinearLayout(host)
-    val changelog = LinearLayout(host)
-    val source = LinearLayout(host)
-    val website = LinearLayout(host)
-    val releases = LinearLayout(host)
-    val faq = LinearLayout(host)
-    val author1 = LinearLayout(host)
-    val author2 = LinearLayout(host)
-    val authorOriginal = LinearLayout(host)
-    val contributors = LinearLayout(host)
-    val support = LinearLayout(host)
-    val version = TextView()
-    val originalExtra = TextView()
-    val author1Content = LinearLayout(host)
-    val author2Content = LinearLayout(host)
-    /** The tint filters the image rows received; recorded instead of drawn. */
-    val imageFilters = ArrayList<ColorFilter?>()
-
+/** Exercises the Android controller through its actual shared Compose host, not hidden Views. */
+private class HardwarePageFixture : AutoCloseable {
+    val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
+    private val type = activity.javaClass
+    val discovery: HardwareKeyDiscovery
+    val page: com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView
+    val handler: Handler
     init {
-        root.children[R.id.about_layout_version] = versionLayout
-        root.children[R.id.about_text_version] = version
-        root.children[R.id.about_layout_license] = license
-        root.children[R.id.about_layout_changelog] = changelog
-        root.children[R.id.about_layout_source] = source
-        root.children[R.id.about_layout_website] = website
-        root.children[R.id.about_layout_releases] = releases
-        root.children[R.id.about_layout_faq] = faq
-        root.children[R.id.aboutLayoutAuthor1] = author1
-        root.children[R.id.aboutLayoutAuthor2] = author2
-        root.children[R.id.aboutLayoutOriginalAuthor] = authorOriginal
-        root.children[R.id.about_author_original_extra] = originalExtra
-        root.children[R.id.about_layout_contributors] = contributors
-        root.children[R.id.about_layout_support] = support
-        root.children[R.id.aboutLayoutAuthor1Content] = author1Content
-        root.children[R.id.aboutLayoutAuthor2Content] = author2Content
-        for (id in BaseAboutFragment.imageResources) {
-            val image = ImageView(host)
-            image.setImageDrawable(object : Drawable() {
-                override fun setColorFilter(filter: ColorFilter?) {
-                    imageFilters.add(filter)
-                }
-            })
-            root.children[id] = image
-        }
+        Handler.posted.clear()
+        VaultSession.open(SecretKeySpec(ByteArray(16) { 75 }, "AES"))
+        val generation = VaultSession.generation()
+        discovery = HardwareKeyDiscovery(activity) { VaultSession.isCurrent(generation) }
+        set("generation", generation); set("discovery", discovery)
+        page = com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView(activity, ::dispatch)
+        set("hardwarePage", page)
+        handler = type.getDeclaredField("handler").apply { isAccessible = true }.get(activity) as Handler
+        publish()
     }
-
-    /** Inflates the fragment's layout with the scripted children against the scripted host. */
-    fun inflate(fragment: BaseAboutFragment): View {
-        fragment.host = host
-        LayoutInflater.layoutProvider = { res, _, _ ->
-            if (res == R.layout.fragment_about) root else View()
-        }
-        try {
-            return withPoisonedTransaction {
-                fragment.onCreateView(LayoutInflater.from(host), null, null)
-            }
-        } finally {
-            LayoutInflater.layoutProvider = null
-        }
+    fun set(name: String, value: Any) { type.getDeclaredField(name).apply { isAccessible = true }.set(activity, value) }
+    fun publish() { type.getDeclaredMethod("publishHardwarePage").apply { isAccessible = true }.invoke(activity) }
+    fun clear() { type.getDeclaredMethod("clearSensitiveUi").apply { isAccessible = true }.invoke(activity) }
+    fun render(accounts: HardwareOathClient.Accounts) {
+        type.getDeclaredMethod("renderAccounts", HardwareOathClient.Accounts::class.java).apply { isAccessible = true }.invoke(activity, accounts)
     }
-}
-
-/** Resets the static and global state the about screens accumulate between checks. */
-private fun resetAboutState() {
-    BaseAboutFragment.lastTap = 0
-    BaseAboutFragment.taps = 0
-    BaseAboutFragment.currentToast = null
-    Toast.shown.clear()
-    Toast.shownTexts.clear()
-    Toast.cancels = 0
-    AlertDialog.Builder.created.clear()
-    AlertDialog.Builder.lastCreated = null
-    PreferenceManager.reset()
-    PackageManager.missingPackage = null
-    PackageManager.packageInfo = PackageInfo().apply { versionName = "9.9.9-test" }
+    fun dispatch(key: String, pin: CharArray) {
+        type.getDeclaredMethod("dispatchHardwarePageAction", String::class.java, CharArray::class.java).apply { isAccessible = true }.invoke(activity, key, pin)
+    }
+    @Suppress("UNCHECKED_CAST")
+    fun items(): List<com.fairuniversal.offlineotp.ui.portable.PortableToolItem> =
+        (page.javaClass.getDeclaredMethod("getGroups").apply { isAccessible = true }.invoke(page)
+            as List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>).flatMap { it.items }
+    fun select(prefix: String, pin: CharArray = charArrayOf()) {
+        page.selectTool(items().first { it.key.startsWith("$prefix:") || it.key == prefix }.key, pin)
+    }
+    fun status(): String = (page.javaClass.getDeclaredField("status\$delegate").apply { isAccessible = true }.get(page)
+        as androidx.compose.runtime.MutableState<String>).value
+    fun feedback(resource: Int) {
+        type.getDeclaredMethod("showHardwareStatus", Int::class.javaPrimitiveType).apply { isAccessible = true }.invoke(activity, resource)
+    }
+    override fun close() { clear(); page.close(); discovery.close(); VaultSession.lock(); Handler.posted.clear() }
 }
 
 fun main() {
@@ -4594,7 +4526,7 @@ fun main() {
                 { "the two collaborators changed type" })
 
         // The nested holder is what Java builds in `prepareAuthCredentials` and reads `credentials.key`
-        // from: public final, public final JvmField members, and only `destroy()` on top.
+        // from: public final, public final JvmField members, plus the container staging adapter.
         val prepared = compiledClass(Settings.PreparedCredentials::class.java)
         expect(Modifier.isPublic(prepared.flags) && Modifier.isFinal(prepared.flags) &&
                 !Modifier.isAbstract(prepared.flags), { "PreparedCredentials must stay a public final class" })
@@ -4602,7 +4534,8 @@ fun main() {
                 setOf(
                     "<init>([BLjava/lang/String;Ljava/lang/String;I)V",
                     "<init>([BLjava/lang/String;Ljava/lang/String;ILjava/lang/String;II)V",
-                    "destroy()V"
+                    "destroy()V",
+                    "containerHeader()Lcom/fairuniversal/offlineotp/Utilities/VaultContainer\$Header;"
                 ),
                 { "PreparedCredentials methods changed: ${prepared.methods.map { it.signature }}" })
         expect(prepared.fields.map { it.signature }.toSet() ==
@@ -4977,6 +4910,22 @@ fun main() {
       }
     }
 
+    check("vault copy backup source is explicit and excludes login and detached legacy export modes") {
+        val context = SettingsContext(); PreferenceManager.reset()
+        try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            expect(!LoginBackupPolicy.usesVaultCopy(context), { "existing settings silently opted into file copies" })
+            prefs.edit().putBoolean(LoginBackupPolicy.VAULT_COPY, true)
+                .putBoolean(context.getString(R.string.settings_key_auto_backup_use_login), true).commit()
+            expect(LoginBackupPolicy.usesVaultCopy(context), { "explicit copy mode not selected" })
+            expect(!LoginBackupPolicy.usesLoginPassword(context), { "copy mode also selected login export" })
+            val settings = Settings(context)
+            expect(settings.applyBackupPasswordSource(context, useLogin = false), { "could not reselect separate export" })
+            expect(!LoginBackupPolicy.usesVaultCopy(context), { "copy mode survived explicit export mode selection" })
+            expect(!LoginBackupPolicy.usesLoginPassword(context), { "separate export selected login mode" })
+        } finally { PreferenceManager.reset() }
+    }
+
     check("automatic backup password mode preserves legacy configuration and defaults new users to login") {
         val fixture = SettingsFixture()
         expect(LoginBackupPolicy.usesLoginPassword(fixture.context), { "new users should use the login password" })
@@ -5054,7 +5003,7 @@ fun main() {
         }
         expectThrows(IllegalStateException::class.java) { settings.getSalt() }
         fixture.seed(R.string.settings_key_split_group_size, "not-a-number")
-        expectThrows(NumberFormatException::class.java) { settings.getTokenSplitGroupSize() }
+        expect(settings.getTokenSplitGroupSize() == 3, { "malformed group size must fall back without crashing" })
         fixture.store.edit().remove(settingsKey(R.string.settings_key_split_group_size)).commit()
 
         val prepared = settings.prepareAuthCredentials("synthetic-password")
@@ -5507,142 +5456,26 @@ fun main() {
                 { "allowing screenshots must also show the preview" })
     }
 
-    check("the about tab wires its rows, its version metadata and its image tint") {
-        resetAboutState()
-        val fixture = AboutPageFixture()
-        val view = fixture.inflate(BaseAboutFragment())
-
-        expect(view === fixture.root, { "the fragment inflated the wrong layout" })
-        expect(fixture.version.text == "9.9.9-test",
-                { "the version name was not bound: ${fixture.version.text}" })
-        expect(fixture.imageFilters.size == BaseAboutFragment.imageResources.size,
-                { "not every image row was tinted: ${fixture.imageFilters.size}" })
-        expect(fixture.imageFilters.all { it != null }, { "an image row kept no theme filter" })
-
-        // Every row opens its own link as a VIEW intent.
-        val rows = listOf(
-                fixture.license to "https://github.com/unsubstantiation/OfflineOTP/blob/master/LICENSE.txt",
-                fixture.changelog to "https://github.com/unsubstantiation/OfflineOTP/blob/master/CHANGELOG.md",
-                fixture.source to "https://github.com/unsubstantiation/OfflineOTP",
-                fixture.faq to "https://github.com/unsubstantiation/OfflineOTP/issues",
-                fixture.author1 to "https://github.com/flocke",
-                fixture.author2 to "https://github.com/richyhbm",
-                fixture.authorOriginal to "https://github.com/0xbb",
-                fixture.contributors to "https://github.com/unsubstantiation/OfflineOTP/graphs/contributors",
-                fixture.support to "https://github.com/unsubstantiation/OfflineOTP/blob/master/README.md#contributing",
-                fixture.originalExtra to "https://github.com/0xbb/otp-authenticator")
-        for ((row, uri) in rows) {
-            row.performClick()
-            val last = fixture.host.started.lastOrNull()
-            expect(last != null && last.getAction() == Intent.ACTION_VIEW
-                            && last.data.toString() == uri,
-                    { "$uri produced ${last?.getAction()} ${last?.data}" })
-        }
-
-        // A missing activity handler falls back to the clipboard with the copied-to-clipboard toast.
-        fixture.host.startFailure = ActivityNotFoundException()
-        fixture.host.started.clear()
-        fixture.license.performClick()
-        expect(fixture.host.started.isEmpty(), { "a refused start still recorded an intent" })
-        val clips = fixture.host.clipboard.clips
-        expect(clips.size == 1 && clips[0].text == "https://github.com/unsubstantiation/OfflineOTP/blob/master/LICENSE.txt",
-                { "the URI was not copied: ${clips.map { it.text }}" })
-        expect(Toast.shownTexts == listOf<CharSequence>("key:" + R.string.about_toast_copied_to_clipboard),
-                { "the fallback did not toast the copied message: ${Toast.shownTexts}" })
-
-        // A package without a version name keeps an empty version text; a missing package does too.
-        resetAboutState()
-        PackageManager.packageInfo = PackageInfo()
-        val withoutVersion = AboutPageFixture()
-        withoutVersion.inflate(BaseAboutFragment())
-        expect(withoutVersion.version.text == null,
-                { "a missing version name became ${withoutVersion.version.text}" })
-
-        resetAboutState()
-        PackageManager.missingPackage = "com.fairuniversal.offlineotp"
-        val missingPackage = AboutPageFixture()
-        missingPackage.inflate(BaseAboutFragment())
-        expect(missingPackage.version.text == "",
-                { "a missing package kept a version name: ${missingPackage.version.text}" })
-    }
-
-    check("seven quick taps on the version enable the hidden special features") {
-        resetAboutState()
-        val fixture = AboutPageFixture()
-        fixture.inflate(BaseAboutFragment())
-        val store = PreferenceManager.getDefaultSharedPreferences(fixture.host) as FakeSharedPreferences
-
-        // The first tap of a burst only starts it; the counter toasts appear from the third count.
-        fixture.versionLayout.performClick()
-        expect(BaseAboutFragment.taps == 0, { "the first tap counted" })
-        for (tap in 1..7) fixture.versionLayout.performClick()
-        // The seventh count ends the burst (and starts the next one at one), so the counter is
-        // back to zero; a stale seven must not leak into the next burst either.
-        expect(BaseAboutFragment.taps == 0, { "the seven taps did not finish the burst: ${BaseAboutFragment.taps}" })
-        expect(Toast.shownTexts == listOf<CharSequence>("3", "4", "5", "6"),
-                { "the counter toasts are wrong: ${Toast.shownTexts}" })
-        // Each new count toast cancels its predecessor (four cancellations after the third count).
-        expect(Toast.cancels == 4, { "the counter toasts were not cancelled: ${Toast.cancels}" })
-
-        // The seventh count opens the confirmation dialog instead of enabling anything yet.
-        expect(!store.getBoolean(settingsKey(R.string.settings_key_special_features), false),
-                { "the special features were enabled without confirmation" })
-        val dialog = AlertDialog.Builder.lastCreated
-        expect(dialog != null && dialog.positiveButtonListener != null && dialog.negativeButtonListener != null,
-                { "the confirmation dialog did not wire both buttons" })
-
-        // Cancelling changes nothing; confirming enables the feature and toasts it.
-        dialog!!.negativeButtonListener!!.onClick(dialog, DialogInterface.BUTTON_NEGATIVE)
-        expect(!store.getBoolean(settingsKey(R.string.settings_key_special_features), false),
-                { "cancel enabled the special features" })
-        dialog.positiveButtonListener!!.onClick(dialog, DialogInterface.BUTTON_POSITIVE)
-        expect(store.getBoolean(settingsKey(R.string.settings_key_special_features), false),
-                { "the confirmation did not enable the special features" })
-        expect(Toast.shown == listOf(R.string.about_toast_special_features),
-                { "the enabling was not toasted: ${Toast.shown}" })
-
-        // A slow tap restarts the count instead of adding to it, toasts nothing and drops the
-        // burst's toast so it can never be re-shown later.
-        Toast.shownTexts.clear()
-        Thread.sleep(600)
-        fixture.versionLayout.performClick()
-        expect(BaseAboutFragment.taps == 0, { "a slow tap kept the count: ${BaseAboutFragment.taps}" })
-        expect(Toast.shownTexts.isEmpty(), { "a slow tap toasted the counter: ${Toast.shownTexts}" })
-        expect(BaseAboutFragment.currentToast == null, { "the ended burst kept its toast around" })
-
-        // With the features already enabled the second burst only reports them on the seventh
-        // count; the first two counts stay silent instead of repeating the previous burst's toast.
-        for (tap in 1..7) fixture.versionLayout.performClick()
-        expect(BaseAboutFragment.taps == 0, { "the count after the restart is wrong: ${BaseAboutFragment.taps}" })
-        expect(Toast.shownTexts == listOf<CharSequence>("3", "4", "5", "6"),
-                { "the restarted counter toasts are wrong: ${Toast.shownTexts}" })
-        expect(Toast.shown == listOf(R.string.about_toast_special_features,
-                R.string.about_toast_special_features_enabled),
-                { "the already-enabled toast is wrong: ${Toast.shown}" })
-        expect(AlertDialog.Builder.created.size == 1,
-                { "the dialog was shown again: ${AlertDialog.Builder.created.size}" })
-    }
-
-    check("the fdroid about tab adds the donation rows with the clipboard fallback") {
-        resetAboutState()
-        val fixture = AboutPageFixture()
-        val view = fixture.inflate(AboutFragment())
-        expect(view === fixture.root, { "the fdroid fragment inflated the wrong layout" })
-        expect(fixture.author1Content.childCount == 1 && fixture.author2Content.childCount == 1,
-                { "the donation rows were not added: ${fixture.author1Content.childCount}/${fixture.author2Content.childCount}" })
-
-        fixture.author1Content.getChildAt(0).performClick()
-        val first = fixture.host.started.lastOrNull()
-        expect(first != null && first.data.toString() == "https://flocke.shadowice.org/donate.html",
-                { "the first donation link is wrong: ${first?.data}" })
-
-        // Any start failure falls back to the clipboard, not only a missing handler.
-        fixture.host.startFailure = IllegalStateException("synthetic refusal")
-        fixture.host.started.clear()
-        fixture.author2Content.getChildAt(0).performClick()
-        val clips = fixture.host.clipboard.clips
-        expect(clips.size == 1 && clips[0].text == "https://richyhbm.co.uk/donate",
-                { "the donation link was not copied: ${clips.map { it.text }}" })
+    check("Active Compose About version taps publish counts and ignore destroyed hosts") {
+        val activity = AboutScreenActivity("{}")
+        activity.create()
+        val page = activity.contentView as com.fairuniversal.offlineotp.ui.host.AboutScreenComposeView
+        val type = AboutActivity::class.java
+        val taps = type.getDeclaredField("taps").apply { isAccessible = true }
+        val lastTap = type.getDeclaredField("lastTap").apply { isAccessible = true }
+        val tap = type.getDeclaredMethod("versionTap").apply { isAccessible = true }
+        taps.setInt(activity, 2)
+        lastTap.setLong(activity, System.currentTimeMillis())
+        tap.invoke(activity)
+        val notice = page.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+        fun message() = (notice.get(page) as androidx.compose.runtime.MutableState<String>).value
+        expect(taps.getInt(activity) == 3 && message() == "3", { "active About count missing" })
+        lastTap.setLong(activity, 0L)
+        tap.invoke(activity)
+        expect(taps.getInt(activity) == 0 && message().isEmpty(), { "slow tap retained old count" })
+        type.getDeclaredMethod("onDestroy").apply { isAccessible = true }.invoke(activity)
+        tap.invoke(activity)
+        expect(message().isEmpty(), { "destroyed About host accepted taps" })
     }
 
     check("About activity hosts shared content and preserves generated library licenses and flavor actions") {
@@ -5655,7 +5488,7 @@ fun main() {
         activity.create()
         val view = activity.contentView as com.fairuniversal.offlineotp.ui.host.AboutScreenComposeView
         expect(view.libraries == notices, { "generated metadata not passed to common UI" })
-        expect(AboutFragment().sharedExtraLinks().size == 2, { "F-Droid donations missing" })
+        expect(AboutFlavorLinks.extras().size == 2, { "F-Droid donations missing" })
         val before = activity.finishes
         expect(activity.up(), { "up refused" })
         activity.back()
@@ -5866,49 +5699,6 @@ fun main() {
         attached.dispatchOnGlobalLayout()
         expect(host.scroll.scrollY == 1, { "a later layout reset the user's scroll" })
     }
-
-    check("the about screens keep their Java-visible API shapes") {
-        val base = BaseAboutFragment::class.java
-        val flavor = AboutFragment::class.java
-        val screen = AboutActivity::class.java
-
-        // The Java classes were all extendable and kept their inheritance.
-        expect(!Modifier.isFinal(base.modifiers), { "BaseAboutFragment became final" })
-        expect(!Modifier.isFinal(flavor.modifiers), { "AboutFragment became final" })
-        expect(!Modifier.isFinal(screen.modifiers), { "AboutActivity became final" })
-        expect(BaseActivity::class.java.isAssignableFrom(screen), { "AboutActivity lost its base" })
-        expect(base.isAssignableFrom(flavor), { "AboutFragment lost its base" })
-
-        // The two public helpers keep their names and stay overridable.
-        for (name in (arrayOf("openURI", "copyToClipboard"))) {
-            val method = base.getMethod(name, String::class.java)
-            expect(Modifier.isPublic(method.modifiers) && !Modifier.isFinal(method.modifiers),
-                    { "$name lost its public overridable shape" })
-        }
-
-        // The Java package-private statics are public static fields here (documented widening).
-        val images = base.getField("imageResources")
-        expect(Modifier.isStatic(images.modifiers) && images.type == IntArray::class.java,
-                { "imageResources lost its static array shape" })
-        val lastTap = base.getField("lastTap")
-        expect(Modifier.isStatic(lastTap.modifiers) && lastTap.type == java.lang.Long.TYPE,
-                { "lastTap lost its static long shape" })
-        val taps = base.getField("taps")
-        expect(Modifier.isStatic(taps.modifiers) && taps.type == Integer.TYPE,
-                { "taps lost its static int shape" })
-        val currentToast = base.getField("currentToast")
-        expect(Modifier.isStatic(currentToast.modifiers) && currentToast.type == Toast::class.java,
-                { "currentToast lost its static toast shape" })
-    }
-
-
-    // --- twenty-first batch: the converted activities, the manual entry dialog, the credential
-    // preference and the two card adapters ---------------------------------------------------
-    //
-    // Members whose signatures name a platform class without a stub cannot be reflected here.
-    // Those classes are checked by their class shape below (name, modifiers, base classes and
-    // nested types); their members are pinned by the Python source guards and by the Java
-    // instrumentation tests, which run against the real Android runtime.
 
     check("the converted UI classes keep their Java-visible API shapes") {
         val loader = Thread.currentThread().contextClassLoader
@@ -6872,7 +6662,7 @@ fun main() {
         holder.updateValues(custom, fixture.settings)
         fixture.seed(R.string.settings_key_card_layout, "invalid")
         custom.setDetailsVisible(false)
-        expectThrows(IllegalArgumentException::class.java) { holder.updateValues(custom, fixture.settings) }
+        holder.updateValues(custom, fixture.settings) // Unknown display tokens fall back; never crash binding.
         expect(value.tag == null && value.text.toString().isEmpty() && valueLayout.visibility == View.GONE,
             { "a formatting failure exposed a stale token" })
         fixture.seed(R.string.settings_key_card_layout, "full")
@@ -7811,113 +7601,117 @@ fun main() {
     }
 
     check("hardware TOTP display rechecks clock rollback and does not copy a stale code") {
-        Handler.posted.clear()
-        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
-        val accountsView = android.widget.LinearLayout(activity)
-        val key = SecretKeySpec(ByteArray(16) { 73 }, "AES")
-        VaultSession.open(key)
-        val generation = VaultSession.generation()
-        val discovery = HardwareKeyDiscovery(activity) { VaultSession.isCurrent(generation) }
-        var now = 1_500L
-        fun setField(name: String, value: Any) {
-            activity.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
-        }
-        try {
-            setField("generation", generation)
-            setField("discovery", discovery)
-            setField("password", android.widget.EditText(activity))
-            setField("status", android.widget.TextView())
-            setField("accountsView", accountsView)
-            setField("clock", { now })
-            val page = com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView(activity) { _, _ -> }
-            setField("hardwarePage", page)
-            fun visibleAccountLabels(): List<String> {
-                @Suppress("UNCHECKED_CAST")
-                val groups = page.javaClass.getDeclaredMethod("getGroups").apply { isAccessible = true }.invoke(page)
-                    as List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>
-                return groups.flatMap { it.items }.filter { it.key.startsWith("account:") }.map { it.label }
-            }
-            val handler = activity.javaClass.getDeclaredField("handler").apply { isAccessible = true }
-                .get(activity) as Handler
-            val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(5),
-                com.yubico.yubikit.oath.OathType.TOTP, "Example", "alice")
-            val account = HardwareOathClient.Account(credential, "123456", 2_000, 1_000)
-            val accounts = HardwareOathClient.Accounts("fake-device", listOf(account))
-            val render = activity.javaClass.getDeclaredMethod("renderAccounts", HardwareOathClient.Accounts::class.java)
-                .apply { isAccessible = true }
-            render.invoke(activity, accounts)
-            expect(visibleAccountLabels().single().contains("123456"), { "shared hardware page omitted live TOTP" })
-            val button = accountsView.getChildAt(0) as android.widget.Button
-            expect(button.text.toString().contains("123456") && handler.delayed.single().second == 500L,
-                { "valid TOTP was not displayed with a bounded refresh" })
-            now = 999L
-            handler.delayed.removeAt(0).first.run()
-            expect(!button.text.toString().contains("123456"), { "clock rollback left a future code visible" })
-            expect(visibleAccountLabels().none { it.contains("123456") }, { "Compose retained expired/future TOTP after rollback" })
-            now = 1_500L
-            button.performClick()
-            expect(com.yubico.yubikit.android.YubiKitManager.usbCallback != null,
-                { "a previously expired display copied its cached code instead of recalculating" })
-            discovery.cancel()
-            now = 999L
-            render.invoke(activity, accounts)
-            expect(!(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
-                { "code was shown before its validity window" })
-            now = 2_000L
-            render.invoke(activity, accounts)
-            expect(!(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
-                { "code was shown at its expiry boundary" })
-        } finally {
-            discovery.close()
-            VaultSession.lock()
-            Handler.posted.clear()
+        HardwarePageFixture().use { fixture ->
+            var now = 1_500L; fixture.set("clock", { now })
+            val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(5), com.yubico.yubikit.oath.OathType.TOTP, "Example", "alice")
+            val accounts = HardwareOathClient.Accounts("fake-device", listOf(HardwareOathClient.Account(credential, "123456", 2_000, 1_000)))
+            fixture.render(accounts)
+            fun codeShown() = fixture.items().any { it.key.startsWith("account:") && it.label.contains("123456") }
+            expect(codeShown() && fixture.handler.delayed.single().second == 500L, { "Compose omitted live TOTP or bounded expiry" })
+            now = 999L; fixture.handler.delayed.removeAt(0).first.run()
+            expect(!codeShown(), { "clock rollback retained a future code" })
+            now = 1_500L; val pin = "fresh".toCharArray(); fixture.select("account", pin)
+            expect(pin.all { it == '\u0000' }, { "shared page retained submitted password" })
+            expect(com.yubico.yubikit.android.YubiKitManager.usbCallback != null, { "stale display copied cached code instead of recalculating" })
+            fixture.activity.dialog!!.dismiss()
+            now = 999L; fixture.render(accounts); expect(!codeShown(), { "code shown before validity" })
+            now = 2_000L; fixture.render(accounts); expect(!codeShown(), { "code shown at expiry" })
         }
     }
 
     check("interrupted HOTP calculation discards the old displayed code and warns") {
-        Handler.posted.clear()
-        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
-        val password = android.widget.EditText(activity)
-        val status = android.widget.TextView()
-        val accountsView = android.widget.LinearLayout(activity)
-        val key = SecretKeySpec(ByteArray(16) { 72 }, "AES")
-        VaultSession.open(key)
-        val generation = VaultSession.generation()
-        val discovery = HardwareKeyDiscovery(activity) { VaultSession.isCurrent(generation) }
-        fun setField(name: String, value: Any) {
-            activity.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
-        }
-        try {
-            setField("generation", generation)
-            setField("discovery", discovery)
-            setField("password", password)
-            setField("status", status)
-            setField("accountsView", accountsView)
-            val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(4),
-                com.yubico.yubikit.oath.OathType.HOTP, "Example", "alice")
-            val account = HardwareOathClient.Account(credential, "123456", Long.MAX_VALUE)
-            val accounts = HardwareOathClient.Accounts("fake-device", listOf(account))
-            val render = activity.javaClass.getDeclaredMethod("renderAccounts", HardwareOathClient.Accounts::class.java)
-            render.isAccessible = true
-            render.invoke(activity, accounts)
-            expect(accountsView.childCount == 2 && (accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
-                { "fixture did not display the cached HOTP" })
-            val calculate = activity.javaClass.getDeclaredMethod("calculate", String::class.java, HardwareOathClient.Account::class.java)
-            calculate.isAccessible = true
-            calculate.invoke(activity, "fake-device", account)
-            expect(accountsView.childCount == 1 && !(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
-                { "an old HOTP remained available after a new calculation started" })
-            val progress = activity.dialog as? com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
-                ?: throw AssertionError("expected BusyProgressComposeView on HardwareKeyActivity")
-            expect(progress.cancelLabel != null, { "hardware progress dialog lost its cancel action" })
-            progress.dismiss()
-            expect(activity.dialog == null, { "dismissal did not clear hardware progress dialog" })
-            expect(status.textResource == R.string.hardware_hotp_uncertain, { "interruption did not warn about the counter" })
+        HardwarePageFixture().use { fixture ->
+            val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(4), com.yubico.yubikit.oath.OathType.HOTP, "Example", "alice")
+            fixture.render(HardwareOathClient.Accounts("fake-device", listOf(HardwareOathClient.Account(credential, "123456", Long.MAX_VALUE))))
+            expect(fixture.items().any { it.label.contains("123456") }, { "cached HOTP omitted" })
+            fixture.select("next", "fresh".toCharArray())
+            val confirmation = fixture.activity.composeDialog ?: throw AssertionError("missing HOTP consent")
+            val confirm = confirmation.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(confirmation) as () -> Unit
+            confirm()
+            expect(fixture.items().none { it.label.contains("123456") }, { "old HOTP survived a new calculation" })
+            val progress = fixture.activity.dialog as? com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView ?: throw AssertionError("missing cancellable progress")
+            expect(progress.cancelLabel != null, { "progress lost cancellation" }); progress.dismiss()
+            expect(fixture.activity.dialog == null && fixture.status() == fixture.activity.getString(R.string.hardware_hotp_uncertain), { "cancelled HOTP lost uncertainty feedback" })
             expect(com.yubico.yubikit.android.YubiKitManager.usbCallback == null, { "cancel left discovery running" })
-        } finally {
-            discovery.close()
-            VaultSession.lock()
-            Handler.posted.clear()
+        }
+    }
+
+    check("hardware deletion confirmation is revision-bound and cancellation retires stale codes") {
+        HardwarePageFixture().use { fixture ->
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential(byteArrayOf(4)), "123456", Long.MAX_VALUE)
+            val accounts = HardwareOathClient.Accounts("fake-device", listOf(account)); fixture.render(accounts)
+            fixture.select("delete")
+            val confirmation = fixture.activity.composeDialog ?: throw AssertionError("missing shared deletion confirmation")
+            @Suppress("UNCHECKED_CAST")
+            val confirm = confirmation.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(confirmation) as (CharArray) -> Unit
+            val pin = "fresh".toCharArray(); confirm(pin)
+            expect(fixture.items().none { ':' in it.key }, { "deletion retained stale accounts" })
+            fixture.activity.dialog!!.dismiss()
+            expect(fixture.status() == fixture.activity.getString(R.string.hardware_delete_uncertain), { "cancelled deletion lost uncertainty feedback" })
+            expect(pin.all { it == '\u0000' }, { "cancelled deletion retained password" })
+            fixture.render(accounts); val stale = charArrayOf('x'); confirm(stale)
+            expect(stale.all { it == '\u0000' } && fixture.activity.dialog == null, { "stale deletion started hardware operation or retained password" })
+        }
+    }
+
+    check("hardware rename validates names and rejects stale confirmations without retaining passwords") {
+        HardwarePageFixture().use { fixture ->
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential("old".toByteArray()), null, 0)
+            val accounts = HardwareOathClient.Accounts("fake-device", listOf(account)); fixture.render(accounts)
+            fixture.select("rename")
+            val confirmation = fixture.activity.composeDialog ?: throw AssertionError("missing shared rename dialog")
+            @Suppress("UNCHECKED_CAST")
+            val confirm = confirmation.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(confirmation) as (CharArray, String, String) -> Unit
+            val invalid = charArrayOf('x'); confirm(invalid, "bad:issuer", "new")
+            expect(invalid.all { it == '\u0000' } && fixture.activity.dialog == null, { "invalid rename started operation or retained password" })
+            expect(fixture.status() == fixture.activity.getString(R.string.hardware_rename_invalid), { "invalid rename lost feedback" })
+            val late = charArrayOf('x'); confirm(late, "issuer", "new")
+            expect(late.all { it == '\u0000' } && fixture.activity.dialog == null, { "dismissed rename prompt retained authority" })
+            fixture.select("rename")
+            val replacement = fixture.activity.composeDialog ?: throw AssertionError("missing replacement rename form")
+            @Suppress("UNCHECKED_CAST")
+            val retry = replacement.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(replacement) as (CharArray, String, String) -> Unit
+            val pin = "fresh".toCharArray(); retry(pin, "issuer", "new")
+            expect(fixture.items().none { ':' in it.key }, { "rename retained stale account selection" })
+            fixture.activity.dialog!!.dismiss()
+            expect(pin.all { it == '\u0000' }, { "cancelled rename retained password" })
+            expect(fixture.status() == fixture.activity.getString(R.string.hardware_rename_uncertain), { "cancelled rename lost uncertainty feedback" })
+            fixture.render(accounts); val stale = charArrayOf('x'); confirm(stale, "issuer", "new")
+            expect(stale.all { it == '\u0000' } && fixture.activity.dialog == null, { "stale rename started hardware operation" })
+        }
+    }
+
+    check("dismissed deletion prompt cannot authorize a command against the same account revision") {
+        HardwarePageFixture().use { fixture ->
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential(byteArrayOf(1)), null, 0)
+            fixture.render(HardwareOathClient.Accounts("fake-device", listOf(account)))
+            fixture.select("delete")
+            val view = fixture.activity.composeDialog ?: throw AssertionError("no deletion form")
+            @Suppress("UNCHECKED_CAST")
+            val confirm = view.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(view) as (CharArray) -> Unit
+            val dismiss = view.javaClass.getDeclaredField("onDismiss").apply { isAccessible = true }.get(view) as () -> Unit
+            dismiss()
+            fixture.select("delete"); val next = fixture.activity.composeDialog
+            val late = charArrayOf('x'); confirm(late)
+            expect(late.all { it == '\u0000' } && fixture.activity.dialog == null, { "dismissed deletion retained authority/password" })
+            expect(fixture.activity.composeDialog === next, { "old deletion dismissed a replacement prompt" })
+        }
+    }
+
+    check("pending HOTP consent owns a wipeable password until cancellation or stop") {
+        HardwarePageFixture().use { fixture ->
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential(byteArrayOf(1), com.yubico.yubikit.oath.OathType.HOTP), null, 0)
+            fixture.render(HardwareOathClient.Accounts("fake-device", listOf(account)))
+            val revision = fixture.activity.javaClass.getDeclaredField("listRevision").apply { isAccessible = true }.getInt(fixture.activity)
+            val pin = "pending".toCharArray()
+            fixture.activity.javaClass.getDeclaredMethod("confirmHotp", String::class.java, HardwareOathClient.Account::class.java, Int::class.javaPrimitiveType, CharArray::class.java)
+                .apply { isAccessible = true }.invoke(fixture.activity, "fake-device", account, revision, pin)
+            val view = fixture.activity.composeDialog ?: throw AssertionError("no consent")
+            val lateConfirm = view.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(view) as () -> Unit
+            expect(pin.any { it != '\u0000' }, { "password unavailable before consent" })
+            fixture.clear()
+            expect(pin.all { it == '\u0000' }, { "stop retained pending password" })
+            lateConfirm(); expect(fixture.activity.dialog == null, { "late consent restarted work" })
         }
     }
 
@@ -8673,6 +8467,40 @@ fun main() {
         }
     }
 
+    check("Android display settings tolerate newer tokens without crashing or changing stored values") {
+        val fixture = SettingsFixture()
+        val settings = fixture.settings
+        val keys = listOf(R.string.settings_key_sort_mode, R.string.settings_key_card_layout,
+            R.string.settings_key_label_display, R.string.settings_key_tag_functionality,
+            R.string.settings_key_tap_single, R.string.settings_key_tap_double,
+            R.string.settings_key_split_group_size)
+        val priorLocale = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale("tr", "TR"))
+            for (unknown in listOf("future-mode", "", "2147483648", "-1")) {
+                keys.forEach { fixture.seed(it, unknown) }
+                expect(settings.getSortMode() == Constants.SortMode.UNSORTED, { "invalid sort fallback" })
+                expect(settings.getCardLayout() == Constants.CardLayouts.DEFAULT, { "invalid layout fallback" })
+                expect(settings.getLabelDisplay() == Constants.LabelDisplay.TRUNCATE, { "invalid label fallback" })
+                expect(settings.getTagFunctionality() == Constants.TagFunctionality.OR, { "invalid tag rule fallback" })
+                expect(settings.getTapSingle() == Constants.TapMode.NOTHING && settings.getTapDouble() == Constants.TapMode.NOTHING,
+                    { "unknown tap must not copy or reveal secrets" })
+                expect(settings.getTokenSplitGroupSize() == 3, { "invalid grouping fallback" })
+                keys.forEach { expect(fixture.store.getString(settingsKey(it), null) == unknown, { "read rewrote newer setting" }) }
+            }
+            fixture.seed(R.string.settings_key_card_layout, " compact ")
+            fixture.seed(R.string.settings_key_tag_functionality, "single")
+            fixture.seed(R.string.settings_key_split_group_size, " 2 ")
+            expect(settings.getCardLayout() == Constants.CardLayouts.COMPACT, { "known padded layout lost" })
+            expect(settings.getTagFunctionality() == Constants.TagFunctionality.SINGLE, { "Turkish locale changed tag token" })
+            expect(settings.getTokenSplitGroupSize() == 2, { "known grouping lost" })
+            fixture.store.edit().putStringSet(settingsKey(R.string.settings_key_search_includes), setOf("issuer", "future")).commit()
+            expect(settings.getSearchValues() == listOf(Constants.SearchIncludes.ISSUER), { "unknown search token hid known field" })
+            fixture.store.edit().putStringSet(settingsKey(R.string.settings_key_search_includes), setOf("future")).commit()
+            expect(settings.getSearchValues().toSet() == Constants.SearchIncludes.values().toSet(), { "unknown search fields disabled search" })
+        } finally { java.util.Locale.setDefault(priorLocale) }
+    }
+
     check("default 10-minute inactivity timeout arms and locks down after 600 seconds without use") {
         expect(com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.DEFAULT_SECONDS == 600,
             { "AutoLockOptions.DEFAULT_SECONDS must be 600" })
@@ -8926,9 +8754,6 @@ fun main() {
         try {
             hwActivity.javaClass.getDeclaredField("generation").apply { isAccessible = true }.setLong(hwActivity, generation)
             hwActivity.javaClass.getDeclaredField("discovery").apply { isAccessible = true }.set(hwActivity, discovery)
-            hwActivity.javaClass.getDeclaredField("password").apply { isAccessible = true }.set(hwActivity, android.widget.EditText(hwActivity))
-            hwActivity.javaClass.getDeclaredField("status").apply { isAccessible = true }.set(hwActivity, android.widget.TextView())
-            hwActivity.javaClass.getDeclaredField("accountsView").apply { isAccessible = true }.set(hwActivity, android.widget.LinearLayout(hwActivity))
             hwActivity.openCopyChooser(listOf(totp, nonCopyable))
             expect(nonCopyable.getSecret()?.all { it == 0.toByte() } != false, { "non-copyable candidate secret was not destroyed immediately" })
             val copyView = hwActivity.composeDialog as? com.fairuniversal.offlineotp.ui.host.HardwareCopyComposeView
@@ -9597,10 +9422,8 @@ fun main() {
         val type = com.fairuniversal.offlineotp.Activities.BackupActivity::class.java
         val keyField = type.getDeclaredField("encryptionKey").apply { isAccessible = true }
         val hostField = type.getDeclaredField("activeRestoreModeDialog").apply { isAccessible = true }
-        val modeField = type.getDeclaredField("swReplace").apply { isAccessible = true }
+        val modeField = type.getDeclaredField("replaceExisting").apply { isAccessible = true }
         val choose = type.getDeclaredMethod("chooseRestoreMode", Int::class.javaPrimitiveType).apply { isAccessible = true }
-        val mode = com.google.android.material.switchmaterial.SwitchMaterial(fixture.context)
-        modeField.set(activity, mode)
         fun callback(): (Boolean) -> Unit {
             val host = hostField.get(activity)
             expect(host is com.fairuniversal.offlineotp.ui.host.RestoreModeComposeView, { "shared restore mode host" })
@@ -9617,19 +9440,22 @@ fun main() {
             choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
             val merge = callback()
             merge(false)
-            expect(pickers == 1 && !mode.isChecked && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
+            expect(pickers == 1 && !modeField.getBoolean(activity) && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
                 { "merge must be captured before opening encrypted picker" })
             merge(true)
-            expect(pickers == 1 && !mode.isChecked, { "double confirmation must not change mode or relaunch picker" })
+            expect(pickers == 1 && !modeField.getBoolean(activity), { "double confirmation must not change mode or relaunch picker" })
             choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
             callback()(true)
-            expect(pickers == 2 && mode.isChecked && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP,
+            expect(pickers == 2 && modeField.getBoolean(activity) && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP,
                 { "explicit replace must reach OpenPGP picker state" })
+            val saved = android.os.Bundle()
+            type.getDeclaredMethod("onSaveInstanceState", android.os.Bundle::class.java).apply { isAccessible = true }.invoke(activity, saved)
+            expect(saved.getBoolean("replaceExisting", false), { "explicit restore mode must survive recreation without a hidden Switch" })
             choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
             val stale = callback()
             VaultSession.lock()
             stale(false)
-            expect(pickers == 2 && mode.isChecked, { "lock must revoke pending restore-mode confirmation" })
+            expect(pickers == 2 && modeField.getBoolean(activity), { "lock must revoke pending restore-mode confirmation" })
         } finally { VaultSession.lock(); PreferenceManager.reset() }
     }
 
@@ -9652,17 +9478,13 @@ fun main() {
         view.selectTool("backup")
         expect(selected == listOf("backup"), { "busy and cleared frames must not dispatch" })
 
-        val activity = com.fairuniversal.offlineotp.Activities.BackupActivity()
+        var pickers = 0
+        val activity = object : com.fairuniversal.offlineotp.Activities.BackupActivity() {
+            override fun startActivityForResult(intent: Intent, code: Int) { pickers++ }
+        }
         activity.settings = fixture.settings
-        val type = activity.javaClass
+        val type = com.fairuniversal.offlineotp.Activities.BackupActivity::class.java
         fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
-        val backup = android.widget.Button(fixture.context)
-        val restore = android.widget.Button(fixture.context)
-        var clicks = 0
-        backup.setOnClickListener { clicks++ }
-        restore.setOnClickListener { clicks++ }
-        field("btnBackup").set(activity, backup)
-        field("btnRestore").set(activity, restore)
         val frameView = com.fairuniversal.offlineotp.ui.host.BackupOverviewComposeView(fixture.context) {}
         field("backupOverview").set(activity, frameView)
         val publish = type.getDeclaredMethod("publishBackupOverview").apply { isAccessible = true }
@@ -9672,8 +9494,8 @@ fun main() {
         VaultSession.activate(key, unlock.generation)
         field("encryptionKey").set(activity, key)
         try {
-            backup.isEnabled = false
-            restore.isEnabled = true
+            field("backupEnabled").setBoolean(activity, false)
+            field("restoreEnabled").setBoolean(activity, true)
             publish.invoke(activity)
             val readGroups = frameView.javaClass.getDeclaredMethod("getGroups").apply { isAccessible = true }
             @Suppress("UNCHECKED_CAST")
@@ -9681,19 +9503,24 @@ fun main() {
             expect(!rendered.flatMap { it.items }.single { it.key == "backup" }.enabled,
                 { "native provider availability must reach shared frame" })
             dispatch.invoke(activity, "backup")
+            expect(pickers == 0 && field("activeRestoreModeDialog").get(activity) == null, { "disabled backup dispatched" })
             dispatch.invoke(activity, "restore")
-            expect(clicks == 1, { "live disabled action must not dispatch" })
+            val restorePrompt = field("activeRestoreModeDialog").get(activity) ?: throw AssertionError("restore mode dialog missing")
+            @Suppress("UNCHECKED_CAST")
+            val confirmRestore = restorePrompt.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(restorePrompt) as (Boolean) -> Unit
+            confirmRestore(false)
+            expect(pickers == 1, { "enabled restore did not open picker after consent" })
             field("pendingPickerRequestCode").set(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
             dispatch.invoke(activity, "restore")
-            expect(clicks == 1, { "pending picker must block duplicate actions" })
+            expect(pickers == 1, { "pending picker must block duplicate actions" })
             field("pendingPickerRequestCode").set(activity, null)
             field("allowExit").set(activity, false)
             dispatch.invoke(activity, "restore")
-            expect(clicks == 1, { "running task must block actions" })
+            expect(pickers == 1, { "running task must block actions" })
             field("allowExit").set(activity, true)
             VaultSession.lock()
             dispatch.invoke(activity, "restore")
-            expect(clicks == 1, { "locked activity must reject stale action" })
+            expect(pickers == 1, { "locked activity must reject stale action" })
         } finally { VaultSession.lock(); PreferenceManager.reset() }
     }
 
@@ -9723,64 +9550,30 @@ fun main() {
         submit("list")
         expect(dispatched == 2, { "stop may resume; destroyed pages must stay closed" })
 
-        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
-        val type = activity.javaClass
-        fun set(name: String, value: Any) { type.getDeclaredField(name).apply { isAccessible = true }.set(activity, value) }
-        val nativePassword = android.widget.EditText(activity)
-        val nativeAccounts = android.widget.LinearLayout(activity)
-        val button = android.widget.Button(activity)
-        var accountClicks = 0
-        var observedPassword = ""
-        button.setText("Example / alice\n123456")
-        button.setOnClickListener { accountClicks++; observedPassword = nativePassword.text.toString() }
-        nativeAccounts.addView(button)
-        set("password", nativePassword)
-        set("accountsView", nativeAccounts)
-        set("status", android.widget.TextView())
-        val dispatch = type.getDeclaredMethod("dispatchHardwarePageAction", String::class.java, CharArray::class.java)
-            .apply { isAccessible = true }
-        val livePage = com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView(activity) { key, password ->
-            dispatch.invoke(activity, key, password)
+        HardwarePageFixture().use { fixture ->
+            fixture.feedback(R.string.hardware_copy_done)
+            val completed = fixture.status(); expect(completed.isNotEmpty(), { "completion did not reach shared status" })
+            fixture.set("generation", -1L); fixture.feedback(R.string.hardware_failed)
+            expect(fixture.status() == completed, { "stale operation replaced feedback" })
+            fixture.set("generation", VaultSession.generation())
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential(byteArrayOf(1)), null, 0)
+            fixture.render(HardwareOathClient.Accounts("fake-device", listOf(account)))
+            val oldKey = fixture.items().first { it.key.startsWith("account:") }.key
+            fixture.render(HardwareOathClient.Accounts("fake-device", listOf(account)))
+            val stale = "stale".toCharArray(); fixture.dispatch(oldKey, stale)
+            expect(stale.all { it == '\u0000' } && fixture.activity.dialog == null, { "stale revision dispatched or retained password" })
+            val current = fixture.items().first { it.key.startsWith("account:") }.key
+            fixture.set("deviceBusy", true); fixture.dispatch(current, charArrayOf('x'))
+            expect(fixture.activity.dialog == null, { "busy operation dispatched" })
+            fixture.set("deviceBusy", false)
+            val pin = "fresh".toCharArray(); fixture.page.selectTool(current, pin)
+            expect(pin.all { it == '\u0000' } && fixture.activity.dialog != null, { "shared account action failed to own password/dispatch" })
+            fixture.clear()
+            expect(fixture.items().isEmpty() && fixture.activity.dialog == null, { "stop retained shared accounts/work" })
+            fixture.dispatch(current, charArrayOf('x')); expect(fixture.activity.dialog == null, { "stopped callback dispatched" })
+            VaultSession.lock(); fixture.dispatch(current, charArrayOf('x'))
+            expect(fixture.activity.dialog == null, { "locked callback dispatched" })
         }
-        set("hardwarePage", livePage)
-        val publish = type.getDeclaredMethod("publishHardwarePage").apply { isAccessible = true }
-        val clear = type.getDeclaredMethod("clearSensitiveUi").apply { isAccessible = true }
-        val unlock = VaultSession.beginUnlock()
-        VaultSession.activate(SecretKeySpec(ByteArray(32) { 13 }, "AES"), unlock.generation)
-        set("generation", VaultSession.generation())
-        try {
-            publish.invoke(activity)
-            val feedback = type.getDeclaredMethod("showHardwareStatus", Int::class.javaPrimitiveType).apply { isAccessible = true }
-            feedback.invoke(activity, R.string.hardware_copy_done)
-            val statusField = livePage.javaClass.getDeclaredField("status\$delegate").apply { isAccessible = true }
-            fun statusMessage() = (statusField.get(livePage) as androidx.compose.runtime.MutableState<String>).value
-            val completed = statusMessage()
-            expect(completed.isNotEmpty(), { "hardware completion did not reach shared status" })
-            set("generation", -1L)
-            feedback.invoke(activity, R.string.hardware_failed)
-            expect(statusMessage() == completed, { "stale hardware operation replaced shared status" })
-            set("generation", VaultSession.generation())
-
-            val typed = "key-password".toCharArray()
-            livePage.selectTool("account:0:0", typed)
-            expect(accountClicks == 1 && observedPassword == "key-password" && nativePassword.text.isNullOrEmpty(),
-                { "account action must consume native password compatibility buffer" })
-            expect(typed.all { it == '\u0000' }, { "password array not wiped" })
-            set("listRevision", 1)
-            publish.invoke(activity)
-            livePage.selectTool("account:0:0", "stale".toCharArray())
-            expect(accountClicks == 1, { "old account revisions must not dispatch against a new list" })
-            set("deviceBusy", true)
-            dispatch.invoke(activity, "account:1:0", "busy".toCharArray())
-            expect(accountClicks == 1, { "live busy guard" })
-            set("deviceBusy", false)
-            clear.invoke(activity)
-            livePage.selectTool("account:1:0", "stopped".toCharArray())
-            expect(accountClicks == 1 && nativeAccounts.childCount == 0, { "stop must clear native and Compose accounts" })
-            VaultSession.lock()
-            dispatch.invoke(activity, "account:1:0", "locked".toCharArray())
-            expect(accountClicks == 1, { "locked hardware callbacks" })
-        } finally { VaultSession.lock(); PreferenceManager.reset() }
     }
 
     check("Shared hardware unlock PIN form is single-use and session/lifecycle guarded") {
@@ -9828,11 +9621,12 @@ fun main() {
         cancelAttempt.invoke(activity, newProgress)
         expect(newProgress.dismissals == 1, { "matching cancellation callback must dismiss its prompt" })
         field("progress").set(activity, null)
-        val nativePin = android.widget.EditText(activity)
-        field("pin").set(activity, nativePin)
         val attempt = VaultSession.beginUnlock()
         field("generation").set(activity, attempt.generation)
         try {
+            val unlock = type.getDeclaredMethod("unlock", CharArray::class.java).apply { isAccessible = true }
+            val rejected = "background".toCharArray(); unlock.invoke(activity, rejected)
+            expect(rejected.all { it == '\u0000' }, { "background unlock retained PIN" })
             show.invoke(activity)
             expect(field("unlockForm").get(activity) == null, { "background activity must not present a credential form" })
             field("foreground").set(activity, true)
@@ -9842,14 +9636,14 @@ fun main() {
             cleanup.invoke(activity)
             val stoppedPin = "stopped".toCharArray()
             current.submitPin(stoppedPin)
-            expect(field("unlockForm").get(activity) == null && nativePin.text.isNullOrEmpty() && stoppedPin.all { it == '\u0000' },
+            expect(field("unlockForm").get(activity) == null && stoppedPin.all { it == '\u0000' },
                 { "cleanup must dismiss form and revoke its callback" })
             show.invoke(activity)
             val stale = field("unlockForm").get(activity) as com.fairuniversal.offlineotp.ui.host.HardwareUnlockComposeView
             VaultSession.lock()
             val stalePin = "stale".toCharArray()
             stale.submitPin(stalePin)
-            expect(nativePin.text.isNullOrEmpty() && field("progress").get(activity) == null && stalePin.all { it == '\u0000' },
+            expect(field("progress").get(activity) == null && stalePin.all { it == '\u0000' },
                 { "a stale unlock generation must not start device discovery" })
         } finally { cleanup.invoke(activity); VaultSession.lock() }
     }
@@ -9867,7 +9661,6 @@ fun main() {
         fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
         val dispatch = type.getDeclaredMethod("dispatchSettingsOverviewAction", String::class.java).apply { isAccessible = true }
         val publish = type.getDeclaredMethod("publishSettingsOverview").apply { isAccessible = true }
-        val back = type.getDeclaredMethod("returnToSettingsOverview").apply { isAccessible = true }
         val overview = com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView(activity) { dispatch.invoke(activity, it) }
         field("settingsOverview").set(activity, overview)
         val key = SecretKeySpec(ByteArray(32) { 12 }, "AES")
@@ -10256,7 +10049,7 @@ fun main() {
             }
             expect(rejectedEnrollment == BiometricKeyStore.BiometricError.CANCELLED, { "guarded biometric store did not reject revoked ownership" })
             overview.selectTool("advanced")
-            expect(field("showingAdvancedSettings").get(activity) == false && recreations == 0,
+            expect(activity.settingsConfirmationPrompt == null && recreations == 0,
                 { "obsolete native destination must not reopen" })
             overview.selectTool("authentication")
             val authSelection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
@@ -10523,6 +10316,27 @@ fun main() {
         page.showNotice("Pending")
         page.close(); page.showNotice("Late")
         expect(message().isEmpty(), { "closed About retained feedback" })
+    }
+
+    check("Activity content reserves navigation cutout and IME space once without accumulating padding") {
+        val view = android.view.View(Context())
+        view.setPadding(2, 3, 4, 5)
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.applyTo(view)
+        fun dispatch(bars: androidx.core.view.Insets, cutout: androidx.core.view.Insets, ime: androidx.core.view.Insets) {
+            val insets = androidx.core.view.WindowInsetsCompat(mapOf(1 to bars, 2 to cutout, 4 to ime))
+            val consumed = androidx.core.view.ViewCompat.dispatchApplyWindowInsets(view, insets)
+            expect(consumed === androidx.core.view.WindowInsetsCompat.CONSUMED, { "children would apply system insets twice" })
+        }
+        val none = androidx.core.view.Insets(0, 0, 0, 0)
+        val bars = androidx.core.view.Insets(0, 24, 0, 48)
+        dispatch(bars, none, none)
+        expect(view.paddingTop == 27 && view.paddingBottom == 53, { "navigation/status bar overlaps content" })
+        dispatch(bars, none, none)
+        expect(view.paddingBottom == 53, { "insets accumulated on redispatch" })
+        dispatch(bars, none, androidx.core.view.Insets(0, 0, 0, 300))
+        expect(view.paddingBottom == 305, { "IME and navigation insets were added rather than unioned" })
+        dispatch(androidx.core.view.Insets(48, 0, 0, 0), androidx.core.view.Insets(60, 0, 0, 0), none)
+        expect(view.paddingLeft == 62 && view.paddingBottom == 5, { "landscape cutout/navigation or keyboard dismissal failed" })
     }
 
     check("Email import password bridge permits failure retry but rejects consumed and dismissed reads") {

@@ -53,3 +53,32 @@ directory from its own source path), so the iOS client is verified against exact
 JVM suites pin, and a format change breaks both at once. It never writes here.
 
 These are test-only fixtures with a throwaway password and no real accounts.
+
+## Hardware and session-backup contracts
+
+`automatic-backup-options.json` pins foreground session-backup defaults and validation boundaries,
+including UTF-16 password-length units. `AutomaticBackupOptionsContractTest` and Swift's
+`AutomaticBackupPolicyTests` consume exactly this file; it is not an encrypted vault fixture.
+
+`hardware-unlock-envelope.json` contains **synthetic** credential IDs, salts, PRF values, keys,
+nonces and authenticated envelopes for 16/24/32-byte vault keys and credential-ID bounds. They are
+not real hardware credentials. The deterministic independent generator is
+`scripts/packaging/generate-hardware-unlock-fixtures.py` (test-only Python `cryptography` dependency).
+JVM `HardwareUnlockEnvelopeContractTest` checks exact seal/open bytes and tampering; Swift
+`HardwareUnlockEnvelopeTests` uses the same vectors. Added Swift tests still require macOS execution.
+These vectors are not native transport verification. The iOS PRF source route now uses the official
+successor SDK; its Xcode and physical-key acceptance remain pending (see docs/ios-hardware.md).
+
+## Local credential and entry-extension contracts
+
+`automatic-backup-credentials.json` contains independent synthetic AES-GCM/HMAC ABP01 records for
+16/24/32-byte vault keys, consumed by JVM and Swift tests. These local records are not portable
+preferences or vault backups. `hardware-oath-copy.json` pins shared JVM/Swift copy-to-key naming and
+admission rules, including UTF-8 byte limits, period-prefix ambiguity and HOTP counters.
+
+`entry-extension-fields.json` pins opaque newer-client entry metadata: nested arrays/objects, null,
+Unicode and booleans. JVM tests exercise save/reload, typed edits, source/output mutation isolation,
+common manual-editor replacement, cleanup and rejection of cyclic/overdeep direct object graphs.
+Swift tests consume the same document for typed-edit/save/reload preservation. JVM known fields
+still use their validated canonical codec; preserving opaque keys does not prove all known-field
+normalization/default semantics match Swift. Swift consumers have not been executed in Linux.

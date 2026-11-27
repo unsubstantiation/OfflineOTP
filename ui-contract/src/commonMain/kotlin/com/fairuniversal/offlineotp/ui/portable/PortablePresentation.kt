@@ -1030,6 +1030,16 @@ object PortableLibraryCatalog {
             scope = "Android, Desktop (OATH & FIDO2 hardware keys)"
         ),
         PortableLibraryNotice(
+            name = "Yubico YubiKit Swift 1.5.0",
+            license = "Apache License 2.0",
+            scope = "iOS (native NFC / USB-C OATH and WebAuthn PRF)"
+        ),
+        PortableLibraryNotice(
+            name = "Apple SwiftLog 1.6.4",
+            license = "Apache License 2.0",
+            scope = "iOS (YubiKit logging interface; SDK log output disabled)"
+        ),
+        PortableLibraryNotice(
             name = "usb4java & Java Native Access (JNA)",
             license = "MIT License / Apache License 2.0",
             scope = "Desktop (USB CCID/CTAP & native bindings)"

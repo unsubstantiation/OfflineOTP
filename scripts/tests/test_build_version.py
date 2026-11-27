@@ -19,16 +19,9 @@ class BuildVersionTest(unittest.TestCase):
         self.assertIn("versionCode rootProject.ext.buildDateVersionCode", app)
         self.assertNotIn("versionNameSuffix", app)
         self.assertNotIn('versionName "0.9.0.1"', app)
-        about = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Fragments/BaseAboutFragment.kt").read_text()
-        self.assertIn("packageInfo.versionName", about)
-        self.assertIn("version.setText(versionName)", about)
-        self.assertIn("findViewById<TextView>(R.id.about_text_version)", about)
-        layout = ET.parse(ROOT / "app/src/main/res/layout/fragment_about.xml").getroot()
-        android = "{http://schemas.android.com/apk/res/android}"
-        versions = [node for node in layout.iter()
-                    if node.get(android + "id") == "@+id/about_text_version"]
-        self.assertEqual(1, len(versions))
-        self.assertNotIn(versions[0].get(android + "visibility"), ("gone", "invisible"))
+        about = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AboutActivity.kt").read_text()
+        self.assertIn("getPackageInfo(getPackageName(), 0).versionName", about)
+        self.assertIn("AboutScreenComposeView(this, version, libraries", about)
 
     def test_timestamp_is_build_time_akst_with_reproducible_override(self):
         script = (ROOT / "gradle/build-version.gradle").read_text()

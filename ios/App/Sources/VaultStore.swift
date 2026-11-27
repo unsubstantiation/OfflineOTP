@@ -28,6 +28,7 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var isUnlocked = false
     @Published public private(set) var hasVault = false
     @Published public private(set) var entries: [Entry] = []
+    @Published public private(set) var persistedRevision = 0
     @Published private var sessionVisibility: [Entry: Bool] = [:]
     private var revealedAtDates: [Entry: Date] = [:]
 
@@ -81,7 +82,7 @@ public final class VaultStore: ObservableObject {
     /// vault and are never readable through this port.
     public var preferencesPort: PreferencesExport.SettingsPort { PreferencesPort(settings: settings) }
 
-    private final class PreferencesPort: PreferencesExport.SettingsPort {
+    private final class PreferencesPort: PreferencesExport.AtomicSettingsPort {
         private let settings: PropertyListSettings
         init(settings: PropertyListSettings) { self.settings = settings }
 
@@ -106,6 +107,23 @@ public final class VaultStore: ObservableObject {
             case .secret, .deviceBound:
                 return nil
             }
+        }
+
+        func writeBatch(_ values: [String: PreferencesExport.Value]) throws {
+            var changes: [String: Any] = [:]
+            for (key, value) in values {
+                guard let entry = PreferencesExport.setting(key) else {
+                    throw PreferencesExport.PreferencesError.typeMismatch(key)
+                }
+                switch (entry.kind, value) {
+                case (.integer, .integer(let number)): changes[key] = number
+                case (.string, .text(let text)): changes[key] = text
+                case (.boolean, .boolean(let flag)): changes[key] = flag ? "true" : "false"
+                case (.stringSet, .textSet(let items)): changes[key] = items.joined(separator: "\n")
+                default: throw PreferencesExport.PreferencesError.typeMismatch(key)
+                }
+            }
+            try settings.mergeAtomic(changes)
         }
 
         /// Writes one value.
@@ -665,6 +683,67 @@ public final class VaultStore: ObservableObject {
         return parsed.isEmpty ? Set(SearchInclude.allCases) : parsed
     }
 
+    public func saveAutoLockSettings(seconds: Int, relockOnBackground: Bool) throws {
+        guard isUnlocked, seconds >= 0, Int32(exactly: seconds) != nil else { throw VaultCryptoError.invalidParameters }
+        try PreferencesPort(settings: settings).writeBatch([
+            PreferencesExport.inactivityLockKey: .integer(seconds),
+            PreferencesExport.relockBackgroundKey: .boolean(relockOnBackground)
+        ])
+        reloadInactivityLock()
+    }
+
+    /// Validate the complete submitted form before committing once; never half-apply display edits.
+    public func saveCardDisplaySettings(_ draft: [String: String]) throws {
+        guard isUnlocked else { throw VaultCryptoError.invalidParameters }
+        var changes: [String: PreferencesExport.Value] = [:]
+        let enums: [(String, String, [String])] = [
+            ("layout", PreferencesExport.cardLayoutKey, ["DEFAULT", "COMPACT", "FULL"]),
+            ("labelDisplay", PreferencesExport.labelDisplayKey, ["TRUNCATE", "SCROLL", "MULTILINE"]),
+            ("tapSingle", PreferencesExport.tapSingleKey, ["NOTHING", "REVEAL", "COPY"]),
+            ("tapDouble", PreferencesExport.tapDoubleKey, ["NOTHING", "REVEAL", "COPY"])
+        ]
+        for (field, key, allowed) in enums {
+            if let raw = draft[field] {
+                guard allowed.contains(raw) else { throw VaultCryptoError.invalidParameters }
+                changes[key] = .text(raw)
+            }
+        }
+        let flags: [(String, String)] = [
+            ("hideIssuer", PreferencesExport.hideIssuerKey),
+            ("showPreviousToken", PreferencesExport.showPrevTokenKey),
+            ("showIndividualTimeouts", PreferencesExport.showIndividualTimeoutsKey),
+            ("showThumbnails", PreferencesExport.showThumbnailsKey),
+            ("highlightToken", PreferencesExport.highlightTokenKey),
+            ("hideGlobalTimeout", PreferencesExport.hideGlobalTimeoutKey),
+            ("focusSearchOnStart", PreferencesExport.focusSearchOnStartKey)
+        ]
+        for (field, key) in flags {
+            if let raw = draft[field] {
+                guard raw == "true" || raw == "false" else { throw VaultCryptoError.invalidParameters }
+                changes[key] = .boolean(raw == "true")
+            }
+        }
+        let integers: [(String, String, ClosedRange<Int>)] = [
+            ("labelSizeSp", PreferencesExport.labelSizeSpKey, 12...24),
+            ("thumbnailSizeDp", PreferencesExport.thumbnailSizeDpKey, 20...96),
+            ("tapToRevealTimeoutSeconds", PreferencesExport.tapToRevealTimeoutKey, 5...600)
+        ]
+        for (field, key, range) in integers {
+            if let raw = draft[field] {
+                guard let number = Int(raw), number == 0 || range.contains(number) else {
+                    throw VaultCryptoError.invalidParameters
+                }
+                changes[key] = .integer(number)
+            }
+        }
+        if let raw = draft["tokenGroupSize"] {
+            guard let number = Int(raw), [0, 2, 3].contains(number) else { throw VaultCryptoError.invalidParameters }
+            changes[PreferencesExport.splitGroupSizeKey] = .integer(number)
+        }
+        try PreferencesPort(settings: settings).writeBatch(changes)
+        reloadInactivityLock()
+    }
+
     /// Persists the Compose vault card density (`DEFAULT`, `COMPACT`, or `FULL`).
     public func setCardLayout(_ layout: String) {
         let resolved = VaultStore.storedCardLayout(layout)
@@ -839,6 +918,7 @@ public final class VaultStore: ObservableObject {
             let changed = try vault.changePassword(currentPassword: currentPassword, newPassword: newPassword)
             key = changed.key
             entries = changed.entries
+            beginSession() // Invalidates outstanding hardware/backup operation authority after rekey.
             if biometricUnlockEnabled {
                 if let priorIdentifier { biometrics.remove(account: priorIdentifier) }
                 if let newAccount = vault.vaultIdentifier {
@@ -1000,6 +1080,7 @@ public final class VaultStore: ObservableObject {
         guard isUnlocked, !key.isEmpty else { return false }
         do {
             try vault.save(key: key, entries: entries)
+            persistedRevision += 1
             return true
         } catch {
             message = "The vault could not be saved. Your entries are still open here."
@@ -1034,6 +1115,7 @@ public final class VaultStore: ObservableObject {
         sessionVisibility = visibility
         revealedAtDates = nextRevealedDates
         entries = proposed
+        persistedRevision += 1
         return true
     }
 
@@ -1069,8 +1151,10 @@ public final class VaultStore: ObservableObject {
     @discardableResult
     public func update(at index: Int, with entry: Entry) -> Bool {
         guard entries.indices.contains(index) else { return false }
+        var replacement = entry
+        replacement.preserveExtensionFields(from: entries[index])
         var proposed = entries
-        proposed[index] = entry
+        proposed[index] = replacement
         return commit(proposed)
     }
 
@@ -1217,6 +1301,29 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Exact file-copy backup. No alternate backup password or second encryption layer.
+    public func exportVaultSnapshot(now: Date = Date()) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        do {
+            let suffix = backupAppendDateTime ? "-" + BackupFileNames.timestamp(now) : ""
+            return ExportedBackup(name: "OfflineOTP-vault" + suffix + ".offlineotp", data: try vault.snapshot(key: key))
+        } catch {
+            message = "Full file copies require a self-contained vault. Upgrade a legacy password vault by changing its vault password first."
+            return nil
+        }
+    }
+
+    public func migrateAndExportVaultSnapshot(password: String) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        do {
+            try vault.migrateToContainer(password: password)
+            return exportVaultSnapshot()
+        } catch {
+            message = "Migration failed. Check the current vault password and available storage. The original vault has not been intentionally replaced on failure."
+            return nil
+        }
+    }
+
     /// Previews the entry count of a password-encrypted backup without mutating the vault.
     public func previewEncryptedBackupCount(encrypted data: Data, password: String) -> Int? {
         guard isUnlocked else { return nil }
@@ -1338,6 +1445,23 @@ public final class VaultStore: ObservableObject {
     /// Rust XCFramework reports that instead of letting the user pick files and then fail.
     public var openPgpAvailability: OpenPgpAvailability {
         .inApp(backendAvailable: openPgp.isAvailable)
+    }
+
+    /// Detached encoder: the worker borrows no live entries or mutable presentation state.
+    func automaticOpenPgpEncoder() -> (String, [Data]) throws -> Data {
+        let port = openPgp
+        return { document, keys in try OpenPgpBackupCodec.seal(port: port, plain: document, recipientKeyBlocks: keys) }
+    }
+
+    func automaticOpenPgpSignedEncoder() -> (String, [Data], Data, String) throws -> Data {
+        let port = openPgp
+        return { document, keys, signingKey, passphrase in
+            guard let signer = port as? OpenPgpSigningPort else {
+                throw OpenPgpError.backendUnavailable(reason: "This engine cannot sign backups.")
+            }
+            return try OpenPgpBackupCodec.sealSigned(port: signer, plain: document, recipientKeyBlocks: keys,
+                signingKeyBlock: signingKey, passphrase: passphrase)
+        }
     }
 
     /// Encrypts the vault document to one or more OpenPGP recipient public keys (`.json.gpg`).
@@ -2040,5 +2164,57 @@ public final class VaultStore: ObservableObject {
     }
 
     /// The folder this store reads and writes, for the diagnostics line on the lock screen.
+    private var hardwareRecordURL: URL { directory.appendingPathComponent("hardware-unlock.b64") }
+    var hasHardwareUnlockRecord: Bool { FileManager.default.fileExists(atPath: hardwareRecordURL.path) }
+    func hardwareUnlockEnvelope() throws -> Data? {
+        guard hasHardwareUnlockRecord else { return nil }
+        let values = try hardwareRecordURL.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
+        guard values.isSymbolicLink != true, values.isRegularFile == true else { throw VaultCryptoError.invalidParameters }
+        let handle = try FileHandle(forReadingFrom: hardwareRecordURL)
+        defer { try? handle.close() }
+        let encoded = try handle.read(upToCount: 2049) ?? Data()
+        guard encoded.count <= 2048, let text = String(data: encoded, encoding: .ascii),
+              let envelope = Data(base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              HardwareUnlockEnvelope.request(envelope) != nil else { throw VaultCryptoError.invalidParameters }
+        return envelope
+    }
+    func hardwareEnrollmentKey() throws -> Data {
+        guard isUnlocked, !key.isEmpty else { throw VaultCryptoError.invalidKey }
+        return Data(key)
+    }
+    func installHardwareUnlockEnvelope(_ envelope: Data) throws {
+        guard isUnlocked, HardwareUnlockEnvelope.request(envelope) != nil else { throw VaultCryptoError.invalidParameters }
+        let encoded = Data(envelope.base64EncodedString().utf8)
+        guard encoded.count <= 2048 else { throw VaultCryptoError.invalidParameters }
+        try FileByteStore(url: hardwareRecordURL).writeAtomic(encoded)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600, .protectionKey: FileProtectionType.complete], ofItemAtPath: hardwareRecordURL.path)
+    }
+    func removeHardwareUnlockEnvelope() throws {
+        guard isUnlocked else { throw VaultCryptoError.invalidKey }
+        if hasHardwareUnlockRecord { try FileManager.default.removeItem(at: hardwareRecordURL) }
+    }
+    func unlockWithHardwareKey(_ candidate: Data) -> Bool {
+        guard !isUnlocked, hasVault else { return false }
+        do {
+            let unlocked = try vault.openWithKey(Array(candidate))
+            key = unlocked.key; entries = unlocked.entries; isUnlocked = true; beginSession(); message = nil
+            return true
+        } catch { message = "The hardware key did not open this vault. Use the vault password and re-enroll if its key changed."; return false }
+    }
+
+    var hasAutomaticBackupConfiguration: Bool { AutomaticBackupCredentialStore(directory: directory).exists }
+    func loadAutomaticBackupConfiguration() throws -> AutomaticBackupConfiguration? {
+        guard isUnlocked, !key.isEmpty else { throw VaultCryptoError.invalidKey }
+        return try AutomaticBackupCredentialStore(directory: directory).load(key: key)
+    }
+    func saveAutomaticBackupConfiguration(_ configuration: AutomaticBackupConfiguration) throws {
+        guard isUnlocked, !key.isEmpty else { throw VaultCryptoError.invalidKey }
+        try AutomaticBackupCredentialStore(directory: directory).save(configuration, key: key)
+    }
+    func forgetAutomaticBackupConfiguration() throws {
+        guard isUnlocked else { throw VaultCryptoError.invalidKey }
+        try AutomaticBackupCredentialStore(directory: directory).forget()
+    }
+
     public var folderPath: String { directory.path }
 }

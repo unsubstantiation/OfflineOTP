@@ -1,5 +1,9 @@
 # Cross-build feature and UI audit — 2026-11-07
 
+> Historical report: current routes and remaining differences are audited in
+> [the 2026-11-20 source audit](cross-platform-parity-audit-2026-11-20.md). Do not use the old native
+> About/SwiftUI/navigation descriptions below as current completion evidence.
+
 ## Conclusion
 
 **The builds are not yet fully feature-equivalent or visually identical.** Windows, macOS and

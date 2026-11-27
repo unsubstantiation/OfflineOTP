@@ -1,0 +1,285 @@
+{
+  "description": "Synthetic seed/name admission vectors shared by JVM and Swift copy-to-key policies.",
+  "vectors": [
+    {
+      "name": "default",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "Issuer:alice"
+    },
+    {
+      "name": "nondefault period",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 60,
+        "counter": 0
+      },
+      "identifier": "60/Issuer:alice"
+    },
+    {
+      "name": "leading period issuer",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "60/Issuer",
+        "label": "alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "30/60/Issuer:alice"
+    },
+    {
+      "name": "leading period account",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "",
+        "label": "60/alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "30/60/alice"
+    },
+    {
+      "name": "hotp leading slash",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "",
+        "label": "60/alice",
+        "type": "HOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "60/alice"
+    },
+    {
+      "name": "issuer colon ambiguous",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "A:B",
+        "label": "alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "account colon without issuer",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "",
+        "label": "a:b",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "account colon with issuer",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "a:b",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "Issuer:a:b"
+    },
+    {
+      "name": "empty account",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "control character",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice\n",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "unicode format",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "a​b",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "unicode line separator",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "a b",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "id 64 bytes",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "i",
+        "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "i:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "id 65 bytes",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "i",
+        "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "utf8 boundary",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "i",
+        "label": "ééééééééééééééééééééééééééééééé",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": "i:ééééééééééééééééééééééééééééééé"
+    },
+    {
+      "name": "utf8 exceeds boundary",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "i",
+        "label": "éééééééééééééééééééééééééééééééé",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "unsupported digits five",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 5,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "unsupported digits nine",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice",
+        "type": "TOTP",
+        "algorithm": "SHA1",
+        "digits": 9,
+        "period": 30,
+        "counter": 0
+      },
+      "identifier": null
+    },
+    {
+      "name": "hotp counter max",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice",
+        "type": "HOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 2147483647
+      },
+      "identifier": "Issuer:alice"
+    },
+    {
+      "name": "hotp counter exceeds native parity",
+      "entry": {
+        "secret": "JBSWY3DPEHPK3PXP",
+        "issuer": "Issuer",
+        "label": "alice",
+        "type": "HOTP",
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30,
+        "counter": 2147483648
+      },
+      "identifier": null
+    }
+  ]
+}

@@ -55,7 +55,7 @@ open class EncryptedBackupTask : GenericBackupTask {
     protected override fun canWrite(): Boolean {
         if (isCanceled() || !permitted.getAsBoolean() || password == null || password.isEmpty()) return false
         if (mode == Mode.USER) return VaultSession.getKey() != null
-        if (LoginBackupPolicy.usesLoginPassword(applicationContext)) return false
+        if (LoginBackupPolicy.usesVaultCopy(applicationContext) || LoginBackupPolicy.usesLoginPassword(applicationContext)) return false
         if (configuredLocation == null || !settings.isBackupLocationSet()
                 || configuredLocation != settings.getBackupLocation() || password != settings.getBackupPasswordEnc()) return false
         if (mode == Mode.BROADCAST) return settings.isEncryptedBackupBroadcastEnabled()
@@ -82,5 +82,28 @@ open class EncryptedBackupTask : GenericBackupTask {
     protected override fun doBackup(): Boolean {
         val payload = synchronized(entries) { DatabaseHelper.entriesToString(entries) }
         return BackupHelper.backupToFile(applicationContext, uri, password, payload, this::canWrite)
+    }
+}
+
+/** Full backup: authenticate and copy saved container bytes, with no entry serialization or KDF. */
+open class VaultSnapshotBackupTask(context: Context, uri: Uri?, private val migrationPassword: String? = null) : GenericBackupTask(context, uri) {
+    override fun getBackupType(): Constants.BackupType = Constants.BackupType.ENCRYPTED
+
+    override fun doBackup(): Boolean {
+        var snapshot: ByteArray? = null
+        return try {
+            synchronized(DatabaseHelper.DatabaseFileLock) {
+                if (!canWrite()) return false
+                if (migrationPassword != null && DatabaseHelper.migrateToContainer(
+                        applicationContext, migrationPassword, VaultSession.getKey(), this::canWrite)
+                    !is com.fairuniversal.offlineotp.Utilities.VaultWriteResult.Saved) return false
+                if (!canWrite()) return false
+                snapshot = DatabaseHelper.vaultSnapshot(applicationContext, VaultSession.getKey())
+            }
+            if (!canWrite()) return false
+            com.fairuniversal.offlineotp.Utilities.StorageAccessHelper.saveFile(
+                applicationContext, uri, requireNotNull(snapshot), this::canWrite)
+        } catch (_: Exception) { false }
+        finally { snapshot?.fill(0) }
     }
 }

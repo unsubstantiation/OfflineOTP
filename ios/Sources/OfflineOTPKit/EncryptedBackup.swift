@@ -185,6 +185,12 @@ public enum EncryptedBackup {
 
     /// Decrypts an Argon2id or legacy PBKDF2 backup (or a LinSCP `LSCPVLT2` vault), or fails.
     public static func open(password: String, data: Data) throws -> String {
+        if VaultContainer.isContainer(data) {
+            var plaintext = try VaultContainer.open(password: password, data: data)
+            defer { plaintext.resetBytes(in: 0..<plaintext.count) }
+            guard let text = String(data: plaintext, encoding: .utf8) else { throw EncryptedBackupError.invalidUTF8 }
+            return text
+        }
         if LinScpVault.isEncryptedVault(data) {
             return try LinScpVault.openToDocument(password: password, data: data)
         }

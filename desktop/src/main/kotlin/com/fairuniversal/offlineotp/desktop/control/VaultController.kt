@@ -19,6 +19,8 @@ import javax.crypto.SecretKey
  */
 class VaultController(private val vault: PasswordVault) {
     private val writeGate = DesktopWriteGate()
+    private val successfulSaves = java.util.concurrent.atomic.AtomicLong()
+    val persistedRevision: Long get() = successfulSaves.get()
     val persistenceBusy: Boolean get() = writeGate.busy
     private fun exclusiveSession(operation: () -> Session): Session =
         writeGate.exclusive<Session>(Session.Error(Failure.IO_FAILURE), operation)
@@ -83,12 +85,25 @@ class VaultController(private val vault: PasswordVault) {
     }
 
     fun save(key: SecretKey, entries: ArrayList<Entry>): Boolean =
-        writeGate.exclusive(false) { vault.save(key, entries) is VaultWriteResult.Saved }
+        writeGate.exclusive(false) {
+            (vault.save(key, entries) is VaultWriteResult.Saved).also { if (it) successfulSaves.incrementAndGet() }
+        }
+
+    /** A full backup copies authenticated container bytes under the same persistence lease as saves. */
+    fun vaultSnapshot(key: SecretKey): ByteArray? = writeGate.exclusive<ByteArray?>(null) {
+        try { vault.snapshot(key) } catch (_: Exception) { null }
+    }
+
+    fun migrateAndSnapshot(password: String, key: SecretKey, permitted: () -> Boolean): ByteArray? =
+        writeGate.exclusive<ByteArray?>(null) {
+            if (vault.migrateToContainer(password, permitted) !is VaultWriteResult.Saved || !permitted()) null
+            else try { vault.snapshot(key) } catch (_: Exception) { null }
+        }
 
     /** The worker already owns this controller's lease; do not recursively call save(). */
     fun detachedSave(worker: java.util.concurrent.Executor, dispatch: (Runnable) -> Unit): DesktopDetachedSave =
         DesktopDetachedSave(worker, dispatch, writeGate) { key, entries ->
-            vault.save(key, entries) is VaultWriteResult.Saved
+            (vault.save(key, entries) is VaultWriteResult.Saved).also { if (it) successfulSaves.incrementAndGet() }
         }
 
     /**
@@ -130,6 +145,18 @@ class VaultController(private val vault: PasswordVault) {
         if (seconds < 0) return false
         return try {
             vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun trySaveAutoLockSettings(seconds: Int, relockOnBackground: Boolean): Boolean {
+        if (seconds < 0) return false
+        return try {
+            val settings = vault.preferences as? com.fairuniversal.offlineotp.desktop.storage.DesktopSettings ?: return false
+            settings.putAll(mapOf(
+                VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS to seconds.toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_RELOCK_BACKGROUND to relockOnBackground.toString()
+            ))
             true
         } catch (_: Exception) { false }
     }
@@ -251,6 +278,36 @@ class VaultController(private val vault: PasswordVault) {
         )
         true
     } catch (_: Exception) { false }
+
+    /** Commit the common card-display form as one atomic preferences transaction. */
+    fun trySaveCardDisplaySelection(selection: com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection): Boolean {
+        if (selection.labelSizeSp != 0 && selection.labelSizeSp !in 12..24 ||
+            selection.thumbnailSizeDp != 0 && selection.thumbnailSizeDp !in 20..96 ||
+            selection.tapToRevealTimeoutSeconds != 0 && selection.tapToRevealTimeoutSeconds !in 5..600 ||
+            selection.tokenGroupSize != null && selection.tokenGroupSize !in listOf(0, 2, 3)) return false
+        return try {
+            val settings = vault.preferences as? com.fairuniversal.offlineotp.desktop.storage.DesktopSettings ?: return false
+            settings.putAll(mapOf(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_CARD_LAYOUT to (selection.layout.name).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIDE_ISSUER to (selection.hideIssuer).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_PREV_TOKEN to (selection.showPreviousToken).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SPLIT_GROUP_SIZE to (selection.tokenGroupSize?.toString() ?: "").toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS to (selection.showIndividualCountdowns).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_DISPLAY to (selection.labelDisplay.name).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_THUMBNAILS to (selection.showThumbnails).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_SIZE_SP to (selection.labelSizeSp).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIGHLIGHT_TOKEN to (selection.highlightExpiringTokens).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_SINGLE to (selection.tapSingle.name).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_DOUBLE to (selection.tapDouble.name).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIDE_GLOBAL_TIMEOUT to (selection.hideGlobalTimeout).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT to (selection.tapToRevealTimeoutSeconds).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_THUMBNAIL_SIZE_DP to (selection.thumbnailSizeDp).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_FOCUS_SEARCH_ON_START to (selection.focusSearchOnStart).toString(),
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_MINIMIZE_ON_COPY to (selection.minimizeOnCopy).toString()
+            ))
+            true
+        } catch (_: Exception) { false }
+    }
 
     fun savedLabelSizeSp(): Int = try {
         val raw = vault.preferences.getInt(

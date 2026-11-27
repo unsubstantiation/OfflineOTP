@@ -234,4 +234,69 @@ final class PreferencesExportTests: XCTestCase {
         XCTAssertEqual(target.writes[PreferencesExport.selectedTagsKey], .textSet(["work", "infra"]))
         XCTAssertEqual(target.writes[PreferencesExport.untaggedSelectedKey], .boolean(true))
     }
+    func testIntegerOverflowAndCoercionNeverApplyPartialSettings() throws {
+        for bad in ["1.5", "4294967296", "-2147483649", "2147483648", "18446744073709551615", "true", "\"30\""] {
+            let target = FakePort()
+            let json = """
+            {"format":"offlineotp.preferences","version":1,"platform":"ios","settings":{"ui_hide_issuer":true,"ui_inactivity_lock_seconds":\(bad)}}
+            """
+            XCTAssertThrowsError(try PreferencesExport.apply(Data(json.utf8), into: target), bad)
+            XCTAssertTrue(target.writes.isEmpty())
+        }
+    }
+
+    func testAtomicPortUsesOneBatchAndPropagatesFailureWithoutIndividualWrites() throws {
+        final class AtomicPort: PreferencesExport.AtomicSettingsPort {
+            var batches = 0
+            var fail = true
+            func storedKeys() -> Set<String> { [] }
+            func read(_ key: String) -> PreferencesExport.Value? { nil }
+            func write(_ key: String, _ value: PreferencesExport.Value) { XCTFail("individual write") }
+            func writeBatch(_ values: [String: PreferencesExport.Value]) throws {
+                batches += 1
+                XCTAssertEqual(2, values.count)
+                if fail { throw CocoaError(.fileWriteOutOfSpace) }
+            }
+        }
+        let bytes = try PreferencesExport.export(FakePort([
+            PreferencesExport.sortModeKey: .text("LABEL"),
+            PreferencesExport.inactivityLockKey: .integer(45)
+        ])).bytes
+        let target = AtomicPort()
+        XCTAssertThrowsError(try PreferencesExport.apply(bytes, into: target))
+        XCTAssertEqual(1, target.batches)
+        target.fail = false
+        XCTAssertEqual(2, try PreferencesExport.apply(bytes, into: target).applied)
+        XCTAssertEqual(2, target.batches)
+    }
+
+    func testTextLimitsUseUTF16AndApplyToSetElementsToo() throws {
+        // A supplementary scalar occupies two UTF16 units on Kotlin/JVM as well.
+        let oversized = String(repeating: "😀", count: PreferencesExport.maxStringChars / 2 + 1)
+        for (key, value) in [
+            (PreferencesExport.sortModeKey, PreferencesExport.Value.text(oversized)),
+            (PreferencesExport.searchIncludesKey, PreferencesExport.Value.textSet([oversized]))
+        ] {
+            XCTAssertThrowsError(try PreferencesExport.export(FakePort([key: value])))
+        }
+        let raw: [String: Any] = ["format": PreferencesExport.format, "version": 1, "platform": "ios",
+                                  "settings": [PreferencesExport.searchIncludesKey: [oversized]]]
+        let bytes = try JSONSerialization.data(withJSONObject: raw)
+        let target = FakePort()
+        XCTAssertThrowsError(try PreferencesExport.apply(bytes, into: target))
+        XCTAssertTrue(target.writes.isEmpty())
+    }
+
+    func testExportIntegerRangeMatchesImportAndJvmWithoutClamping() throws {
+        for valid in [Int(Int32.min), Int(Int32.max)] {
+            let bytes = try PreferencesExport.export(FakePort([PreferencesExport.inactivityLockKey: .integer(valid)])).bytes
+            let target = FakePort()
+            _ = try PreferencesExport.apply(bytes, into: target)
+            XCTAssertEqual(.integer(valid), target.writes[PreferencesExport.inactivityLockKey])
+        }
+        for invalid in [Int(Int32.min) - 1, Int(Int32.max) + 1] {
+            XCTAssertThrowsError(try PreferencesExport.export(FakePort([PreferencesExport.inactivityLockKey: .integer(invalid)])))
+        }
+    }
+
 }

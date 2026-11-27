@@ -289,10 +289,10 @@ fun SharedPasswordEntryDialog(
                         )
                     }
                     if (errorText != null) {
-                        Text(text = errorText)
+                        SharedStatusMessage(errorText)
                     } else if (failed) {
-                        Text(
-                            text = if (editing) {
+                        SharedStatusMessage(
+                            if (editing) {
                                 "Could not update the password entry. Check the fields and vault storage. Re-enter any new password to retry."
                             } else {
                                 "Could not add the password entry. Check the fields and vault storage. Re-enter the password to retry."

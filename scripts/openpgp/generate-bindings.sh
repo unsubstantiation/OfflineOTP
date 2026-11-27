@@ -25,6 +25,8 @@ CONFIG="$ROOT/rust/offlineotp-openpgp/uniffi.toml"
 
 commit_file() {
     local src="$1" dst="$2"
+    # UniFFI 0.28 emits trailing blanks; normalize identically for generation and drift checks.
+    sed -i 's/[[:blank:]]*$//' "$src"
     mkdir -p "$(dirname "$dst")"
     if [[ "$MODE" == "--check" ]]; then
         if ! cmp -s "$src" "$dst"; then

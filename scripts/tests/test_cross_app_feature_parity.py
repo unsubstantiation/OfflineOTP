@@ -27,6 +27,23 @@ IOS_APP = ROOT / "ios/App/Sources"
 
 
 class CrossAppFeatureParityTest(unittest.TestCase):
+    def test_opaque_entry_extensions_have_shared_roundtrip_contract_and_editor_handoffs(self):
+        entry = (CORE / "Database/Entry.kt").read_text()
+        self.assertIn("EntryJson.extensionFields(jsonObj)", entry)
+        self.assertIn("fun preserveExtensionFieldsFrom(source: Entry)", entry)
+        self.assertIn("extensionFields = null", entry)
+        for path in [ANDROID / "View/AndroidVaultController.kt",
+                     DESKTOP / "control/DesktopEntryTransaction.kt",
+                     ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt"]:
+            self.assertIn("preserveExtensionFieldsFrom(", path.read_text())
+        for path in [ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/storage/EntryExtensionContractTest.kt",
+                     ROOT / "ios/Tests/OfflineOTPKitTests/EntryExtensionContractTests.swift"]:
+            self.assertIn("entry-extension-fields.json", path.read_text())
+        self.assertTrue((ROOT / "desktop/src/test/resources/golden/entry-extension-fields.json").is_file())
+        self.assertIn("preserveExtensionFieldsFrom(existing)", (DESKTOP / "control/EntryEditor.kt").read_text())
+        self.assertIn("result.preserveExtensionFields(from: existing)", (IOS_KIT / "EntryDraft.swift").read_text())
+        self.assertIn("replacement.preserveExtensionFields(from: entries[index])", (IOS_APP / "VaultStore.swift").read_text())
+
     def test_all_three_clients_support_ssh_passwords_and_email_materials(self):
         # :core
         self.assertTrue((CORE / "Utilities/SshKeyMaterial.kt").is_file())

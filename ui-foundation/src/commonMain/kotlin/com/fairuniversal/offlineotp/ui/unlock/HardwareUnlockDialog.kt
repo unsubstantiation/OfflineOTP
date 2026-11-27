@@ -32,7 +32,7 @@ fun HardwareUnlockDialog(
             OutlinedTextField(value = pin, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) pin = it }, enabled = !busy,
                 singleLine = true, label = { Text(text = pinLabel) }, visualTransformation = PasswordVisualTransformation())
             if (busy) Text(text = "Waiting for security key…")
-            if (error != null) Text(text = error)
+            com.fairuniversal.offlineotp.ui.vault.SharedStatusMessage(error)
         } }, confirmButton = { TextButton(enabled = !busy, onClick = {
             val submitted = pin.toCharArray(); pin = ""; onSubmit(submitted)
         }) { Text(text = confirmLabel) } }, dismissButton = { TextButton(enabled = !busy, onClick = { pin = ""; onDismiss() }) { Text(text = dismissLabel) } })

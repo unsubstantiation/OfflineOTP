@@ -13,11 +13,18 @@ final class UnlockCoordinator: NSObject, UnlockActions {
     private var subscription: AnyCancellable?
     private var attemptedBiometricAutoPrompt = false
     private var active = true
+    private var foreground = UIApplication.shared.applicationState != .background
+    private let hardware = HardwareFidoReader()
+    private var hardwareVisible = false
+    private var hardwareBusy = false
+    private var hardwareError: String?
 
     init(store: VaultStore, onRestore: @escaping () -> Void) {
         self.store = store
         self.onRestore = onRestore
         super.init()
+        NotificationCenter.default.addObserver(self, selector: #selector(suspendHardware), name: UIScene.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(resume), name: UIScene.didActivateNotification, object: nil)
         subscription = store.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.render() }
@@ -25,7 +32,9 @@ final class UnlockCoordinator: NSObject, UnlockActions {
 
     private func render() {
         guard active else { return }
-        presentation.update(busy: false, error: store.message, creating: !store.hasVault,
+        presentation.updateHardware(available: store.hasHardwareUnlockRecord, visible: hardwareVisible, error: hardwareError,
+            nfcAvailable: HardwareNativeOperation.supportsNFC, usbAvailable: HardwareNativeOperation.supportsUSBC)
+        presentation.update(busy: hardwareBusy, error: store.message, creating: !store.hasVault,
                              quickUnlockLabel: store.canUnlockWithBiometrics ? "Unlock with \(store.biometryTitle)" : nil,
                              hint: store.folderPath)
     }
@@ -37,42 +46,81 @@ final class UnlockCoordinator: NSObject, UnlockActions {
     }
 
     func unlock(password: String) {
-        guard active, !store.isUnlocked, store.hasVault else { return }
+        guard foreground else { return }
+        guard active, !hardwareVisible, !hardwareBusy, !store.isUnlocked, store.hasVault else { return }
         store.unlock(password: password)
         refresh()
     }
 
     func create(password: String, confirmation: String) {
+        guard foreground else { return }
         guard active, !store.isUnlocked, !store.hasVault else { return }
         store.unlock(password: password, confirmation: confirmation, creating: true)
         refresh()
     }
 
     func quickUnlock() {
-        guard active, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
+        guard foreground else { return }
+        guard active, !hardwareVisible, !hardwareBusy, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
         store.unlockWithBiometrics()
         refresh()
     }
 
     func restore() {
+        guard foreground else { return }
         guard active, !store.hasVault, !store.isUnlocked else { return }
         onRestore()
     }
 
     func about() {
+        guard foreground else { return }
         guard active, !store.isUnlocked else { return }
         onAbout?()
     }
 
     func attemptBiometricUnlockOnce() {
-        guard active, !attemptedBiometricAutoPrompt, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
+        guard foreground else { return }
+        guard active, !hardwareVisible, !hardwareBusy, !attemptedBiometricAutoPrompt, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
         attemptedBiometricAutoPrompt = true
         store.unlockWithBiometrics()
         refresh()
     }
 
+    func hardwareUnlock() {
+        guard foreground else { return }
+        guard active, !hardwareVisible, !hardwareBusy, !store.isUnlocked, store.hasHardwareUnlockRecord else { return }
+        hardwareVisible = true; hardwareBusy = false; hardwareError = nil; render()
+    }
+    func hardwareSubmit(pin: String, usb: Bool) {
+        guard foreground else { return }
+        guard active, hardwareVisible, !hardwareBusy, !store.isUnlocked else { return }
+        let generation = store.generation
+        do {
+            guard let envelope = try store.hardwareUnlockEnvelope() else { hardwareError = "No enrolled local record. Use the vault password."; render(); return }
+            hardwareBusy = true; hardwareError = nil; render()
+            hardware.unlock(transport: usb ? .usbC : .nfc, pin: pin, envelope: envelope) { [weak self] key, error in
+                var key = key
+                defer { if let count = key?.count { key?.resetBytes(in: 0..<count) } }
+                guard let self = self, self.active, self.hardwareVisible, !self.store.isUnlocked, self.store.generation == generation else { return }
+                self.hardwareBusy = false
+                if let key = key {
+                    if !self.store.unlockWithHardwareKey(key) { self.hardwareError = self.store.message }
+                } else { self.hardwareError = error }
+                self.render()
+            }
+        } catch { hardwareBusy = false; hardwareError = "The local hardware record is unreadable. Use the vault password."; render() }
+    }
+    @objc private func suspendHardware() { foreground = false; hardwareCancel() }
+    @objc private func resume() { foreground = true; refresh() }
+    func hardwareCancel() {
+        hardware.cancel(); hardwareBusy = false; hardwareVisible = false; hardwareError = nil
+        render()
+    }
+    deinit { NotificationCenter.default.removeObserver(self) }
+
     func close() {
         active = false
+        hardware.cancel(); hardwareBusy = false; hardwareVisible = false; hardwareError = nil
         onAbout = nil
         subscription?.cancel()
         subscription = nil

@@ -19,6 +19,12 @@ options:
 packages:
   # The format layer: vault, backup, entry document and token maths. Shared with the JVM clients
   # through the fixed vectors in desktop/src/test/resources/golden, not through code.
+  YubiKit:
+    url: https://github.com/Yubico/yubikit-swift.git
+    revision: 03fe66d15b6e863e87a44c7a263b7bffedda9d79
+  SwiftLog:
+    url: https://github.com/apple/swift-log.git
+    revision: ce592ae52f982c847a4efc0dd881cc9eb32d29f2
   OfflineOTPKit:
     path: .
 
@@ -56,6 +62,14 @@ targets:
         embed: false
       - package: OfflineOTPKit
         product: OfflineOTPKit
+      - package: YubiKit
+        product: YubiKit
+      - package: SwiftLog
+        product: Logging
+    entitlements:
+      path: App/OfflineOTP.entitlements
+      properties:
+        com.apple.developer.nfc.readersession.formats: [TAG]
     postBuildScripts:
       - name: Stamp AKST build version before signing
         script: 'python3 "$SRCROOT/../scripts/versioning/stamp-ios-version.py"'
@@ -83,6 +97,10 @@ targets:
         NSFaceIDUsageDescription: >-
           Unlock your OfflineOTP vault with Face ID instead of typing its password. The vault stays
           encrypted with the password; this only releases a key kept on this device.
+        NFCReaderUsageDescription: Read OATH account names from your security key after you choose NFC.
+        com.apple.developer.nfc.readersession.iso7816.select-identifiers:
+          - A0000005272101
+          - A0000006472F0001
         NSCameraUsageDescription: >-
           Scan an OTP QR code to add its account to your encrypted vault. The image is processed on
           this device and is not uploaded.
@@ -108,6 +126,8 @@ targets:
       - path: App/Tests
     dependencies:
       - target: OfflineOTP
+      - package: YubiKit
+        product: YubiKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fairuniversal.offlineotp.tests

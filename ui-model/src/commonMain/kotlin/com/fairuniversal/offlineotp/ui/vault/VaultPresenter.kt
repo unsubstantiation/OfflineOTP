@@ -361,7 +361,9 @@ class VaultPresenter(
                 exportPreferences: (() -> Unit)? = null,
                 importPreferences: (() -> Unit)? = null,
                 toggleBackupTimestamp: (() -> Unit)? = null,
-                openAbout: (() -> Unit)? = null): VaultActions = VaultActions(
+                openAbout: (() -> Unit)? = null,
+                automaticBackup: (() -> Unit)? = null): VaultActions = VaultActions(
+        onAutomaticBackup = automaticBackup,
         onImportPreferences = importPreferences,
         onToggleBackupTimestamp = toggleBackupTimestamp,
         onOpenAbout = openAbout,

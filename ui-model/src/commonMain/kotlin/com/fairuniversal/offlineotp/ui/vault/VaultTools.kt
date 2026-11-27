@@ -3,12 +3,13 @@ package com.fairuniversal.offlineotp.ui.vault
 /** Secondary actions, ordered and grouped without retaining callbacks or session data. */
 enum class VaultTool(val group: Group) {
     IMPORT_URI(Group.IMPORT), IMPORT_PASSWORDS(Group.IMPORT), IMPORT_EMAIL(Group.IMPORT), IMPORT_THUNDERBIRD(Group.IMPORT), IMPORT_LINSCP(Group.IMPORT),
-    EXPORT_ARCHIVES(Group.BACKUP), EXPORT_PASSWORDS(Group.BACKUP), EXPORT_EMAIL(Group.BACKUP), EXPORT_THUNDERBIRD(Group.BACKUP), EXPORT_ENCRYPTED(Group.BACKUP), RESTORE_ENCRYPTED(Group.BACKUP), EXPORT_LINSCP(Group.BACKUP), IMPORT_OPENPGP(Group.BACKUP), EXPORT_OPENPGP(Group.BACKUP),
+    AUTOMATIC_BACKUP(Group.BACKUP), EXPORT_ARCHIVES(Group.BACKUP), EXPORT_PASSWORDS(Group.BACKUP), EXPORT_EMAIL(Group.BACKUP), EXPORT_THUNDERBIRD(Group.BACKUP), EXPORT_ENCRYPTED(Group.BACKUP), RESTORE_ENCRYPTED(Group.BACKUP), EXPORT_LINSCP(Group.BACKUP), IMPORT_OPENPGP(Group.BACKUP), EXPORT_OPENPGP(Group.BACKUP),
     ENROLL_HARDWARE_UNLOCK(Group.SETTINGS), REMOVE_HARDWARE_UNLOCK(Group.SETTINGS), HARDWARE_COPY(Group.SETTINGS), HARDWARE_OATH(Group.SETTINGS), STORAGE_LOCATION(Group.SETTINGS), CHANGE_PASSWORD(Group.SETTINGS), CARD_LAYOUT(Group.SETTINGS), SEARCH_FIELDS(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), BACKUP_TIMESTAMP(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS), SETTINGS(Group.SETTINGS), ABOUT(Group.SETTINGS);
 
     enum class Group { IMPORT, BACKUP, SETTINGS }
 
     fun label(strings: VaultStrings): String = when (this) {
+        AUTOMATIC_BACKUP -> strings.automaticBackup
         IMPORT_URI -> strings.importUri
         IMPORT_PASSWORDS -> strings.importPasswords
         IMPORT_EMAIL -> strings.importEmail
@@ -39,6 +40,7 @@ enum class VaultTool(val group: Group) {
         ABOUT -> strings.aboutApp
     }
     private fun callback(actions: VaultActions): (() -> Unit)? = when (this) {
+        AUTOMATIC_BACKUP -> actions.onAutomaticBackup
         IMPORT_URI -> actions.onImportUri
         IMPORT_PASSWORDS -> actions.onImportPasswords
         IMPORT_EMAIL -> actions.onImportEmail

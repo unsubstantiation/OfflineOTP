@@ -52,6 +52,31 @@ class AuthenticationFlowDeviceTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun explicitPasswordMigrationPreservesRollbackBytesAndPortableRecovery() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val key = installPasswordVault(context, PASSWORD) // legacy raw fixture, deliberately not new setup
+        try {
+            val file = java.io.File(context.getFilesDir(), Constants.FILENAME_DATABASE)
+            val rollback = java.io.File(context.getFilesDir(), Constants.FILENAME_DATABASE_BACKUP)
+            val original = file.readBytes()
+            assertTrue(!com.fairuniversal.offlineotp.Utilities.VaultContainer.isContainer(original))
+            assertTrue(DatabaseHelper.migrateToContainer(context, "wrong password", key) { true } is VaultWriteResult.Rejected)
+            assertTrue(original.contentEquals(file.readBytes()))
+            var checks = 0
+            assertTrue(DatabaseHelper.migrateToContainer(context, PASSWORD, key) { ++checks < 2 } is VaultWriteResult.Rejected)
+            assertTrue(original.contentEquals(file.readBytes()))
+            assertTrue(DatabaseHelper.migrateToContainer(context, PASSWORD, key) { true } is VaultWriteResult.Saved)
+            assertTrue(original.contentEquals(rollback.readBytes()))
+            val copied = DatabaseHelper.vaultSnapshot(context, key)
+            assertTrue(copied.contentEquals(file.readBytes()))
+            assertEquals("[]", com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec.open(PASSWORD, copied))
+            assertTrue(DatabaseHelper.saveVault(context, arrayListOf(), key) is VaultWriteResult.Saved)
+            assertTrue(com.fairuniversal.offlineotp.Utilities.VaultContainer.isContainer(file.readBytes()))
+            assertEquals("[]", com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec.open(PASSWORD, file.readBytes()))
+        } finally { cleanUp(context) }
+    }
+
+    @Test
     fun aCancelledUnlockPromptCannotRevealTheVault() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         installPasswordVault(context, PASSWORD)

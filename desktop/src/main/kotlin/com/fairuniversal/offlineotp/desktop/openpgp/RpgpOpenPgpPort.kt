@@ -24,7 +24,7 @@ import java.security.GeneralSecurityException
  */
 class RpgpOpenPgpPort(
     private val fallback: OpenPgpPort = PgpainlessOpenPgpPort()
-) : OpenPgpPort {
+) : com.fairuniversal.offlineotp.Utilities.OpenPgpSigningPort {
 
     @Throws(GeneralSecurityException::class, IOException::class)
     override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray {
@@ -34,6 +34,18 @@ class RpgpOpenPgpPort(
         } catch (e: Exception) {
             throw mapException(e)
         }
+    }
+
+    override fun encryptSigned(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>, signingKeyBlock: ByteArray,
+                               passphrase: CharArray): ByteArray {
+        try {
+            val clazz = Class.forName("uniffi.offlineotp_openpgp.NativeApi")
+            if (clazz.getMethod("isAvailable").invoke(null) != true) throw GeneralSecurityException("Native signing is unavailable")
+            return clazz.getMethod("encryptSigned", ByteArray::class.java, List::class.java,
+                ByteArray::class.java, String::class.java)
+                .invoke(null, plaintext, recipientKeyBlocks, signingKeyBlock, passphrase.concatToString()) as ByteArray
+        } catch (e: Exception) { throw mapException(e) }
+        // No PGPainless or unsigned retry. Older/missing native libraries fail visibly.
     }
 
     @Throws(GeneralSecurityException::class, IOException::class)

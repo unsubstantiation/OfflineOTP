@@ -3,6 +3,10 @@ namespace offlineotp_openpgp {
     sequence<u8> encrypt(sequence<u8> plaintext, sequence<sequence<u8>> recipient_key_blocks);
 
     [Throws=OpenPgpError]
+    sequence<u8> encrypt_signed(sequence<u8> plaintext, sequence<sequence<u8>> recipient_key_blocks,
+                                sequence<u8> signing_key_block, string? passphrase);
+
+    [Throws=OpenPgpError]
     sequence<u8> decrypt(sequence<u8> message, sequence<u8> secret_key_block, string? passphrase);
 
     string rpgp_version();

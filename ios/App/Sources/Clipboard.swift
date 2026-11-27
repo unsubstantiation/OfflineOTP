@@ -12,8 +12,9 @@ public enum Clipboard {
     public static let expirySeconds: TimeInterval = 30
 
     @discardableResult
-    public static func copy(_ code: String, now: Date = Date()) -> Bool {
-        let expiry = now.addingTimeInterval(expirySeconds)
+    public static func copy(_ code: String, now: Date = Date(), expiresAt: Date? = nil) -> Bool {
+        let expiry = min(now.addingTimeInterval(expirySeconds), expiresAt ?? .distantFuture)
+        guard expiry > now else { return false }
         UIPasteboard.general.setItems(
             [[UTType.utf8PlainText.identifier: code]],
             options: [.expirationDate: expiry, .localOnly: true])

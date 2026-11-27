@@ -1,0 +1,95 @@
+{
+  "changeDelayMillis": 1000,
+  "defaultMinutes": 15,
+  "defaultRetention": 10,
+  "cases": [
+    {
+      "name": "default",
+      "minutes": 15,
+      "retention": 10,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": true,
+      "valid": true
+    },
+    {
+      "name": "minimum",
+      "minutes": 1,
+      "retention": 1,
+      "passwordUtf16Units": 1,
+      "passwordsMatch": true,
+      "valid": true
+    },
+    {
+      "name": "maximum",
+      "minutes": 1440,
+      "retention": 100,
+      "passwordUtf16Units": 1024,
+      "passwordsMatch": true,
+      "valid": true
+    },
+    {
+      "name": "zero interval",
+      "minutes": 0,
+      "retention": 10,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "negative interval",
+      "minutes": -1,
+      "retention": 10,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "long interval",
+      "minutes": 1441,
+      "retention": 10,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "zero retention",
+      "minutes": 15,
+      "retention": 0,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "long retention",
+      "minutes": 15,
+      "retention": 101,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "empty password",
+      "minutes": 15,
+      "retention": 10,
+      "passwordUtf16Units": 0,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "oversized password",
+      "minutes": 15,
+      "retention": 10,
+      "passwordUtf16Units": 1025,
+      "passwordsMatch": true,
+      "valid": false
+    },
+    {
+      "name": "mismatch",
+      "minutes": 15,
+      "retention": 10,
+      "passwordUtf16Units": 8,
+      "passwordsMatch": false,
+      "valid": false
+    }
+  ]
+}

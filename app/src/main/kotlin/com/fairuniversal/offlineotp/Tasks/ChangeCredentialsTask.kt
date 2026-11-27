@@ -41,7 +41,8 @@ open class ChangeCredentialsTask(context: Context, private val encryptionType: C
             var replacedBackup = false
             val result = synchronized(DatabaseHelper.DatabaseFileLock) {
                 if (isCanceled() || VaultSession.getKey() !== oldEncryptionKey) return Result(false, null, null)
-                val write = DatabaseHelper.changeVaultEncryption(context, oldEncryptionKey, nextKey, false) { id ->
+                val header = if (encryptionType == Constants.EncryptionType.PASSWORD) credentials?.containerHeader() else null
+                val write = DatabaseHelper.changeVaultEncryptionWithContainer(context, oldEncryptionKey, nextKey, false, null, header) { id ->
                     if (isCanceled() || !VaultSession.isCurrent(epoch)) VaultCommitDecision.CANCELED
                     else VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, encryptionType, newAuthMethod, credentials, false))
                 }

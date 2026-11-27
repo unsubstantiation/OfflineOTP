@@ -103,7 +103,7 @@ fun TagsDialog(
                         Text(text = label)
                     }
                 }
-                if (errorText != null) Text(text = errorText)
+                SharedStatusMessage(errorText)
             }
         },
         confirmButton = {

@@ -5,7 +5,7 @@ import com.yubico.yubikit.core.smartcard.SmartCardConnection
 enum class OathType { TOTP, HOTP }
 enum class HashAlgorithm { SHA1, SHA256, SHA512 }
 class Credential(val id: ByteArray = byteArrayOf(), val oathType: OathType = OathType.TOTP,
-                 val issuer: String? = null, val accountName: String = "")
+                 val issuer: String? = null, val accountName: String = "", val period: Int = 30)
 class CredentialData(accountName: String, type: OathType, algorithm: HashAlgorithm, secret: ByteArray,
                      digits: Int, period: Int, counter: Int, issuer: String?) {
     // Model YubiKit's ID formatting; this is not an OATH transport.
@@ -31,13 +31,16 @@ object OathSandbox {
     var codes: Map<Credential, Code?> = emptyMap()
     var calculatedCode = Code("123456", 0L, Long.MAX_VALUE)
     var writes = 0
+    var deletions = 0
+    var renames = 0
+    var renamedId: ByteArray? = null
     var calculations = 0
     var lastTouch = false
     var lastData: CredentialData? = null
     fun reset() {
         locked = false; unlockSucceeds = false; unlockCalls = 0; credentials = emptyList(); codes = emptyMap()
         calculatedCode = Code("123456", 0L, Long.MAX_VALUE)
-        writes = 0; calculations = 0; lastTouch = false; lastData = null
+        writes = 0; deletions = 0; renames = 0; renamedId = null; calculations = 0; lastTouch = false; lastData = null
     }
 }
 class OathSession(private val connection: SmartCardConnection) : AutoCloseable {
@@ -49,6 +52,14 @@ class OathSession(private val connection: SmartCardConnection) : AutoCloseable {
     fun calculateCode(credential: Credential): Code {
         OathSandbox.calculations++
         return OathSandbox.calculatedCode
+    }
+    fun renameCredential(credentialId: ByteArray, newCredentialId: ByteArray) {
+        check(OathSandbox.credentials.count { it.id.contentEquals(credentialId) } == 1)
+        OathSandbox.renames++; OathSandbox.renamedId = newCredentialId.copyOf()
+    }
+    fun deleteCredential(credential: Credential) {
+        OathSandbox.deletions++
+        OathSandbox.credentials = OathSandbox.credentials.filterNot { it.id.contentEquals(credential.id) }
     }
     fun putCredential(data: CredentialData, touch: Boolean): Credential {
         OathSandbox.writes++

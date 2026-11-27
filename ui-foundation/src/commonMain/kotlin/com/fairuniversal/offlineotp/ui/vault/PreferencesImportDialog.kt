@@ -26,7 +26,7 @@ fun PreferencesImportDialog(busy: Boolean, count: Int?, skipped: Int, failed: Bo
                 Text(text = "$count settings ready; $skipped unknown or disallowed settings skipped.")
                 Text(text = applyDetail)
             }
-            if (failed) Text(text = failureText ?: "Could not import preferences. Check the file's $platformName format, size and storage. Cancel to select another file.")
+            if (failed) SharedStatusMessage(failureText ?: "Could not import preferences. Check the file's $platformName format, size and storage. Cancel to select another file.")
         } },
         confirmButton = { ForestTextAction(text = "Apply settings", enabled = !busy && count != null && !failed, onClick = onConfirm) },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) })

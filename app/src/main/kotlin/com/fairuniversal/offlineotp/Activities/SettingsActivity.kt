@@ -68,6 +68,7 @@ import com.fairuniversal.offlineotp.ui.host.ConfirmedSecretPreferenceComposeView
 import com.fairuniversal.offlineotp.Utilities.applySeparateBackupPassword
 import com.fairuniversal.offlineotp.Utilities.ConfirmedPasswordTransformationHelper
 import com.fairuniversal.offlineotp.Utilities.hasLegacyBackupPassword
+import com.fairuniversal.offlineotp.Utilities.applyVaultCopyBackupSource
 import com.fairuniversal.offlineotp.Utilities.applyBackupPasswordSource
 import com.fairuniversal.offlineotp.Utilities.PolicyChecklist
 import com.fairuniversal.offlineotp.Utilities.applyPolicyChecklist
@@ -117,8 +118,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     private var fragment: SettingsFragment? = null
     private var settingsOverview: SettingsOverviewComposeView? = null
-    private var legacySettingsContent: View? = null
-    private var showingAdvancedSettings = false
     private var overviewPickerPending = false
     private var overviewGeneration = -1L
 
@@ -225,7 +224,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     private companion object {
         const val STATE_AUTH_GENERATION = "settings_auth_generation"
-        const val STATE_ADVANCED_SETTINGS = "settings_advanced_visible"
         const val STATE_SETTINGS_PICKER = "settings_picker_pending"
         const val STATE_SIGNING_PENDING = "settings_signing_pending"
     }
@@ -243,8 +241,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         val stub = requireNotNull(findViewById<ViewStub>(R.id.container_stub))
         stub.setLayoutResource(R.layout.content_settings)
         val content = stub.inflate() as ViewGroup
-        legacySettingsContent = content.findViewById(R.id.settings_legacy_content)
-        showingAdvancedSettings = false // Older saved native destinations reopen the shared overview.
         overviewPickerPending = savedInstanceState?.getBoolean(STATE_SETTINGS_PICKER, false) == true &&
             savedInstanceState.getBoolean(STATE_SIGNING_PENDING, false) != true
 
@@ -279,7 +275,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         settingsOverview = overview
         content.addView(overview, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        updateSettingsPageVisibility()
         publishSettingsOverview()
         restoreImportFeedback(savedInstanceState)
         // Consume only a fresh same-session handoff. Recreation must not launch another picker.
@@ -288,19 +283,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     private fun overviewSessionReady(): Boolean = VaultSession.isCurrent(overviewGeneration) &&
         encryptionKey != null && VaultSession.getKey() === encryptionKey && !isFinishing()
-
-    private fun updateSettingsPageVisibility() {
-        legacySettingsContent?.visibility = if (showingAdvancedSettings) View.VISIBLE else View.GONE
-        settingsOverview?.visibility = if (showingAdvancedSettings) View.GONE else View.VISIBLE
-    }
-
-    private fun returnToSettingsOverview(): Boolean {
-        if (!canGoBack || !showingAdvancedSettings) return false
-        showingAdvancedSettings = false
-        updateSettingsPageVisibility()
-        publishSettingsOverview()
-        return true
-    }
 
     private fun publishSettingsOverview() {
         val overview = settingsOverview ?: return
@@ -381,7 +363,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     private fun dispatchSettingsOverviewAction(key: String) {
-        if (!overviewSessionReady() || !canGoBack || overviewPickerPending || showingAdvancedSettings || settingsConfirmationPrompt != null || biometricPrompt != null) return
+        if (!overviewSessionReady() || !canGoBack || overviewPickerPending || settingsConfirmationPrompt != null || biometricPrompt != null) return
         when (key) {
             "language" -> showSharedAppearance(AppearancePreference.LANGUAGE)
             "themeMode" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) showSharedAppearance(AppearancePreference.THEME_MODE)
@@ -664,6 +646,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             EncryptionType.valueOf(it.uppercase(Locale.ROOT)) }
         val labels = resources.getStringArray(R.array.settings_entries_encryption).toList()
         if (labels.size != values.size) return
+        val portable = DatabaseHelper.isPortableVault(this)
         var host: SingleChoiceSelectionComposeView? = null
         val closeHost = {
             val h = host
@@ -673,6 +656,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         }
         host = SingleChoiceSelectionComposeView(this, title = getString(R.string.settings_title_encryption),
             items = labels, initialSelected = values.indexOf(original),
+            enabledIndices = values.indices.filter { !portable || values[it] == EncryptionType.PASSWORD }.toSet(),
+            message = if (portable) "Portable vaults require password recovery. Use biometrics or a security key for local quick unlock; the vault cannot be changed to device-only encryption." else "",
             confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
             onConfirm = { index ->
                 val owned = settingsConfirmationPrompt === host
@@ -1063,16 +1048,20 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         }
         host = SingleChoiceSelectionComposeView(this,
             title = getString(R.string.settings_title_backup_password_source),
-            message = getString(R.string.settings_desc_auto_backup_use_login),
-            items = listOf(getString(R.string.settings_backup_password_source_app), getString(R.string.settings_backup_password_source_separate)),
-            initialSelected = if (LoginBackupPolicy.usesLoginPassword(this)) 0 else 1,
+            message = "Full vault copies use the vault recovery password and run after successful saves while unlocked, using the configured destination and retention. Migrate a legacy vault in Backups first. Separate password modes remain exports. No new locked-vault or periodic background job is enabled.",
+            items = listOf(getString(R.string.settings_backup_password_source_app), getString(R.string.settings_backup_password_source_separate), "Full saved vault file copies"),
+            initialSelected = if (LoginBackupPolicy.usesVaultCopy(this)) 2 else if (LoginBackupPolicy.usesLoginPassword(this)) 0 else 1,
             confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
             onConfirm = { index ->
                 val owned = settingsConfirmationPrompt === host
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     val login = index == 0
-                    if (login && settings!!.hasLegacyBackupPassword(this)) confirmLegacyBackupPasswordRemoval()
+                    if (index == 2) {
+                        if (!settings!!.applyVaultCopyBackupSource(this))
+                            showSettingsNotice(R.string.settings_dialog_title_error, R.string.settings_backup_vault_copy_requires_migration)
+                        publishSettingsOverview()
+                    } else if (login && settings!!.hasLegacyBackupPassword(this)) confirmLegacyBackupPasswordRemoval()
                     else {
                         if (!settings!!.applyBackupPasswordSource(this, login))
                             showSettingsFeedback(R.string.settings_save_failed)
@@ -1618,7 +1607,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
         outState.putBoolean(Constants.EXTRA_SETTINGS_ENCRYPTION_CHANGED, encryptionChanged)
         outState.putLong(STATE_AUTH_GENERATION, authenticationGeneration)
-        outState.putBoolean(STATE_ADVANCED_SETTINGS, showingAdvancedSettings)
         outState.putBoolean(STATE_SETTINGS_PICKER, overviewPickerPending)
         outState.putBoolean(STATE_SIGNING_PENDING, signingConnection != null)
     }
@@ -1634,7 +1622,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        if (returnToSettingsOverview()) return true
         if (canGoBack)
             finishWithResult()
 
@@ -1643,7 +1630,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (returnToSettingsOverview()) return
         if (canGoBack) {
             finishWithResult()
             super.onBackPressed()

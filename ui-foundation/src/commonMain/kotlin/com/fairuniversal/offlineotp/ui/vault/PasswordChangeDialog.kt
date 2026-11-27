@@ -28,8 +28,8 @@ fun PasswordChangeDialog(inputKey: Any, busy: Boolean, result: String?, invalid:
                 RekeyField("Current vault password", current, maxFieldChars) { current = it }
                 RekeyField("New vault password", next, maxFieldChars) { next = it }
                 RekeyField("Confirm new password", confirmation, maxFieldChars) { confirmation = it }
-                if (errorText != null) Text(text = errorText)
-                else if (invalid) Text(text = "Enter the current password and a different nonempty new password with matching confirmation. Re-enter all fields to retry.")
+                SharedStatusMessage(errorText)
+                if (errorText == null && invalid) SharedStatusMessage( "Enter the current password and a different nonempty new password with matching confirmation. Re-enter all fields to retry.")
             }
         } }, confirmButton = {
             if (result != null) ForestTextAction(text = if (requiresUnlock) "Return to unlock" else "Done", onClick = { clear(); onDismiss() })

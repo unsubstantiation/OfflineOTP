@@ -61,7 +61,11 @@ class LoginBackupWiringTest(unittest.TestCase):
         restore = backup[backup.index("private fun doRestoreCrypt("):backup.index("private fun doRestoreCryptWithPassword(")]
         self.assertIn("EncryptedRestorePasswordComposeView(", restore)
         self.assertNotIn("getBackupPasswordEnc()", restore)
-        self.assertIn("doBackupCryptWithLoginKey(uri, lease)", backup)
+        manual = backup[backup.index("private fun doBackupCrypt("):backup.index("private fun doBackupCryptWithPassword(")]
+        self.assertIn("VaultSnapshotBackupTask(this, uri)", manual)
+        self.assertIn("onSnapshot =", manual)
+        self.assertNotIn("getBackupPasswordEnc()", manual)
+        self.assertNotIn("copyBackupKey()", manual)
         settings = source("Activities/SettingsActivity.kt")
         self.assertIn("settings_dialog_msg_remove_old_backup_password", settings)
         self.assertIn("activity.confirmLegacyBackupPasswordRemoval()", settings)

@@ -24,6 +24,7 @@ data class VaultStrings(
     val cardLayout: String = "Card layout",
     val searchFields: String = "Search fields",
     val autoLock: String = "Auto-lock",
+    val automaticBackup: String = "Automatic encrypted backups…",
     val backupTimestamp: String = "Timestamp backup filenames",
     val settingsAction: String = "Settings",
     val aboutApp: String = "About OfflineOTP",

@@ -35,7 +35,7 @@ fun OpenPgpExportDialog(
                 ForestTextAction(text = "Clear recipients", enabled = !busy && recipientNames.isNotEmpty(), onClick = onClearKeys)
             }
             if (busy) Text(text = "Encrypting…")
-            if (error != null) Text(text = error)
+            SharedStatusMessage(error)
         } },
         confirmButton = { ForestTextAction(text = "Export full vault", enabled = !busy && recipientNames.isNotEmpty(), onClick = onExport) },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) })

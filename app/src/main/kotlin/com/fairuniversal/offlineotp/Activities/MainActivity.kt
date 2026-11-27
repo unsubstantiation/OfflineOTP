@@ -283,6 +283,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val message = when (result.getStringExtra("backup_feedback_kind")) {
             "export_success" -> R.string.backup_toast_export_success
             "import_success" -> R.string.backup_toast_import_success
+            "export_failed" -> R.string.backup_toast_file_creation_failed
+            "import_failed" -> R.string.backup_toast_import_failed
             else -> return
         }
         pendingBackupNotice = generation to message

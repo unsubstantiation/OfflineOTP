@@ -234,7 +234,7 @@ fun SharedEmailSettingsDialog(
                 }
                 val failureMessage = errorText
                     ?: if (failed) "Could not save email settings. Check server, port and storage; original retained." else null
-                failureMessage?.let { Text(it) }
+                SharedStatusMessage(failureMessage)
             }
         },
         confirmButton = {

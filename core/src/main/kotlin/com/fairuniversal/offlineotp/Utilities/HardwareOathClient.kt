@@ -42,6 +42,47 @@ object HardwareOathClient {
             Account(credential, code.value, code.validUntil, code.validFrom)
         }
 
+    /** Irreversible single-account deletion. Never calculate codes or retry an uncertain write. */
+    fun deleteFromKey(device: YubiKeyDevice, password: CharArray?, deviceId: String, credential: Credential,
+                      confirmed: Boolean, permitted: () -> Boolean) {
+        require(confirmed) { "Explicit account-deletion confirmation required" }
+        withSession(device, password, permitted) { session ->
+            require(session.deviceId == deviceId) { "Different hardware key" }
+            val credentials = session.credentials
+            require(credentials.size <= InputPolicy.MAX_ENTRIES)
+            val matches = credentials.filter {
+                it.id.contentEquals(credential.id) && it.oathType == credential.oathType &&
+                    it.period == credential.period && it.issuer == credential.issuer && it.accountName == credential.accountName
+            }
+            require(matches.size == 1) { "Account identity changed or is ambiguous" }
+            if (!permitted()) throw IllegalStateException("Hardware operation was canceled")
+            session.deleteCredential(matches.single())
+        }
+    }
+
+    /** Rename one uniquely revalidated account. Refuse collisions rather than overwrite. */
+    fun renameOnKey(device: YubiKeyDevice, password: CharArray?, deviceId: String, credential: Credential,
+                    issuer: String, account: String, confirmed: Boolean, permitted: () -> Boolean) {
+        require(confirmed) { "Explicit rename confirmation required" }
+        val names = requireNotNull(HardwareOathRenamePolicy.names(credential.oathType == OathType.HOTP,
+            credential.period, issuer, account)) { "Unsupported account name" }
+        withSession(device, password, permitted) { session ->
+            require(session.deviceId == deviceId) { "Different hardware key" }
+            val credentials = session.credentials
+            require(credentials.size <= InputPolicy.MAX_ENTRIES)
+            val matches = credentials.filter {
+                it.id.contentEquals(credential.id) && it.oathType == credential.oathType &&
+                    it.period == credential.period && it.issuer == credential.issuer && it.accountName == credential.accountName
+            }
+            require(matches.size == 1) { "Account identity changed or is ambiguous" }
+            val newId = names.identifier.toByteArray(StandardCharsets.UTF_8)
+            require(!newId.contentEquals(credential.id)) { "Account name is unchanged" }
+            require(credentials.none { it.id.contentEquals(newId) }) { "Hardware account already exists" }
+            if (!permitted()) throw IllegalStateException("Hardware operation was canceled")
+            session.renameCredential(matches.single().id, newId)
+        }
+    }
+
     /** True only when the account's OATH parameters and name can be represented without ambiguity. */
     fun canCopy(entry: Entry): Boolean {
         val type = entry.getType()

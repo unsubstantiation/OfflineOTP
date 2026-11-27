@@ -10,10 +10,13 @@ final class AppRootViewController: UIViewController {
     let store = VaultStore()
 
     private let filePicker = NativeFilePicker()
+    private let fileReader = NativeFileReader()
     private var subscription: AnyCancellable?
     private var inactivityTimer: Timer?
     private var current: UIViewController?
     private var privacyCover: UIView?
+    private var nativeEpoch = UUID()
+    private var foreground = UIApplication.shared.applicationState != .background
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -42,6 +45,8 @@ final class AppRootViewController: UIViewController {
         if unlocked && current is VaultComposeViewController { return }
         if !unlocked && current is UnlockComposeViewController { return }
 
+        nativeEpoch = UUID()
+        filePicker.cancel(); fileReader.cancel()
         if presentedViewController != nil {
             dismiss(animated: false)
         }
@@ -56,12 +61,14 @@ final class AppRootViewController: UIViewController {
             next = VaultComposeViewController(
                 store: store,
                 onExport: { [weak self] data, name in
-                    guard let self else { return }
+                    guard let self, self.foreground, self.store.isUnlocked,
+                          self.current is VaultComposeViewController else { return }
                     self.filePicker.save(data: data, named: name, from: self)
                 },
                 onImport: { [weak self] kind in
                     guard let self else { return }
-                    if kind == "qrCamera" { self.scanQr() } else if kind == "qrImage" { self.pickQrImage() } else { self.pickImport(kind: kind) }
+                    if kind == "automaticBackupFolder" { self.pickAutomaticBackupFolder() }
+                    else if kind == "qrCamera" { self.scanQr() } else if kind == "qrImage" { self.pickQrImage() } else { self.pickImport(kind: kind) }
                 },
                 onOpenLink: { url in
                     UIApplication.shared.open(url, options: [:], completionHandler: nil)
@@ -84,54 +91,98 @@ final class AppRootViewController: UIViewController {
     }
 
     private func pickRestoreBackup() {
-        filePicker.open(types: [.data], from: self) { [weak self] urls in
-            guard let self, let url = urls.first else { return }
+        guard foreground, !store.isUnlocked, !store.hasVault,
+              let origin = current as? UnlockComposeViewController else { return }
+        nativeEpoch = UUID(); fileReader.cancel(); let epoch = nativeEpoch; let generation = store.generation
+        filePicker.open(types: [.data], from: self) { [weak self, weak origin] urls in
+            guard let self, let origin, self.foreground, self.nativeEpoch == epoch,
+                  self.store.generation == generation, self.current === origin,
+                  !self.store.isUnlocked, !self.store.hasVault, let url = urls.first else { return }
             self.readBounded(url) { data in
-                (self.current as? UnlockComposeViewController)?.restore(from: data, store: self.store)
+                guard self.current === origin, self.nativeEpoch == epoch else { return }
+                origin.restore(from: data, store: self.store)
             }
         }
     }
 
-    /// The camera is a native capability adapter; only the scanned string reaches the shared UI.
+    /// Native callbacks carry originating coordinator + session/surface authority, not `current` alone.
     private func scanQr() {
+        guard foreground, let origin = current as? VaultComposeViewController else { return }
+        let coordinator = origin.coordinator
+        let request = coordinator.nativeRequestID; let generation = store.generation
+        nativeEpoch = UUID(); fileReader.cancel(); let epoch = nativeEpoch
+        func permitted(_ owner: AppRootViewController, _ coordinator: VaultCoordinator) -> Bool {
+            owner.foreground && owner.nativeEpoch == epoch && owner.store.generation == generation
+                && (owner.current as? VaultComposeViewController)?.coordinator === coordinator
+                && coordinator.acceptsNativeResult(request)
+        }
         let capture = QrCaptureViewController(
-            onPayload: { [weak self] payload in
-                (self?.current as? VaultComposeViewController)?.coordinator.importUriPayload(payload)
+            onPayload: { [weak self, weak coordinator] payload in
+                guard let self, let coordinator, permitted(self, coordinator) else { return }
+                coordinator.importUriPayload(payload)
             },
-            onUnavailable: { [weak self] in
-                (self?.current as? VaultComposeViewController)?.coordinator.showQrUnavailable()
+            onUnavailable: { [weak self, weak coordinator] in
+                guard let self, let coordinator, permitted(self, coordinator) else { return }
+                coordinator.showQrUnavailable()
             })
         capture.modalPresentationStyle = .overFullScreen
         present(capture, animated: true)
     }
 
     private func pickQrImage() {
-        filePicker.open(types: [.image], from: self) { [weak self] urls in
-            guard let self, let url = urls.first else { return }
-            self.readBounded(url, onFailure: { [weak self] _ in
-                (self?.current as? VaultComposeViewController)?.coordinator.importedQrImagePayload(nil)
+        guard foreground, let origin = current as? VaultComposeViewController else { return }
+        let coordinator = origin.coordinator
+        let request = coordinator.nativeRequestID; let generation = store.generation
+        nativeEpoch = UUID(); fileReader.cancel(); let epoch = nativeEpoch
+        filePicker.open(types: [.image], from: self) { [weak self, weak coordinator] urls in
+            guard let self, let coordinator, self.foreground, self.nativeEpoch == epoch,
+                  self.store.generation == generation, coordinator.acceptsNativeResult(request),
+                  (self.current as? VaultComposeViewController)?.coordinator === coordinator,
+                  let url = urls.first else { return }
+            self.readBounded(url, onFailure: { [weak coordinator] _ in
+                guard let coordinator, coordinator.acceptsNativeResult(request) else { return }
+                coordinator.importedQrImagePayload(nil)
             }) { data in
-                guard let vault = self.current as? VaultComposeViewController else { return }
+                guard coordinator.acceptsNativeResult(request) else { return }
                 let payload = UIImage(data: data).flatMap(QrImageReader.payload(in:))
-                vault.coordinator.importedQrImagePayload(payload)
+                coordinator.importedQrImagePayload(payload)
             }
         }
     }
 
+    private func pickAutomaticBackupFolder() {
+        guard foreground, let vault = current as? VaultComposeViewController else { return }
+        let coordinator = vault.coordinator
+        let generation = store.generation; let request = coordinator.nativeRequestID
+        nativeEpoch = UUID(); fileReader.cancel(); let epoch = nativeEpoch
+        filePicker.openFolder(from: self) { [weak self, weak coordinator] urls in
+            guard let self = self, let coordinator = coordinator, self.foreground, self.store.isUnlocked,
+                  self.nativeEpoch == epoch, coordinator.acceptsNativeResult(request), self.store.generation == generation,
+                  (self.current as? VaultComposeViewController)?.coordinator === coordinator,
+                  let folder = urls.first else { return }
+            coordinator.selectedAutomaticBackupFolder(folder)
+        }
+    }
+
     private func pickImport(kind: String) {
+        guard foreground, let origin = current as? VaultComposeViewController else { return }
+        let coordinator = origin.coordinator
+        let generation = store.generation; let request = coordinator.nativeRequestID
+        nativeEpoch = UUID(); fileReader.cancel(); let epoch = nativeEpoch
         let types: [UTType] = kind == "preferences" ? [.json] : [.data, .json, .commaSeparatedText]
-        filePicker.open(types: types, from: self) { [weak self] urls in
-            guard let self, let url = urls.first else { return }
+        filePicker.open(types: types, from: self, asCopy: kind != "openpgpAutomaticSigningKey") { [weak self, weak coordinator] urls in
+            guard let self, let coordinator, self.foreground, self.nativeEpoch == epoch,
+                  self.store.generation == generation, coordinator.acceptsNativeResult(request),
+                  (self.current as? VaultComposeViewController)?.coordinator === coordinator,
+                  let url = urls.first else { return }
             let filename = url.lastPathComponent
-            self.readBounded(url, onFailure: { [weak self] reason in
-                (self?.current as? VaultComposeViewController)?.coordinator.reportImportFileFailure(reason)
+            self.readBounded(url, onFailure: { [weak coordinator] reason in
+                guard let coordinator, coordinator.acceptsNativeResult(request) else { return }
+                coordinator.reportImportFileFailure(reason)
             }) { data in
-                guard let vault = self.current as? VaultComposeViewController else { return }
-                if kind.hasPrefix("openpgp") {
-                    vault.coordinator.setOpenPgpData(data, kind: kind, filename: filename)
-                } else {
-                    vault.coordinator.imported(data: data, kind: kind)
-                }
+                guard coordinator.acceptsNativeResult(request) else { return }
+                if kind.hasPrefix("openpgp") { coordinator.setOpenPgpData(data, kind: kind, filename: filename) }
+                else { coordinator.imported(data: data, kind: kind) }
             }
         }
     }
@@ -145,22 +196,16 @@ final class AppRootViewController: UIViewController {
         let reportFailure = onFailure ?? { [weak self] reason in
             self?.store.reportRestoreSelectionFailure(reason)
         }
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do {
-            let values = try url.resourceValues(forKeys: [.fileSizeKey])
-            let size = values.fileSize ?? 0
-            guard size > 0, size <= InputPolicy.maxDocumentBytes else {
-                reportFailure("The file is too large or empty.")
-                return
-            }
-            then(try Data(contentsOf: url))
-        } catch {
-            reportFailure("The file could not be read.")
+        let epoch = nativeEpoch; let generation = store.generation
+        fileReader.start(url, maxBytes: InputPolicy.maxDocumentBytes) { [weak self] data in
+            guard let self, self.foreground, self.nativeEpoch == epoch, self.store.generation == generation else { return }
+            guard let data else { reportFailure("The file is empty, oversized or could not be read."); return }
+            then(data)
         }
     }
 
     @objc private func sceneActive() {
+        foreground = true
         store.checkInactivityAutoLock()
         setCovered(false)
     }
@@ -170,6 +215,7 @@ final class AppRootViewController: UIViewController {
     }
 
     @objc private func sceneBackgrounded() {
+        foreground = false; nativeEpoch = UUID(); filePicker.cancel(); fileReader.cancel()
         setCovered(true)
         if store.isUnlocked && store.relockOnBackground {
             store.lock()

@@ -68,6 +68,8 @@ object BackupHelper {
     fun autoBackupType(context: Context): Constants.BackupType {
         val settings = Settings(context)
         if (!settings.isBackupLocationSet()) return Constants.BackupType.UNAVAILABLE
+        if (LoginBackupPolicy.usesVaultCopy(context)) return if (VaultSession.getKey() != null)
+            Constants.BackupType.ENCRYPTED else Constants.BackupType.UNAVAILABLE
         if (LoginBackupPolicy.usesLoginPassword(context)) {
             if (settings.getAuthMethod() != Constants.AuthMethod.PASSWORD) return Constants.BackupType.UNAVAILABLE
             val lease = VaultSession.copyBackupKey() ?: return Constants.BackupType.UNAVAILABLE

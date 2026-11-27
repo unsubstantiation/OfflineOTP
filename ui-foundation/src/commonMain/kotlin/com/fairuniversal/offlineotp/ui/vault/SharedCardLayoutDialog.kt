@@ -357,7 +357,7 @@ fun SharedCardLayoutDialog(
                         Text(text = "Minimize window after copying")
                     }
                 }
-                if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
+                if (failed) SharedStatusMessage("Could not save the layout. The current layout has not changed.")
             }
         },
         confirmButton = {

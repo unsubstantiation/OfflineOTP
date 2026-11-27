@@ -43,7 +43,7 @@ fun SharedPasswordImportDialog(
             }
             if (busy) Text(text = "Reading password file…")
             if (count != null) Text(text = "$count items ready. Import merges them into the current vault; identical entries are skipped. No current entries will be replaced.")
-            if (failed) Text(text = "Could not import the file. Check the format, file size, vault capacity and storage, then retry.")
+            if (failed) SharedStatusMessage("Could not import the file. Check the format, file size, vault capacity and storage, then retry.")
         } },
         confirmButton = {
             ForestTextAction(

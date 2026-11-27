@@ -16,6 +16,112 @@ class DesktopHardwareOathTest {
         fun run() = tasks.removeAt(0).run()
     }
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+    @Test fun deletionUsesSelectedIdentityClearsListAndNeverRetriesFailure() {
+        for (succeeds in listOf(true, false)) {
+            val state = state(); val worker = Queue(); val ui = Queue(); var deletes = 0
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential(byteArrayOf(1)), null, 0)
+            val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
+                HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("selected-device", listOf(account)))
+            }, { _, _, _, _ -> error("Deletion must not calculate") }, { pin, device, selected, _ ->
+                assertEquals("again", String(pin!!)); assertEquals("selected-device", device); assertTrue(selected === account)
+                deletes++
+                if (succeeds) HardwareKeyManager.Result.Ok(Unit) else HardwareKeyManager.Result.Failed
+            })
+            try {
+                owner.open(); val request = owner.pending!!
+                owner.submit(request, charArrayOf(), null) { true }; worker.run(); ui.run()
+                val pin = "again".toCharArray()
+                assertTrue(owner.submit(request, pin, 0, true) { true })
+                worker.run(); ui.run()
+                assertTrue(pin.all { it == ' ' }); assertEquals(1, deletes)
+                assertTrue(owner.rows(request, 0).isEmpty()); assertFalse(request.busy)
+                assertTrue(request.message!!.contains(if (succeeds) "Vault unchanged" else "may already have completed"))
+                assertFalse(owner.submit(request, charArrayOf(), 0, true) { true }); assertEquals(1, deletes)
+            } finally { owner.close(); state.lock() }
+        }
+    }
+
+    @Test fun inactiveDeliveryRetiresStateAndAllowsFreshRead() {
+        val state = state(); val worker = Queue(); val ui = Queue(); var active = true
+        val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
+            HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("device", emptyList()))
+        }, { _, _, _, _ -> error("unexpected") })
+        try {
+            owner.open(); val request = owner.pending!!
+            assertTrue(owner.submit(request, charArrayOf(), null) { active })
+            worker.run(); active = false; ui.run()
+            assertFalse(request.busy); assertTrue(owner.rows(request, 0).isEmpty())
+            assertTrue(request.message!!.contains("inactive"))
+            active = true
+            assertTrue(owner.submit(request, charArrayOf(), null) { active })
+            worker.run(); ui.run(); assertFalse(request.busy)
+            assertEquals("No OATH accounts found.", request.message)
+        } finally { owner.close(); state.lock() }
+    }
+
+    @Test fun keyLabelsCannotSpoofDestructiveConfirmationWithDirectionalControls() {
+        val state = state(); val worker = Queue(); val ui = Queue()
+        val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(1), issuer = "issuer\u202e", accountName = "account\u0000\u2028")
+        val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
+            HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("device", listOf(HardwareOathClient.Account(credential, null, 0))))
+        }, { _, _, _, _ -> error("unexpected") })
+        try {
+            owner.open(); val request = owner.pending!!
+            owner.submit(request, charArrayOf(), null) { true }; worker.run(); ui.run()
+            val label = owner.rows(request, 0).single().label
+            assertTrue(label.contains("issuer")); assertTrue(label.contains("account"))
+            assertFalse(label.any { it.isISOControl() || it == '\u2028' || Character.getType(it) == Character.FORMAT.toInt() })
+        } finally { owner.close(); state.lock() }
+    }
+
+    @Test fun renameClearsSelectionNeverCalculatesAndDoesNotRetryUncertainOutcomes() {
+        for (outcome in listOf(HardwareKeyManager.Result.Ok(Unit), HardwareKeyManager.Result.Failed, HardwareKeyManager.Result.Canceled)) {
+            val state = state(); val worker = Queue(); val ui = Queue(); var renames = 0
+            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential("old".toByteArray()), null, 0)
+            val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
+                HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("chosen-key", listOf(account)))
+            }, { _, _, _, _ -> error("Rename must not calculate") }, rename = { pin, device, selected, issuer, name, _ ->
+                assertEquals("fresh", String(pin!!)); assertEquals("chosen-key", device); assertTrue(selected === account)
+                assertEquals("issuer", issuer); assertEquals("new", name); renames++; outcome
+            })
+            try {
+                owner.open(); val request = owner.pending!!
+                owner.submit(request, charArrayOf(), null) { true }; worker.run(); ui.run()
+                val invalid = charArrayOf('x')
+                assertFalse(owner.rename(request, invalid, 0, "bad:issuer", "new") { true })
+                assertTrue(invalid.all { it == ' ' }); assertEquals(0, renames)
+                val pin = "fresh".toCharArray()
+                assertTrue(owner.rename(request, pin, 0, "issuer", "new") { true })
+                assertEquals(0, renames); assertTrue(request.busy)
+                worker.run(); ui.run()
+                assertTrue(pin.all { it == ' ' }); assertEquals(1, renames); assertFalse(request.busy)
+                assertTrue(owner.rows(request, 0).isEmpty()); assertTrue(request.message!!.contains("Vault unchanged"))
+                assertFalse(owner.rename(request, charArrayOf(), 0, "issuer", "new") { true }); assertEquals(1, renames)
+            } finally { owner.close(); state.lock() }
+        }
+    }
+
+    @Test fun queuedRenameIsRevocableAndLateResultsCannotReplaceANewRequest() {
+        val state = state(); val worker = Queue(); val ui = Queue(); var calls = 0
+        val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential("old".toByteArray()), null, 0)
+        val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
+            HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("key", listOf(account)))
+        }, { _, _, _, _ -> error("unexpected") }, rename = { _, _, _, _, _, _ -> calls++; HardwareKeyManager.Result.Ok(Unit) })
+        fun listed(): DesktopHardwareOath.Request {
+            owner.open(); val request = owner.pending!!
+            owner.submit(request, charArrayOf(), null) { true }; worker.run(); ui.run(); return request
+        }
+        try {
+            val first = listed(); val pin = charArrayOf('x')
+            owner.rename(first, pin, 0, "", "new") { true }; owner.dismiss(first); worker.run()
+            assertEquals(0, calls); assertTrue(pin.all { it == ' ' })
+            val second = listed()
+            owner.rename(second, charArrayOf(), 0, "", "new") { true }; worker.run()
+            owner.dismiss(second); owner.open(); val next = owner.pending!!; ui.run()
+            assertTrue(owner.pending === next); assertTrue(next.message == null); assertEquals(1, calls)
+        } finally { owner.close(); state.lock() }
+    }
+
     @Test fun operationsUseWorkerWipePinAndRequireCurrentRequest() {
         val state = state(); val worker = Queue(); val ui = Queue(); var calls = 0
         val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { pin, _ ->

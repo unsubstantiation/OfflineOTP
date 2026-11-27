@@ -60,6 +60,10 @@ public protocol OpenPgpPort {
     func decrypt(message: Data, secretKeyBlock: Data, passphrase: String?) throws -> Data
 }
 
+public protocol OpenPgpSigningPort: OpenPgpPort {
+    func encryptSigned(plaintext: Data, recipientKeyBlocks: [Data], signingKeyBlock: Data, passphrase: String) throws -> Data
+}
+
 public extension OpenPgpPort {
     /// An in-process implementation is available unless it declares otherwise.
     var isAvailable: Bool { true }
@@ -67,7 +71,27 @@ public extension OpenPgpPort {
 
 /// Bounded, policy-enforcing OpenPGP backup codec shared by all platforms.
 /// Mirrors `OpenPgpBackupCodec` in `:core`.
+private struct SignedBackupEncryptionPort: OpenPgpPort {
+    let signer: OpenPgpSigningPort
+    let key: Data
+    let passphrase: String
+    func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {
+        try signer.encryptSigned(plaintext: plaintext, recipientKeyBlocks: recipientKeyBlocks, signingKeyBlock: key, passphrase: passphrase)
+    }
+    func decrypt(message: Data, secretKeyBlock: Data, passphrase: String?) throws -> Data {
+        throw OpenPgpError.invalidMessage(reason: "Encryption-only operation")
+    }
+}
+
 public enum OpenPgpBackupCodec {
+    public static func sealSigned(port: OpenPgpSigningPort, plain: String, recipientKeyBlocks: [Data],
+                                  signingKeyBlock: Data, passphrase: String) throws -> Data {
+        guard !signingKeyBlock.isEmpty, signingKeyBlock.count <= InputPolicy.maxDocumentBytes,
+              passphrase.utf16.count <= InputPolicy.maxTextChars else { throw OpenPgpError.tooLarge }
+        return try seal(port: SignedBackupEncryptionPort(signer: port, key: signingKeyBlock, passphrase: passphrase),
+                        plain: plain, recipientKeyBlocks: recipientKeyBlocks)
+    }
+
     public static let maxRecipients = 64
     public static let maxDocumentBytes = 16 * 1024 * 1024
 
@@ -120,7 +144,7 @@ public enum OpenPgpBackupCodec {
 import offlineotp_openpgp
 #endif
 
-public struct RustOpenPgpPort: OpenPgpPort {
+public struct RustOpenPgpPort: OpenPgpSigningPort {
 
     public init() {}
 
@@ -146,6 +170,17 @@ public struct RustOpenPgpPort: OpenPgpPort {
         } catch let error as offlineotp_openpgp.OpenPgpError {
             throw Self.map(error)
         }
+        #else
+        throw Self.unavailable()
+        #endif
+    }
+
+    public func encryptSigned(plaintext: Data, recipientKeyBlocks: [Data], signingKeyBlock: Data, passphrase: String) throws -> Data {
+        #if OFFLINEOTP_OPENPGP_NATIVE
+        do {
+            return Data(try offlineotp_openpgp.encryptSigned(plaintext: Array(plaintext),
+                recipientKeyBlocks: recipientKeyBlocks.map { Array($0) }, signingKeyBlock: Array(signingKeyBlock), passphrase: passphrase))
+        } catch let error as offlineotp_openpgp.OpenPgpError { throw Self.map(error) }
         #else
         throw Self.unavailable()
         #endif

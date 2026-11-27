@@ -18,7 +18,8 @@ fun UriImportDialog(inputKey: Any, message: String?, collecting: Boolean,
                     imageBusy: Boolean = false, imageReady: Boolean = false, imageFailed: Boolean = false,
                     onChooseImage: (() -> Unit)? = null, onDiscardImage: () -> Unit = {},
                     onImportImage: (Boolean) -> Unit = {},
-                    onScanCamera: (() -> Unit)? = null) {
+                    onScanCamera: (() -> Unit)? = null,
+                    cameraInput: Boolean = false) {
     var uri by remember(inputKey) { mutableStateOf("") }
     var allowAdditional by remember(inputKey) { mutableStateOf(false) }
     fun dismiss() { uri = ""; onDismiss() }
@@ -29,12 +30,14 @@ fun UriImportDialog(inputKey: Any, message: String?, collecting: Boolean,
                 onClick = { uri = ""; scan() }) }
             onChooseImage?.let { choose -> ForestTextAction(text = "Import QR code image…", enabled = !imageBusy,
                 onClick = { uri = ""; choose() }) }
-            if (imageBusy) Text(text = "Reading QR image…")
+            if (imageBusy) Text(text = if (cameraInput) "Capturing one camera frame… Close to cancel." else "Reading QR image…")
             if (imageReady) {
                 Text(text = "A QR payload is ready (hidden). Choose Import to validate and save it.")
                 ForestTextAction(text = "Discard image payload", onClick = onDiscardImage)
             }
-            if (imageFailed) Text(text = "Could not read a supported QR image. Check the image and its size.")
+            if (imageFailed) SharedStatusMessage(if (cameraInput)
+                "Could not capture a QR code. Check the camera device, FFmpeg installation and camera permissions, position the QR code, then retry. Image/URI import remains available."
+                else "Could not read a supported QR image. Check the image and its size.")
             OutlinedTextField(value = uri, enabled = !imageBusy && !imageReady, onValueChange = { if (it.length <= PortableInputBounds.MAX_URI_CHARS) uri = it },
                 label = { Text(text = "Secret OTP URI") }, visualTransformation = PasswordVisualTransformation())
             ForestTextAction(text = if (allowAdditional) "Additional accounts for existing issuers: allowed" else "Additional accounts for existing issuers: excluded",

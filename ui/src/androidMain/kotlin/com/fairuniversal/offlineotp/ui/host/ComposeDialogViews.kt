@@ -727,7 +727,9 @@ class EncryptedExportComposeView(
     private val minPasswordLength: Int,
     private val tooShortMessage: String,
     private val onConfirm: (String) -> String?,
-    private val onDismiss: () -> Unit
+    private val onDismiss: () -> Unit,
+    private val onSnapshot: (() -> Unit)? = null,
+    private val onMigrateAndSnapshot: ((String) -> Unit)? = null
 ) : ComposeDialogHost(activity) {
 
     private var errorMessage by mutableStateOf<String?>(null)
@@ -750,7 +752,9 @@ class EncryptedExportComposeView(
                         else -> onConfirm(first)
                     }
                 },
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                onSnapshot = onSnapshot?.let { callback -> { if (dismissals == 0) callback() } },
+                onMigrateAndSnapshot = onMigrateAndSnapshot?.let { callback -> { password -> if (dismissals == 0) callback(password) } }
             )
         }
     }
@@ -1876,6 +1880,31 @@ class SetupShellComposeView(context: android.content.Context, pager: android.vie
                 { navigate(-1) }, { navigate(1) }) {
                 androidx.compose.ui.viewinterop.AndroidView(factory = { nativePager })
             }
+        }
+    }
+}
+
+/** Android lifetime adapter; confirmation and password fields live in common Compose. */
+class HardwareOathDeleteComposeView(activity: Activity, private val label: String,
+                                    private val onConfirm: (CharArray) -> Unit,
+                                    private val onDismiss: () -> Unit) : ComposeDialogHost(activity) {
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    @Composable override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.HardwareOathDeleteDialog(
+                inputKey = this, label = label, onConfirm = onConfirm, onDismiss = onDismiss)
+        }
+    }
+}
+
+class HardwareOathRenameComposeView(activity: Activity, private val label: String,
+                                    private val onConfirm: (CharArray, String, String) -> Unit,
+                                    private val onDismiss: () -> Unit) : ComposeDialogHost(activity) {
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    @Composable override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.HardwareOathRenameDialog(
+                inputKey = this, label = label, onConfirm = onConfirm, onDismiss = onDismiss)
         }
     }
 }

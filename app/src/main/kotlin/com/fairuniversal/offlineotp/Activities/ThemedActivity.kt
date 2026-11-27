@@ -54,6 +54,7 @@ abstract class ThemedActivity : AppCompatActivity() {
         getWindow().setNavigationBarColor(Tools.getThemeColor(this, R.attr.navigationBarColor))
 
         super.onCreate(savedInstanceState)
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.install(this)
     }
 
     public override fun onResume() {

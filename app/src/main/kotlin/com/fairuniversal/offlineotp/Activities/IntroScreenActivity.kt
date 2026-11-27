@@ -194,6 +194,7 @@ open class IntroScreenActivity : IntroActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.install(this)
 
         // The wizard does not extend BaseActivity, so the screenshot policy has to be applied here.
         Tools.applyScreenshotPolicy(getWindow(), Settings(this).getScreenshotsEnabled())
@@ -393,7 +394,7 @@ open class IntroScreenActivity : IntroActivity() {
         override fun onDestroyView() { shared?.close(); shared = null; super.onDestroyView() }
     }
 
-    /** Slide to choose between KeyStore and password encryption. */
+    /** New vaults require password recovery; local quick unlock is configured afterward. */
     open class EncryptionFragment : SlideFragment() {
         private var encryptionChangedCallback: EncryptionChangedCallback? = null
         private var sharedStep: SetupChoiceComposeView? = null
@@ -401,9 +402,11 @@ open class IntroScreenActivity : IntroActivity() {
         private fun renderSharedStep() {
             val labels = getResources().getStringArray(R.array.settings_entries_encryption).toList()
             if (labels.size != getResources().getStringArray(R.array.settings_values_encryption).size) return
-            sharedStep?.render(getString(R.string.settings_title_encryption), getString(R.string.intro_slide2_desc),
-                labels, selectionMapping.indexOfValue(selectedType), getString(if (selectedType == Constants.EncryptionType.PASSWORD)
-                    R.string.intro_slide2_desc_password else R.string.intro_slide2_desc_keystore))
+            val passwordIndex = selectionMapping.indexOfValue(Constants.EncryptionType.PASSWORD)
+            if (passwordIndex !in labels.indices) return
+            sharedStep?.render(getString(R.string.settings_title_encryption),
+                "A recovery password is required so a copied vault can be opened independently. Biometrics and security keys can be added for local quick unlock after setup.",
+                listOf(labels[passwordIndex]), 0, getString(R.string.intro_slide2_desc_password))
         }
 
         override fun onDestroyView() {
@@ -431,8 +434,7 @@ open class IntroScreenActivity : IntroActivity() {
         }
 
         fun getEncryptionType(): Constants.EncryptionType {
-            val spinner = selection ?: return selectedType
-            return selectionMapping.get(spinner.selectedItemPosition) ?: selectedType
+            return Constants.EncryptionType.PASSWORD
         }
 
         override fun onSaveInstanceState(outState: Bundle) {
@@ -451,6 +453,7 @@ open class IntroScreenActivity : IntroActivity() {
                 }
             }
 
+            selectedType = Constants.EncryptionType.PASSWORD
             val spinner = requireNotNull(root.findViewById<Spinner>(R.id.introEncryptionSelection))
             selection = spinner
             val description = requireNotNull(root.findViewById<TextView>(R.id.introEncryptionDesc))
@@ -482,7 +485,7 @@ open class IntroScreenActivity : IntroActivity() {
             for (i in 0 until content.childCount) content.getChildAt(i).visibility = View.GONE
             val step = SetupChoiceComposeView(requireNotNull(getContext())) { index ->
                 // The hidden native selection remains a compatibility/state engine only.
-                if (sharedStep != null && selectionMapping.get(index) != null) spinner.setSelection(index)
+                if (sharedStep != null && index == 0) spinner.setSelection(selectionMapping.indexOfValue(Constants.EncryptionType.PASSWORD))
             }
             sharedStep = step
             content.addView(step, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

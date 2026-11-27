@@ -176,6 +176,11 @@ public enum PreferencesExport {
         func write(_ key: String, _ value: Value)
     }
 
+    /// Native persistent stores commit a validated import in one operation and report IO failure.
+    public protocol AtomicSettingsPort: SettingsPort {
+        func writeBatch(_ values: [String: Value]) throws
+    }
+
     public struct Export {
         public let bytes: Data
         public let keysWritten: Int
@@ -257,7 +262,11 @@ public enum PreferencesExport {
     public static func apply(_ bytes: Data, into port: SettingsPort,
                              platform: String = platformIos) throws -> Import {
         let (accepted, summary) = try parseDocument(bytes, platform: platform)
-        for (entry, value) in accepted { port.write(entry.key, value) }
+        if let atomic = port as? AtomicSettingsPort {
+            try atomic.writeBatch(Dictionary(uniqueKeysWithValues: accepted.map { ($0.0.key, $0.1) }))
+        } else {
+            for (entry, value) in accepted { port.write(entry.key, value) }
+        }
         return summary
     }
 
@@ -275,7 +284,7 @@ public enum PreferencesExport {
         guard parsed["format"] as? String == format else { throw PreferencesError.invalidDocument }
         guard let versionNumber = parsed["version"] as? NSNumber,
               !["c", "B", "d", "f"].contains(String(cString: versionNumber.objCType)),
-              versionNumber.intValue == version else {
+              Int32(versionNumber.stringValue) == Int32(version) else {
             throw PreferencesError.unsupportedVersion
         }
         let source = parsed["platform"] as? String ?? ""
@@ -303,18 +312,20 @@ public enum PreferencesExport {
     private static func jsonValue(_ entry: Setting, _ value: Value) throws -> Any {
         switch entry.kind {
         case .integer:
-            guard case .integer(let number) = value else { throw PreferencesError.typeMismatch(entry.key) }
+            guard case .integer(let number) = value, Int32(exactly: number) != nil else {
+                throw PreferencesError.typeMismatch(entry.key)
+            }
             return number
         case .string:
             guard case .text(let text) = value else { throw PreferencesError.typeMismatch(entry.key) }
-            guard text.count <= maxStringChars else { throw PreferencesError.typeMismatch(entry.key) }
+            guard text.utf16.count <= maxStringChars else { throw PreferencesError.typeMismatch(entry.key) }
             return text
         case .boolean:
             guard case .boolean(let flag) = value else { throw PreferencesError.typeMismatch(entry.key) }
             return flag
         case .stringSet:
             guard case .textSet(let values) = value else { throw PreferencesError.typeMismatch(entry.key) }
-            guard values.count <= maxSetValues else { throw PreferencesError.typeMismatch(entry.key) }
+            guard values.count <= maxSetValues, values.allSatisfy({ $0.utf16.count <= maxStringChars }) else { throw PreferencesError.typeMismatch(entry.key) }
             return values
         case .secret, .deviceBound:
             throw PreferencesError.typeMismatch(entry.key)
@@ -328,13 +339,13 @@ public enum PreferencesExport {
             guard let number = raw as? NSNumber else { throw PreferencesError.typeMismatch(entry.key) }
             let type = String(cString: number.objCType)
             guard type != "c", type != "B", type != "d", type != "f",
-                  let exact = Int(exactly: number.int64Value) else {
+                  let exact = Int32(number.stringValue) else {
                 throw PreferencesError.typeMismatch(entry.key)
             }
-            return .integer(exact)
+            return .integer(Int(exact))
         case .string:
             guard let text = raw as? String else { throw PreferencesError.typeMismatch(entry.key) }
-            guard text.count <= maxStringChars else { throw PreferencesError.typeMismatch(entry.key) }
+            guard text.utf16.count <= maxStringChars else { throw PreferencesError.typeMismatch(entry.key) }
             return .text(text)
         case .boolean:
             guard let flag = raw as? NSNumber else { throw PreferencesError.typeMismatch(entry.key) }
@@ -343,7 +354,7 @@ public enum PreferencesExport {
             return .boolean(flag.boolValue)
         case .stringSet:
             guard let values = raw as? [String] else { throw PreferencesError.typeMismatch(entry.key) }
-            guard values.count <= maxSetValues else { throw PreferencesError.typeMismatch(entry.key) }
+            guard values.count <= maxSetValues, values.allSatisfy({ $0.utf16.count <= maxStringChars }) else { throw PreferencesError.typeMismatch(entry.key) }
             return .textSet(values)
         case .secret, .deviceBound:
             throw PreferencesError.typeMismatch(entry.key)
