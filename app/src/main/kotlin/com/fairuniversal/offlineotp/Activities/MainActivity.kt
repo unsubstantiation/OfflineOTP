@@ -1327,7 +1327,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         !settings!!.getIsAppendingDateTimeToBackups()).commit()
                 if (!saved) showVaultFeedback(R.string.backup_timestamp_save_failed)
             },
-            onOpenAbout = { startActivity(Intent(this, AboutActivity::class.java)) }
+            onOpenAbout = { startActivity(Intent(this, AboutActivity::class.java)) },
+            onOpenSettings = { startActivityForResult(Intent(this, SettingsActivity::class.java), Constants.INTENT_MAIN_SETTINGS) },
+            onHardwareOath = { startActivity(Intent(this, HardwareKeyActivity::class.java)) }
         ).guarded {
             VaultSession.isCurrent(generation) && VaultSession.getKey() != null && !isFinishing()
         }
