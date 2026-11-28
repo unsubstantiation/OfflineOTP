@@ -32,8 +32,6 @@ history for removed batch journals rather than treating them as active instructi
 
 ## Contracts and focused guides
 
-- [CodeQL setup and recovery](codeql.md)
-
 - [About content and navigation](about-parity.md)
 - [Automatic vault backups and encrypted exports](automatic-backups.md)
 - [Compose desktop cutover](compose-desktop-cutover.md)
