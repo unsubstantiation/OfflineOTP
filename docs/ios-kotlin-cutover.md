@@ -33,10 +33,6 @@ XCFramework, followed by its existing Xcode app build. Xcode still compiles the
 remaining production Swift package dependency: its retirement is **unfinished**.
 The unexecuted legacy tests are not accepted as Kotlin/Compose validation.
 
-The two attempted fixes to the retired package's `isEmpty()` assertions were
-reverted rather than made part of the cutover. The app-test correction remains
-because those tests still belong to the current app target, pending replacement.
-
 ## Remaining production replacement inventory
 
 1. **Shared engine:** replace Swift `Entry`/drafts/JSON/material models and their
@@ -61,9 +57,8 @@ because those tests still belong to the current app target, pending replacement.
    obsolete generators/ratchets once their production callers have been replaced.
    Keep only SDK-bridge tests in Swift, if needed; Kotlin owns shared behavior tests.
 
-This is an inventory, not completed work. The package currently has roughly 9,300
-lines and the app hosts roughly 8,500 lines before these removals. A wholesale
-file deletion would remove working features, not implement this cutover.
+This inventory is unfinished work. Deleting still-used Swift files would remove
+features, not implement the cutover.
 
 ## Evidence limits
 

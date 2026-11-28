@@ -1,217 +1,116 @@
-# OfflineOTP for iOS — the format layer
+# OfflineOTP for iOS
 
-## Current Kotlin cutover
+The app uses shared Kotlin/Compose presentation from `:ui-foundation`. Production
+Swift engine/host dependencies still exist in `OfflineOTPKit` and `App/Sources`;
+their Kotlin replacement is **in progress**, not complete. Only a narrow bridge to
+the official YubiKit SDK is intended to remain in Swift.
 
-The Swift package and hosts described below are **remaining migration code**, not
-the target architecture. The approved end state is Kotlin/shared Compose, with
-only a narrow Swift bridge to the YubiKit SDK. See the [live cutover inventory](../docs/ios-kotlin-cutover.md).
-
-Code formatting/countdown policy, palette/About bindings, expiring clipboard IO and QR-image decoding now
-have Kotlin replacements and the corresponding Swift implementations are removed.
-The iOS release workflow runs shared Kotlin presentation tests, compiles the real
-Compose XCFramework and builds the Xcode app; it no longer runs the standalone
-SwiftPM tests described in the legacy instructions below. The remaining Swift
-package is still compiled as an app dependency until the engine cutover finishes.
-
-Two things live here:
-
-1. **`OfflineOTPKit`** — a Swift package with the parts of an iOS client that must agree with the
-   Android app and the desktop client byte for byte: the encrypted vault, the encrypted backup, the
-   entry document and the one-time password maths.
-2. **`App/`** — a native host for the shared Compose UI in `:ui-foundation`. It unlocks or creates a
-   vault, shows the same five tabs, live search, tag filter and five orders as the other clients,
-   reveals entries, copies expiring tokens, steps an HOTP counter, edits and deletes entries, writes
-   and restores backups, imports an `otpauth://` link or QR image, shows an entry as a QR code,
-   unlocks with Face ID and locks. `AppDelegate` and `AppRootViewController` own lifecycle and the
-   scene-privacy cover; `NativeFilePicker`, `QrCaptureViewController`, `VaultStore`, Keychain and
-   clipboard are native adapters. There is no SwiftUI production source left in `App/Sources`. See
-   [the shared UI boundary](../docs/shared-ui-ownership.md).
-
-Nothing in this directory is shared code; `:core` is JVM-only. What is shared is the *format*, and it
-is verified against the fixed vectors in `desktop/src/test/resources/golden/`, which the Android and
-desktop suites also use. See [docs/ios-client-plan.md](../docs/ios-client-plan.md) for the contract and
-the milestones.
-
-## CI build prerequisites and failure reporting
-
-The manual iOS workflow provisions Temurin JDK 17 and the Android 36 SDK explicitly
-because root Gradle configures Android modules even for Apple-target tasks. It
-requires a full Xcode installation with an iPhoneOS SDK and Swift 6.1 or later
-(the pinned YubiKit package's tools requirement). It does not rely on the runner's
-incidental default Java/Android setup.
-
-Linux OpenPGP host tests must pass before the macOS job starts. Rust and Compose
-XCFrameworks are built and their manifests checked before Xcode resolves package
-dependencies. The job permits 75 minutes for cold builds, with bounded Rust,
-framework and app-build steps; this is a limit, not an intended runtime.
-Rust framework, Gradle and Xcode build output shares `ios/build-log.txt` for failure
-diagnostics. Only the checked unsigned device IPA is uploaded on success. No
-standalone legacy SwiftPM tests, simulator tests, signing or publishing are added.
+**Status:** the last reported iOS build failed. Subsequent source/workflow fixes
+have local checks but no recorded successful native run. All non-iOS builds/platforms
+are user-reported verified. See the [cutover inventory](../docs/ios-kotlin-cutover.md).
 
 ## Requirements
 
-- macOS with Xcode 15 or later (Swift 5.9).
-- No Apple developer account and no signing identity. The package/format tests run on the host;
-  the optional app XCTest target needs a simulator locally, but CI does not run it.
+- macOS with full Xcode, an iPhoneOS SDK and Swift 6.1+ (required by pinned YubiKit).
+- JDK 17; Android SDK platform 36/build-tools 36.0.0 for root Gradle configuration.
+- Rust/rustup, XcodeGen and Python 3; network access to resolve dependencies.
+- No signing identity for the unsigned CI device build. Device installation and
+  distribution require an appropriate signing/provisioning process.
 
-The Xcode project is **generated**, not committed: `project.yml` is the reviewable definition and a
-`.pbxproj` is an opaque file that conflicts on every merge. `xcodegen` writes `OfflineOTP.xcodeproj`
-and `App/Info.plist`, both of which are in `.gitignore`.
+The deployment minimum is **iOS 17**, not the CI runner version or the requested
+iOS 27 verification target. `project.yml` is the source of truth; the generated
+Xcode project, frameworks, icon output and build products are not committed.
 
-## Build and test the package
+## Build locally
 
-```sh
-cd ios
-swift build
-swift test
-```
-
-The tests read the fixtures from `../desktop/src/test/resources/golden/` in place, so they must be run
-from a full checkout of the repository — not from this directory alone.
-
-## Build and test the app
+From the repository root:
 
 ```sh
-brew install xcodegen          # once
-python3 scripts/ios/generate-app-icon.py   # from the repository root; writes the 1024px app icon
-scripts/ios/build-compose-framework.sh     # requires JDK, Android SDK for Gradle configuration, and Xcode
+bash scripts/openpgp/build-ios-xcframework.sh --arm64-only
+python3 scripts/ios/generate-app-icon.py
+bash scripts/ios/build-compose-framework.sh
 cd ios
 xcodegen generate
 xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
-  -destination 'generic/platform=iOS Simulator' build
-xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
-  -destination 'platform=iOS Simulator,name=<an iPhone that `xcrun simctl list devices` shows>' test
-xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
   -configuration Release -destination 'generic/platform=iOS' \
-  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath build/DerivedData ARCHS=arm64 \
+  LD_GENERATE_MAP_FILE=YES CODE_SIGN_IDENTITY="" \
+  CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
 ```
 
-None of these need a signing identity: the local simulator build and the `iphoneos` Release build are
-both unsigned (`OfflineOTP-ios-unsigned.ipa` in CI), and the app target has no `DEVELOPMENT_TEAM`. Signing
-for a physical device (via local Xcode/signing tools or sideloaders like AltStore/SideStore/Sideloadly)
-or shipping to TestFlight stays outside CI. `xcodebuild -list` shows the one shared scheme, `OfflineOTP`,
-whose test action runs `OfflineOTPAppTests`.
+Build both frameworks **before** Xcode resolves the local package: its manifest
+selects native OpenPGP support based on the framework's presence. Missing native
+OpenPGP must not silently become a release without cryptography.
 
-CI does **not** build for the simulator, boot one, or run the app XCTest target: that step consumed the
-previous 30-minute job after the app had already compiled. The iOS job has a hard 10-minute budget,
-builds only the arm64 Apple slices, runs the host format tests optimized with testability enabled, and
-builds the unsigned device app. The commands above remain the local way to run `OfflineOTPAppTests`.
-Its **only** published output is `OfflineOTP-ios-unsigned.ipa` — no simulator bundle, source archive,
-checksum file or log artifact. Diagnostics appear as run annotations only when the job fails.
+`--arm64-only` supplies device ARM64, ARM64 simulator and macOS ARM64 Rust slices.
+Omit that option if Intel simulator/macOS slices are needed. The Compose framework
+script assembles the configured Apple slices. No SwiftUI UI fallback exists.
 
-## What is inside the .ipa, and why it is small
+## GitHub workflow
 
-The unsigned `.ipa` is about **2.5 MB**, which is easy to misread as a partial build. It is one
-arm64 Release slice of a Compose-hosted app with no bundled media:
+Run **iOS build** (`.github/workflows/ios.yml`) manually on the branch being tested.
+The runner input selects a supported macOS image; the workflow:
 
-- **No JVM and no runtime to carry.** The desktop zip embeds a Java runtime; iOS already ships the
-  Swift runtime, so the app embeds no frameworks at all.
-- **No images, fonts or storyboards.** The UI is Compose (with the generated Dark Forest theme).
-  The issuer logo *names* are stored for the other clients (`ThumbnailCatalog`), but this client
-  draws letter tiles.
-- **One architecture, optimized.** `ARCHS=arm64`, Release, dead-stripped — not the fat Debug build
-  the old simulator artifact was (4.4 MB zipped, which is where the size comparison came from).
-- **What is there:** the app executable (Compose screens + OfflineOTPKit + the statically linked
-  Rust OpenPGP backend), `Info.plist`, `PkgInfo`, and `Assets.car` with the app icon.
+1. Requires Linux OpenPGP tests/build to pass.
+2. Installs JDK 17 and Android SDK 36, and checks Xcode/Swift/iPhoneOS SDK availability.
+3. Builds the Rust XCFramework, checks generated vectors/catalog, and generates the icon.
+4. Runs `:ui-model:desktopTest` and builds/stages the Compose XCFramework.
+5. Generates the Xcode project and builds an unsigned ARM64 Release device app.
+6. Packages and inspects `OfflineOTP-ios-unsigned.ipa` before uploading it.
 
-Because a size on its own proves nothing, the packaging step runs
-`scripts/ios/report-ipa-contents.py` on the archive it is about to upload and publishes one **iOS
-bundle** annotation: compressed and installed size, file count, the executable's architecture and
-size, how much of the linked image the Rust OpenPGP objects contribute (read from the link map),
-the icon, and the bundle identifier and minimum OS. It **fails the build** if the icon is missing or
-if the Rust backend was compiled out — `ios/Package.swift` drops `OFFLINEOTP_OPENPGP_NATIVE` when
-`Frameworks/offlineotp_openpgp.xcframework` is absent, and that app would otherwise still build
-green with OpenPGP silently disabled.
+The job limit is 75 minutes; individual long steps are also bounded. This is a
+ceiling, not expected runtime. Rust-framework, Gradle and Xcode output shares
+`ios/build-log.txt`; diagnostics appear in the run, not a separate log artifact.
+The workflow does **not** run standalone `swift test`, simulator XCTest, signing,
+notarization or release publishing. Remaining Swift production dependencies still
+compile as part of the Xcode app build.
 
-The icon is generated, never committed: `scripts/ios/generate-app-icon.py` resamples the
-1254×1254 mark embedded in `assets/logo_legacy.svg` into the single 1024×1024 slot
-`App/Resources/Assets.xcassets/AppIcon.appiconset` declares, exactly as `macos.yml` builds the
-`.icns` from the shared artwork. It uses `sips` on macOS (or ImageMagick elsewhere, for checking the
-pipeline on Linux); `--check` verifies the result without rewriting it.
+## What the IPA check establishes
 
-## What the tests prove
+`scripts/ios/report-ipa-contents.py` inspects the actual archive for the app bundle,
+ARM64 executable, icon and linked Rust OpenPGP evidence. The workflow also checks
+the device platform. Static frameworks are linked into the executable; bundle size
+alone does not establish completeness. Compose resources and bundled issuer
+artwork may be present; no fixed IPA size is promised.
 
-| Test file | What it pins |
-| --- | --- |
-| `Argon2idTests` | RFC 7693 BLAKE2b vectors, RFC 9106 Argon2id v1.3 vectors, and cross-client parity vectors against `:core` (`64 MiB, t=3, p=4`) |
-| `GoldenVaultTests` | Both the Argon2id golden `argon2id-secrets.dat` and the legacy PBKDF2 golden `secrets.dat` unlock with the fixture password, decode to the same entries, and re-encode to `expected-vault.json` byte for byte |
-| `GoldenBackupTests` | Both the Argon2id golden `argon2id-otp_accounts.json.aes` and the legacy PBKDF2 golden backup open to the shared document and re-seal to the same bytes; the three real desktop exports (Unicode note, >5 KiB SSH key, hidden/revealed entries) load |
-| `TokenVectorTests` | RFC 4226/6238 vectors, plus vectors generated by an independent Python implementation for the seeds in the golden vault |
-| `EntryDocumentTests` | The stored field order, per-kind seed limits, tag/digit/period bounds, and the preserve-what-you-cannot-display rule |
-| `VaultRoundTripTests` | Create, save, reopen, backup, restore, and a file-backed vault reopening across instances |
-| `EntryListProjectionTests` | The tab mapping for every kind, the search fields and their locale-independent match, the any/all/one tag rule, collator-primary ordering with stable ties, and the five stored order names |
-| `EntryUsageTests` | The last-used stamp and use counter, the one-step HOTP advance, and the `MAX_COUNTER` ceiling |
-| `EntryDraftTests` | A hand-typed entry's exact stored bytes, the whitespace rule, the shared "must be a number" wording, Steam's omitted default period, and an edit keeping metadata the form does not show |
-| `ThumbnailCatalogTests` | The exact match (ignoring case and punctuation), the alias table, the whole-word match, the default, and that no two names fold to the same spelling |
-| `OtpUriTests` | Every refusal `OtpUriParser` makes (the 16 KiB ceiling, the four kinds, a canonical Base32 seed, mOTP's hexadecimal seed, HOTP's counter, the period/digit/counter bounds, Steam's five digits, repeatable tags, refused duplicates, the case-sensitive scheme), the label rules, and the round trip through `Entry.toUriString`'s field order |
-| `BackupRestoreTests` | The dated backup name in ASCII digits, the strict plain-text reader (a byte-order mark, invalid UTF-8, blank, oversized), the merge that puts imported entries first and keeps the vault's own copies, the replace, and the two refusals (an empty import, a duplicated one) |
-| `App/Tests/CodeFormatTests` | Code grouping and the countdown arithmetic (including mOTP's fixed ten-second step and HOTP's lack of one) |
-| `App/Tests/VaultStoreTests` | The folder the app uses, the messages a person sees, a real create → add → reopen cycle, that the tabs, search, tags, reveal, counter step, order preference, edit and delete reach the files, and that an exported backup restores into another vault, a wrong password changes nothing, the replace switch behaves, a plain-text backup imports, and the duplicate-issuer question is asked before a second account is added |
+An unsigned IPA is not directly installable or App Store-ready. Native build
+success also does not establish camera, VoiceOver, biometric, hardware-key,
+background/foreground or vault-recovery behavior.
 
-The app tests build their own vaults in a temporary folder, so unlike the package tests they need no
-repository checkout and no fixtures — which is what lets them run on a simulator.
+## Tests and generated data
 
-## Regenerating the token vectors
+Shared presentation/policy tests:
 
 ```sh
-scripts/ios/generate-token-vectors.py --write   # after an intentional change
-scripts/ios/generate-token-vectors.py           # verify (this is what CI runs)
+./gradlew --no-daemon :ui-model:desktopTest
+python3 scripts/ios/generate-token-vectors.py
+python3 scripts/ios/generate-thumbnail-catalog.py
+python3 scripts/generate-theme.py --check
+python3 scripts/generate-about.py --check
 ```
 
-The script refuses to emit anything unless it first reproduces the published RFC 4226 and RFC 6238
-test vectors, so the numbers the Swift tests assert are not the numbers this implementation happens
-to produce.
+The vector/catalog scripts check freshness by default; use `--write` only after an
+intentional source change. Theme/About content comes from `shared/` and no longer
+emits duplicate Swift palette or link dictionaries.
 
-## Regenerating the thumbnail catalog
+`ios/Tests` retains legacy Swift package tests during engine replacement; they are
+not the Kotlin/Compose CI gate. `App/Tests` still contains integration/bridge tests,
+including readers of shared golden fixtures. Building the app does not execute them.
+On an equipped Mac, generate the project and run the `OfflineOTP` scheme's test
+action against an available simulator; no simulator/device pass is claimed here.
 
-```sh
-scripts/ios/generate-thumbnail-catalog.py --write   # after the :core catalog changes
-scripts/ios/generate-thumbnail-catalog.py           # verify (this is what CI runs)
-```
+## Architecture and safety
 
-`ThumbnailCatalog.swift` is generated because the name an entry stores is shared data: the phone and
-the desktop resolve it to a logo, so the iOS client has to write the same name they would. A hand-copied
-list of names would drift; a stale one would give the same account a different logo depending on which
-client added it.
+- Shared Compose owns app-rendered screens/forms. Apple services own OS pickers,
+  camera recognition, protected storage, authentication and lifecycle integration.
+- Formatting/countdown policy and About links are shared Kotlin. Clipboard,
+  QR-image decoding and native palette bindings now have Kotlin/Native replacements.
+- `VaultStore`, crypto/storage adapters and larger coordinators are still Swift
+  production dependencies. Do not delete them without migrating callers.
+- Biometric/security-key unlock is local convenience. Keep the vault recovery
+  password and a tested portable backup; no shortcut substitutes for recovery.
 
-## What is deliberately not here
-
-App Store packaging and OpenPGP backups. Google Authenticator's multi-account export
-(`otpauth-migration://`) *is* supported: a bounded protobuf reader collects every code of the export
-and the accounts are imported together, once.
-
-Face ID is supported and optional. `BiometricUnlock.swift` keeps the **derived vault key** in a
-Keychain item with `kSecAccessControlBiometryCurrentSet` on `WhenUnlockedThisDeviceOnly`; the vault
-file, the password and the KDF are unchanged, so the shortcut only decides *when* the key is handed
-over, never what it is. Turning it on asks for the password again, and the switch lives in
-`vault.properties.plist` beside `ui_sort_mode` rather than inside `secrets.dat`.
-
-**Plain-text export is a deliberate omission.** The client *reads* a legacy unencrypted JSON backup
-and warns with Android's sentence before it opens the file picker, but it never writes one: an
-unencrypted file of OTP secrets is the thing this app exists to avoid.
-
-Creating an SSH key is not offered either, and that one is specific to this client: an SSH key's seed
-is `SshKeyMaterial`-framed material, which this build does not implement, so it would have to write a
-frame it cannot reproduce. Such an entry is still read, listed under **SSH Keys**, revealed and
-written back unchanged — the form simply cannot make a new one. Password archives and email accounts
-are excluded for the shared reason: only an import produces them.
-An OpenPGP backup format is out of scope as well: the two existing clients use incompatible OpenPGP
-implementations, so a `.json.gpg` backup cannot be read portably.
-
-### Compose authentication migration
-
-The unlock/create form is now provided by the required `OfflineOTPPresentation` Compose
-XCFramework. Build it with the script above **before** XcodeGen or xcodebuild. Missing framework
-artifacts are a build error; there is no SwiftUI form fallback. The framework is generated
-and ignored, not committed. `ComposeUnlockHost.swift` is only an authentication/store adapter.
-
-About, settings, backup/transfer, the editor, credential detail and QR surfaces are rows and
-sections rendered by the one shared `PortableSurfaceDialog`; only the fixed link IDs stay in Swift
-(`AboutInfo.swift`, generated from `shared/about/content.json`). Rebuild the framework after
-updating shared Compose code.
-
-The unlocked vault is rendered by one shared Compose composition hosted from
-`ComposeVaultHost.swift`; the lock screen is the shared `UnlockScreen` hosted from
-`ComposeUnlockHost.swift`. Native simulator/device validation of keyboard, VoiceOver, rotation,
-privacy covering and the Kotlin/Native framework is still required; source gates cannot establish
-those results.
+See the [iOS contract](../docs/ios-client-plan.md),
+[hardware boundaries](../docs/ios-hardware.md),
+[portable vault format](../docs/portable-vault-container.md) and
+[current validation checklist](../docs/shared-ui-device-checklist.md).

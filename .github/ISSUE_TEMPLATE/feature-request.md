@@ -9,8 +9,10 @@ labels: enhancement
 
 **What would you like to happen?**
 
+**Platforms affected**
+
 **Alternatives you have considered**
 
 **Additional context**
 
-Add screenshots or links if useful.
+Add links or redacted screenshots if useful; never include credentials or secret QR codes.

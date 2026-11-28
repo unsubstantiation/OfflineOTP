@@ -1,5 +1,9 @@
 # Bug hunt and unfinished-feature follow-up, 2026-10-18
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > **Snapshot:** written 2026-10-18. The workflows described below have since been removed.
 > A later bug-hunt pass exists: [`bughunt-follow-up-2026-10-25.md`](bughunt-follow-up-2026-10-25.md).
 

@@ -1,5 +1,9 @@
 # Incomplete-feature audit — 2026-11-06
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 This pass continued the half-present-feature hunt with one concrete target: the unified
 OpenPGP backend. The previous audit left it as a scaffold: a Rust crate with stub
 markers, reflective JVM adapters that could not call the generated UniFFI surface,

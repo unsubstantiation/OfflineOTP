@@ -5,29 +5,29 @@ title: ''
 labels: bug
 ---
 
-**Before filing**
+Search existing issues first. Back up before clearing data or reinstalling.
+**Never attach vaults, passwords, recovery material, private keys or secret QR codes.**
 
-- Search the [existing issues](https://github.com/unsubstantiation/OfflineOTP/issues) first.
-- Back up the vault before clearing app data or reinstalling.
-- Include a logcat, if possible: <https://developer.android.com/tools/logcat>.
+## Environment
 
-**General information**
+- Platform and OS version:
+- Architecture/device:
+- App version, artifact source and commit/run URL (if known):
+- Android flavor/custom ROM, if applicable:
 
-- App version:
-- App source (Google Play / F-Droid / GitHub / other):
-- Android version:
-- Custom ROM:
+## Expected result
 
-**Expected result**
+## Actual result
 
-**What happens instead**
-
-**Steps to reproduce**
+## Steps to reproduce
 
 1.
 
-**Logcat**
+## Redacted diagnostics
 
-```
-Paste the relevant log here, or link to a paste. Remove secrets and account data.
+Include relevant build/runtime logs; use logcat for Android where appropriate.
+Remove account data, filenames or screenshots that expose secrets.
+
+```text
+Relevant excerpt
 ```

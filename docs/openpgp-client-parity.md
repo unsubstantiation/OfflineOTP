@@ -33,9 +33,10 @@ pins that notice and the actual controller/adapter defaults for all release fami
 
 ## Scope and validation
 
-This establishes the engine-selection baseline, not identical capability sets. Android's
-provider-specific signing/verification and hardware integrations are not claimed on desktop or
-iOS. Recipient-selection UX/limits and native pickers also differ; those remain separate parity
+This establishes engine selection, not identical capability sets. Native signed exports
+and session-only signing credentials are implemented where exposed by the host. Android
+external-provider signing/verification controls remain provider-specific; do not infer
+signature verification on restore merely from successful decryption. Recipient-selection UX/limits and native pickers also differ; those remain separate parity
 work. Standard OpenPGP format compatibility depends on keys and supported algorithms and must
 be tested with real files, not inferred from labels.
 
@@ -44,7 +45,7 @@ Desktop import/export behavior is covered in `DesktopOpenPgpImportTest`,
 `DesktopOpenPgpExportTest` and codec tests. Swift availability tests live in
 `ios/Tests/OfflineOTPKitTests/OpenPgpAvailabilityTests.swift`.
 
-Release validation still requires real Android ABI builds, Windows/macOS/Linux packages and
-an iOS Xcode build. Exercise encrypted backup/restore and incorrect-key/passphrase failures on
+The user reports non-iOS builds/platforms verified; the iOS build remains blocked.
+For subsequent release candidates, validate the actual packaged native libraries. Exercise encrypted backup/restore and incorrect-key/passphrase failures on
 each; on Android also exercise explicit provider selection. Sandbox tests are not evidence
 that any particular distributed artifact contains a working native library.

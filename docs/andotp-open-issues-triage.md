@@ -1,5 +1,9 @@
 # OfflineOTP triage of upstream andOTP open issues
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > **Snapshot note:** verdicts and counts reflect the 2026-10-17 tree and upstream tracker. The
 > andOTP thumbnail carry-over (OfflineOTP issue #40) has since been completed, and upstream
 > issue counts have changed; treat this as a historical triage record.

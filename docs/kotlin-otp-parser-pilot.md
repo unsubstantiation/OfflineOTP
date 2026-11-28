@@ -1,5 +1,9 @@
 # Kotlin pilot: a validated OTP URI boundary
 
+> **Historical extraction contract:** scope/toolchain/test notes describe the original slice.
+> See [current architecture and verification](shared-ui-migration-status.md) for later consolidation.
+> Behavioral rules remain relevant where their production callers still use them.
+
 ## Scope and status
 
 The pilot introduced `OtpUriParser.kt`, `OtpParseResult.kt`, and host tests for URI parsing inside

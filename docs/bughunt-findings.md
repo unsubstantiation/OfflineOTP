@@ -1,5 +1,9 @@
 # OfflineOTP bug hunt — historical findings
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > This is the historical audit snapshot of the earlier tree/branch named below. For the latest
 > follow-up, see [`bughunt-follow-up-2026-10-25.md`](bughunt-follow-up-2026-10-25.md); the
 > earlier [`bughunt-follow-up-2026-10-18.md`](bughunt-follow-up-2026-10-18.md) and

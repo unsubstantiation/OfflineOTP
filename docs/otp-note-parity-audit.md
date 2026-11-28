@@ -1,5 +1,9 @@
 # OTP and note parity audit
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 Scope: Android, the shared Windows/macOS/Debian desktop client, and iOS. This is a
 source/test audit, not evidence of native UI or device execution.
 

@@ -1,5 +1,9 @@
 # Bug hunt pass, 2026-10-25 (tag drawer and per-tag counts)
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > **Historical report:** the GitHub Actions workflows referenced here have since been removed.
 
 Second pass of 2026-10-25, after [`bughunt-follow-up-2026-10-25.md`](bughunt-follow-up-2026-10-25.md)

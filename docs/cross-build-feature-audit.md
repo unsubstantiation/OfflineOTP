@@ -1,5 +1,9 @@
 # Cross-build feature and UI audit — 2026-11-07
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > Historical report: current routes and remaining differences are audited in
 > [the 2026-11-20 source audit](cross-platform-parity-audit-2026-11-20.md). Do not use the old native
 > About/SwiftUI/navigation descriptions below as current completion evidence.

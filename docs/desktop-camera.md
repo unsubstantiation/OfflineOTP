@@ -29,6 +29,6 @@ the process and stale decoded results cannot publish into a replaced importer/se
 
 Tests cover platform argument validation (no shell/network/multiple-input source), revoked launch,
 worker cancellation, hidden result staging and one-time consumption. They do not exercise real
-FFmpeg, permission prompts or cameras. All three desktop OSes require native testing before this
-conditional capability is described as release-verified parity. Automatic-backup workflow and iOS
+FFmpeg, permission prompts or cameras. Non-iOS verification is user-reported; this
+document has no per-camera evidence log. Recheck affected OS/device adapters for later changes. Automatic-backup workflow and iOS
 hardware-management gaps are separate and are not fixed by this adapter.

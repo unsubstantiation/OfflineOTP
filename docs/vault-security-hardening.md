@@ -2,7 +2,8 @@
 
 The [Kotlin OTP parser](kotlin-otp-parser-pilot.md) introduced URI validation with explicit success/failure results and encoding checks. The app main sources have since been migrated to Kotlin; this document describes behavior, not source-language boundaries.
 
-This documents the current implementation and its compatibility changes, **not a completed security audit or a claim that Android tests have passed**. Minimum Android remains API 28, target API 35; both existing flavors remain supported by the build configuration.
+This documents the current implementation and its compatibility changes, **not a completed security audit**; current verification is summarized in
+[the migration status](shared-ui-migration-status.md). Minimum Android remains API 28, target API 35; both existing flavors remain supported by the build configuration.
 
 ## IPC authorization
 
@@ -137,7 +138,11 @@ and missing passwords. Retire the exception only after upstream stops writing v0
 FairEmail versions no longer require it, or after an explicit product decision accepts breaking those
 imports.
 
-## Regression coverage and remaining verification
+## Historical regression evidence and follow-up
+
+The counts and environment limits below are implementation-time snapshots, not the
+current platform status. The user later reported non-iOS verification; iOS remains
+build-blocked. See [current status](shared-ui-migration-status.md).
 
 The Python suite checks the signature-bound manifest policy, backup-disable policy, source
 exclusion rules, build-input provenance, and independent-build comparison logic. The host JVM
@@ -158,8 +163,9 @@ device execution.
 For the 2026-10-26 backup changes, local checks ran 170 Python tests (2 skipped) and passed 160 host
 JVM tests and 132 sandbox checks; 15 instrumentation sources compiled against stand-ins. These cover
 login-key framing, credential/session revocation, pending markers and fake-provider exports. The
-new password-unlock, setup, credential-change and private-file retry device tests have not been run
-on Android. Real provider behavior, process death and Gradle/AGP builds remain unverified.
+new password-unlock, setup, credential-change and private-file retry tests were not run
+in that sandbox. The user subsequently reported non-iOS platform verification; see
+[current status](shared-ui-migration-status.md). That report is not an independent security audit.
 
 After the Google migration-import changes, 174 Python tests ran (2 skipped), 173 host JVM tests and
 135 sandbox checks passed, and 16 instrumentation sources compiled against stand-ins. The coverage

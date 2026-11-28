@@ -1,7 +1,7 @@
 # Chunk 2 — portable entry contract and document adapters
 
-**Implementation complete. Native Apple compilation/XCTest and Android device execution remain
-release-validation gates, not results claimed by the Linux checks.** Chunk 3 has not started.
+**Shared entry slice implemented; the broader iOS Kotlin cutover remains incomplete.**
+See [current verification status](shared-ui-migration-status.md).
 
 This completes the metadata slice described in [portable entry metadata](portable-entry-metadata.md)
 with a full portable record, kind/algorithm/parameter model, bounded JSON codec and production

@@ -1,5 +1,9 @@
 # Cross-platform feature parity and legacy-retirement audit — 2026-11-20
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 ## Scope and conclusion
 
 Source audit of the active Android, Compose desktop (Windows/macOS/Linux), and iOS UIKit/KMP

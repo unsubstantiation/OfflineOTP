@@ -1061,19 +1061,14 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("public static func inApp(backendAvailable: Bool)", port)
         self.assertIn("var isAvailable: Bool { true }", port)
 
-    def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
-        plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
-        self.assertIn("M1.5", plan)
-        self.assertIn("**M1.5** ✅", plan)
-        self.assertIn("**M2** ✅", plan)
-        self.assertIn("**M3** ✅", plan)
-        self.assertIn("**M4** ✅", plan)
-        for honest_limit in ("no app target and no SwiftUI yet", "tabs", "Face ID"):
-            if honest_limit == "no app target and no SwiftUI yet":
-                self.assertNotIn(honest_limit, plan,
-                                 "the plan still claims there is no app target")
-            else:
-                self.assertIn(honest_limit, plan)
+    def test_the_plan_records_remaining_swift_dependencies_and_native_limits(self):
+        plan = (ROOT / "docs/ios-client-plan.md").read_text()
+        for required in ("shared Kotlin/Compose", "Swift engine/host", "is incomplete",
+                         "last reported iOS build failed", "iOS 17", "Face ID",
+                         "Standalone legacy SwiftPM tests are not run"):
+            self.assertIn(required, plan)
+        for obsolete in ("Why not Kotlin Multiplatform", "no Face ID yet", "simulator build is the only artifact"):
+            self.assertNotIn(obsolete, plan)
 
     def test_android_camera_scanner_targets_qr_and_forwards_scan_result(self):
         main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()

@@ -29,9 +29,9 @@ cargo build --manifest-path rust/Cargo.toml --release
 
 ## Desktop (Debian/Windows/macOS)
 
-`desktop/build.gradle` compiles the Kotlin bindings, declares JNA, stages the host
-cdylib from `rust/target/release` into the distribution, and passes
-`-Djna.library.path=$APPDIR/native` to the packaged launcher. `RpgpOpenPgpPort` is
+`desktop/build.gradle` compiles the Kotlin bindings and declares JNA.
+`desktop-compose/build.gradle` stages the host cdylib from `rust/target/release`
+into the distribution and configures the packaged launcher's native-library path. `RpgpOpenPgpPort` is
 the default engine; PGPainless is only a fallback when the native library is absent.
 
 ## Android
@@ -69,5 +69,7 @@ exists, `ios/Package.swift` compiles the generated Swift bindings and defines
 Without the artifact the portable format layer still builds and tests, and the
 OpenPGP port throws `backendUnavailable` instead of pretending to encrypt.
 
-The iOS workflow uses `--arm64-only` because its macOS host tests and shipped device/simulator
-artifacts are arm64; the default local build still includes the Intel slices.
+The iOS workflow uses `--arm64-only` for the device ARM64, simulator ARM64 and macOS
+ARM64 library slices. Only the unsigned device IPA is uploaded; standalone SwiftPM
+tests and simulator app artifacts are not CI outputs. The default local framework
+build also includes Intel slices.

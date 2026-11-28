@@ -1,5 +1,10 @@
 # Portable import/export — chunk 7
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 Implemented 2026-11-20. Native build/device validation remains outstanding; this is not an OS parity certificate.
 
 ## Shared rules and production adapters
@@ -35,4 +40,4 @@ Local gates for this slice:
 
 Coverage includes malformed/bounded encodings/material, CSV/provisioning round trips, migration batch ordering and lifecycle, preferences/LinSCP validation, pending consumption and stale queued exports. Source ratchets ensure production delegation and preserved native boundaries. Added Android `InterchangeCodecDeviceTest`, Apple `SharedInterchangeAdapterTests` and migration confirmation tests await real native execution.
 
-Required equipped-runner gates: real Gradle common/JVM/Android builds and both Android variants' instrumentation; Kotlin iOS framework compilation, SwiftPM tests and Xcode app/test builds; packaged desktop smoke tests. Exercise providers, cancel/relock/rekey during queued work, Unicode/large imports and OpenPGP on requested operating systems. Stub compilation/source tests are not ABI, runtime, secure-erasure or device evidence. Automatic-backup consolidation (8), full presentation consolidation (9), and final removal/release (10) are separate chunks.
+Required equipped-runner gates: real Gradle common/JVM/Android builds and both Android variants' instrumentation; Kotlin iOS framework compilation and Xcode app/test builds; packaged desktop smoke tests. Exercise providers, cancel/relock/rekey during queued work, Unicode/large imports and OpenPGP on requested operating systems. Stub compilation/source tests are not ABI, runtime, secure-erasure or device evidence. Automatic-backup, presentation and cleanup slices are implemented; current remaining work is tracked in the iOS inventory.

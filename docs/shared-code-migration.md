@@ -1,25 +1,11 @@
-# Shared-code consolidation — migration plan
+# Shared-code consolidation plan
 
-Status: **chunks 1–9 implemented; native validation gates remain outstanding**.
-See [portable entry documents](portable-entry-documents.md) for the full entry contract, adapters,
-tests and validation handoff. The graph in section 2 records the pre-migration baseline; current
-boundary guards also allow `:shared-domain` and the intentional `:core`/`:ui-foundation` dependencies
-on it. Chunk 3 protocol policy and native adapters are implemented; see
-[portable vault protocol](portable-vault-protocol.md). Chunk 4 restore decisions and adapters are
-implemented; see [restore workflow](portable-restore-workflow.md). Chunk 5 session/unlock authority
-and native adapters are implemented; see [session authority](portable-session-authority.md).
-Chunk 6 persistence/migration sequencing is implemented; see
-[persistence workflow](portable-persistence-workflow.md). Chunk 7 portable import/export codecs
-and generation-bound orchestration are implemented; see [interchange handoff](portable-interchange-workflow.md).
-Chunk 8 automatic-backup configuration, retention and scheduling decisions are implemented; see
-[automatic-backup handoff](portable-automatic-backup.md). Chunk 9 consolidates portable card/list rendering
-and frame delivery, with JVM engine adapters confined to `jvmHostMain`; see
-[UI/presentation handoff](portable-ui-presentation.md).
-Recorded 2026-11-20. This document supersedes older consolidation audit descriptions where they
-conflict with the current module graph. It does not certify OS compatibility or native test results.
-The backup/restore changes already in this working branch are prerequisite work, not part of
-chunk 2. Keep them separately reviewable when preparing commits/PRs. Do not create migration
-branches in this Arena session; work stays on its assigned branch.
+Chunks 1–10 established shared domain/workflow rules, portable Compose rendering and
+cleanup gates. **The iOS engine/host cutover is not complete.** See
+[current status](shared-ui-migration-status.md), [ownership](shared-ui-ownership.md),
+[release handoff](shared-migration-release.md) and [iOS inventory](ios-kotlin-cutover.md).
+The user reports non-iOS builds/platforms verified; the iOS build is confirmed failing.
+Per-chunk handoffs record implementation-time evidence, not the latest test totals.
 
 ## 1. Product target matrix
 
@@ -28,7 +14,7 @@ branches in this Arena session; work stays on its assigned branch.
 | Debian desktop | **x86-64 / amd64**, not 32-bit | One Compose/JVM desktop app; `debian.yml` packages a Debian 12 x64 image. Validate packaged launch, native libraries, file access and hardware on Debian. |
 | Windows 11 desktop | **x86-64**, not 32-bit | Same desktop app; `windows.yml` packages x64 on a Windows 2022 runner. Runner success alone is not Windows 11 runtime validation. |
 | macOS 27 desktop | ARM64 is the current packaged architecture | Same desktop app; `macos.yml` currently packages ARM64 using `macos-15`. macOS 27 is requested runtime coverage, not established evidence. Intel/universal packaging is not added by this plan. |
-| iOS 27 | Device ARM64; ARM64 simulator for development | Shared Compose presentation plus Swift engine/host. Current app deployment minimum is iOS 17; `ios.yml` builds the package/tests and device app. iOS 27 simulator/device execution remains a release gate. |
+| iOS 27 | Device ARM64; ARM64 simulator for development | Shared Compose presentation plus Swift engine/host. Current app deployment minimum is iOS 17; `ios.yml` runs shared Kotlin presentation tests and builds the frameworks/device app. iOS 27 simulator/device execution remains a release gate. |
 | Android 17 | Preserve existing release ABIs; x86-64 emulator for tests | F-Droid and Play variants must share behavior. Current app compile SDK is 36 and target SDK is 35; focused workflow emulator checks use API 28/36. Android 17 runtime coverage and any SDK upgrade are separate work, not implied by this plan. |
 
 OS target labels above are the user's requested coverage, not claims that matching SDKs/runners
@@ -180,26 +166,17 @@ bash scripts/kotlin-sandbox/compile-android-tests.sh
 ```
 
 Native gates (on equipped runners): Gradle core/desktop/shared UI tests and distributions on each
-desktop OS; both Android variants built and instrumentation executed; `swift test` in `ios/`,
-Kotlin iOS framework build and Xcode app build. Run against the requested OS versions when suitable
+desktop OS; both Android variants built and instrumentation executed; Kotlin iOS framework
+build and Xcode app build. The standalone SwiftPM test suite is no longer an iOS CI gate. Run against the requested OS versions when suitable
 SDKs/devices are available. The manual Android `compose-validation` job now selects 51 tests across
 Compose/artwork, authentication, automatic backup, restore, entry documents and interchange/Google
 migration. Its explicit report manifest rejects missing/skipped/failed/error results; this wiring
 is not evidence of a device run. See the [release handoff](shared-migration-release.md).
 
-## 7. Completion and next hand-off
+## 7. Completion and handoff
 
-Chunk 1 adds documentation and executable source/dependency boundaries, not production behavior.
-The build matrix explicitly records x86-64 desktop scope and unverified requested OS coverage.
-Chunk 2 is implemented: portable entry models/serialization with JVM/Swift adapters and all-kind
-metadata-preservation fixtures; see the linked handoff for native gates still to run. Review this
-change before proceeding beyond the authorized chunk. Chunk 3 is implemented: shared vault/backup
-framing, KDF ceilings and format dispatch with existing crypto backends, production JVM/Apple
-adapters and cross-platform protocol fixtures; see [protocol handoff](portable-vault-protocol.md).
-Chunk 4 is implemented: shared read/validate/preview/confirm/install and merge decisions with native
-payload/storage adapters; see [restore handoff](portable-restore-workflow.md). Chunks 5–9 are implemented
-with native validation still pending; see the session, persistence, interchange, automatic-backup
-and UI handoffs above. Chunk 10 removes proven unused wrappers and strengthens release gates;
-[cleanup ledger and release handoff](shared-migration-release.md) distinguish completed source work
-from blocked native validation and intentionally retained compatibility code. Migration source work
-is implemented; release certification and native-gated deletion are **not complete**.
+The shared migration slices and cleanup work are implemented; this is not a declaration
+that the full iOS application has been converted to Kotlin. The broader replacement
+and its sole permitted Swift SDK bridge are tracked in [the active inventory](ios-kotlin-cutover.md).
+Use [current status](shared-ui-migration-status.md) and the [release checklist](shared-migration-release.md)
+rather than historical per-chunk test counts to determine remaining acceptance work.

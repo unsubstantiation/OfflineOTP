@@ -1,5 +1,9 @@
 # Cross-build consolidation — 2026-11-07
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 Historical audit. For the current module graph, requested x86-64/Apple/mobile target matrix,
 architecture boundaries and chunk-by-chunk hand-off, see the
 [shared-code migration plan](shared-code-migration.md) (2026-11-20). Older implementation and

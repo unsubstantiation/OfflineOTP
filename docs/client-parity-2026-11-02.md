@@ -1,5 +1,9 @@
 # Android / desktop parity review — 2026-11-02
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 Both clients share `:core` for the vault, entry model, OTP calculation, parsers and backups, so the
 interesting drift is in the thin shells: what each client exposes and what it does before it writes.
 This pass compared every user-facing action of the two clients and fixed the four places where the

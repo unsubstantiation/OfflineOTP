@@ -1,5 +1,9 @@
 # Bug hunt and fix pass, 2026-10-25
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > **Historical report:** the GitHub Actions workflows described here have since been removed.
 
 Another comprehensive pass over this checkout, after the 2026-10-17/18 bug hunts and the

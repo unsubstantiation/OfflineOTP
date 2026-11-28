@@ -1,5 +1,9 @@
 # Email editor parity audit
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 ## Changes
 
 - Android, Windows, macOS, Linux desktop and iOS now render the same shared Compose Multiplatform

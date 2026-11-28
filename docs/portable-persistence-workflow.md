@@ -1,5 +1,10 @@
 # Portable persistence/migration sequencing (chunk 6)
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 ## Shared authority and native ownership
 
 `shared-domain/.../PersistenceWorkflow.kt` supplies the secret-free persistence state machine,
@@ -81,4 +86,4 @@ prove native ABI correctness or durability. Verify old-password/new-password rec
 rollback bytes, background cancellation and failed storage writes on the target platforms. No
 physical zeroization guarantees are made for JVM strings or Swift copy-on-write storage.
 
-Chunk 7 (import/export) has not started.
+The import/export slice is implemented; see [its handoff](portable-interchange-workflow.md).

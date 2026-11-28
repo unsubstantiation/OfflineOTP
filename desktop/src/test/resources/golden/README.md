@@ -4,7 +4,7 @@ Fixed-vector files that pin the on-disk formats shared by the Android app and th
 `GoldenInteropTest` hashes every file and opens each blob through the real desktop storage stack,
 so a silent change to the codecs, the PBKDF2 split or the byte framing fails the build.
 
-All blobs use the password `golden-interop-password` and the same two-entry vault document
+The base encrypted vault/backup blobs below use the password `golden-interop-password` and the same two-entry vault document
 (`expected-vault.json`, produced by the shared `VaultJson` encoder): a 6-digit SHA1 TOTP for
 `Golden Issuer` and an 8-digit SHA256 HOTP (counter 9) for `Counter Service`.
 
@@ -46,11 +46,12 @@ tests must still be run on a device or emulator to verify that runtime.
 (the private field exceeds 5 KiB) and those same OTPs. All keys in these fixtures are test data.
 
 `desktop-privacy-export.json.aes` is a desktop-produced mixed OTP, note and SSH backup with
-both hidden and revealed entries. Android device restore coverage is compiled but still needs execution.
+both hidden and revealed entries. Android device restore sources cover this case; current platform verification is user-reported.
 
 The Swift package in `ios/` reads these files **in place** as well (`GoldenCorpus` locates this
-directory from its own source path), so the iOS client is verified against exactly the bytes the
-JVM suites pin, and a format change breaks both at once. It never writes here.
+directory from its own source path), so their source coverage uses the same bytes the JVM suites pin. Those legacy tests
+are not executed by the current iOS workflow; fixture consumers alone do not establish
+a native pass. They never write here.
 
 These are test-only fixtures with a throwaway password and no real accounts.
 

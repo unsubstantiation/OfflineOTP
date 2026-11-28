@@ -1,14 +1,17 @@
 """Check local Markdown paths and in-page heading links in project documentation."""
 import re
+import subprocess
 import unittest
 from collections import Counter
 from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
-DOCUMENTS = [Path("README.md"), Path("CHANGELOG.md"), Path("scripts/kotlin-sandbox/README.md")]
-for directory in ("docs", ".github/ISSUE_TEMPLATE", "assets/thumbnails"):
-    DOCUMENTS.extend(sorted(path.relative_to(ROOT) for path in (ROOT / directory).glob("*.md")))
+# Include every tracked/new Markdown guide, not just a few root documents. Git's
+# ignore rules keep generated dependency/build trees out of this inventory.
+DOCUMENTS = sorted({Path(name) for name in subprocess.check_output(
+    ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT
+).decode().split("\0") if name.endswith(".md") and (ROOT / name).is_file()})
 
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)\s]*)?\)")
 IN_PAGE_LINK = re.compile(r"\]\(#([^)\s]+)\)")
@@ -49,6 +52,28 @@ class DocumentationLinkTest(unittest.TestCase):
                 if unquote(fragment) not in anchors:
                     broken.append(f"{document}: #{fragment}")
         self.assertEqual([], broken, "in-page links point at missing headings")
+
+    def test_cross_document_heading_links_resolve(self):
+        broken = []
+        for document in DOCUMENTS:
+            content = (ROOT / document).read_text()
+            for target in re.findall(r"\]\(([^)\s]+)\)", content):
+                if "#" not in target or target.startswith(("#", "http://", "https://")):
+                    continue
+                filename, fragment = target.split("#", 1)
+                path = ROOT / document.parent / unquote(filename)
+                if not fragment or path.suffix != ".md" or not path.is_file():
+                    continue
+                counts = Counter()
+                anchors = set()
+                for heading in HEADING.findall(path.read_text()):
+                    slug = re.sub(r"[^\w -]", "", heading.lower()).replace(" ", "-")
+                    suffix = counts[slug]
+                    counts[slug] += 1
+                    anchors.add(f"{slug}-{suffix}" if suffix else slug)
+                if unquote(fragment) not in anchors:
+                    broken.append(f"{document}: {target}")
+        self.assertEqual([], broken, "cross-document heading links are stale")
 
     def test_docs_referenced_from_readme_exist(self):
         for target in relative_links(Path("README.md")):

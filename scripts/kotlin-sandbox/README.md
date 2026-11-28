@@ -1,118 +1,59 @@
-# Kotlin sandbox check (non-authoritative)
+# Kotlin sandbox checks
 
-`run.sh` builds in two phases on a desktop JVM, mirroring the Gradle `:core`/`:app` dependency.
-It first compiles the shared `:core` module (`core/src/main`, the `CORE_SOURCES` list) with **no**
-Android/AndroidX stubs on the classpath, then compiles the app's Kotlin main sources
-(`APP_SOURCES`) against that compiled core output and the hand-written Android/AndroidX stubs and
-runs `Checks.kt`. The phase split fails if a core source reaches for an Android API, since such a
-reference cannot resolve in phase 1. It exists for environments that have a JDK and a Kotlin
-compiler but no Android SDK, AndroidX artifacts, or Gradle dependency graph. It is not the
-app's real build.
+These are **non-authoritative JVM checks**, intended for environments without the
+Android SDK or published Compose/native dependencies. They compile selected
+production sources against narrow substitutes and run available headless tests.
+They do not replace Gradle, lint, package/signature checks or device tests.
 
-**It is not a substitute for release checks**: the Gradle unit tests, lint, APK builds,
-packaged-manifest policy, and API 28/36 instrumentation runs described in the root
-[README](../../README.md).
-A green run means the covered sources compile under `-jvm-target 1.8` and the checked logic
-behaves against the stubs. It says nothing about Android runtime behavior, resources, the
-manifest, packaging, signing, or reproducibility.
-
-## Run it
-
-On a machine without a JDK or Kotlin compiler, `bootstrap-toolchain.sh` fetches both from package
-mirrors, verifies pinned SHA-256 digests, unpacks them outside the repository by default, and prints the
-environment to use:
+## Setup
 
 ```sh
 bash scripts/kotlin-sandbox/bootstrap-toolchain.sh
-# Run the export commands printed by the script, then:
+# Apply the export commands printed by the bootstrap script, then:
 bash scripts/kotlin-sandbox/run.sh
 ```
 
-The digests are trust-on-first-use against the mirrors over TLS, not independent provenance
-verification. Prefer a package manager or a verified archive where available.
+Bootstrap downloads a pinned Kotlin compiler/JDK from npm/PyPI, checks recorded
+SHA-256 values and unpacks outside the repository. Those hashes are not independent
+provenance verification; prefer a trusted package manager/archive where available.
 
-With an existing toolchain:
+With your own toolchain, set `JAVA_HOME`, `JAVA_BIN`, `KOTLINC` and, if necessary,
+`KOTLIN_STDLIB`. Outputs default to ignored `reports/kotlin-sandbox/` directories.
 
-```sh
-export JAVA_HOME=/path/to/jdk
-export PATH="$JAVA_HOME/bin:$PATH"
-KOTLINC=/path/to/kotlinc-jvm JAVA_BIN="$JAVA_HOME/bin/java" bash scripts/kotlin-sandbox/run.sh
-```
+## Gates
 
-Set `KOTLIN_STDLIB` to use a specific `kotlin-stdlib.jar`. Output defaults to the ignored
-`reports/kotlin-sandbox/` directory.
+| Command | Coverage |
+| --- | --- |
+| `run.sh` | Explicit core/app source lists, Android substitutes and `Checks.kt` behavior checks |
+| `compile-core.sh` | Shared domain/core and core JVM tests without Android/Compose APIs |
+| `scripts/run-jvm-tests.sh` | App/core JVM tests using the sandbox dependencies |
+| `compile-desktop.sh` | JVM engine/model and desktop sources/tests, headless AWT and third-party stubs |
+| `compile-ui.sh` | Separate domain/contract/foundation/JVM adapter boundaries, presentation tests and platform host seams |
+| `compile-android-tests.sh` | Instrumentation source type-check only; no Android tests executed |
 
-The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists from `run.sh`:
+Invoke the scripts from the repository root as `bash scripts/kotlin-sandbox/<name>`;
+use `bash scripts/run-jvm-tests.sh` for the JVM runner.
 
-- `scripts/kotlin-sandbox/compile-core.sh` is the strict core boundary gate: it compiles
-  `core/src/main` together with `core/src/test` using no `android.*`/`androidx.*` stubs (only the
-  third-party stubs that `core/build.gradle` declares) and runs the core JVM tests.
-- `scripts/run-jvm-tests.sh` runs the JVM unit tests under both `app/src/test/kotlin` and
-  `core/src/test/kotlin`.
-- `scripts/kotlin-sandbox/compile-desktop.sh` is the desktop Swing gate: it compiles `:core` and
-  `:ui-model` (the shared labels the Swing client renders) first with no Android or Compose stubs,
-  then compiles `desktop/src/main` and `desktop/src/test` against that output using only the JDK's
-  `java.desktop` (Swing/AWT) module, and runs the desktop tests headless
-  (`-Djava.awt.headless=true`). Lightweight Swing theme, card, and table-model tests run
-  here; heavyweight `JFrame` display tests are skipped. On a host with a display and Gradle, run
-  `./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'` for the
-  opt-in window, dialog, menu, visibility, search and clipboard checks.
-- `scripts/kotlin-sandbox/compile-ui.sh` is the shared UI gate: it compiles `:core`, then
-  `:ui-model` (the frame layer) with **no Compose artifact on the classpath**, then
-  `ui/src/jvmHostMain` against the compile-only Compose stubs in
-  [`stubs-compose/`](stubs-compose/README.md), then runs the frame-layer tests from
-  `ui-model/src/desktopTest/kotlin`. A Compose screen that reaches for `android.*`, Swing, storage, crypto
-  or session types fails to compile, and the frame-model tests (grouping, countdown arithmetic,
-  expiry window, masking, tab/tag counts, empty-state wording, both filter combinations) run on a
-  plain JVM. A fourth phase type-checks `desktop-compose` against the compiled `:desktop` gate
-  output and the Compose Desktop window stubs (running `compile-desktop.sh` first if that output is
-  missing), and a fifth type-checks the Android seam (`ui/src/androidMain`) against the app's own
-  Android stubs plus a Compose platform stub, so neither host can drift away from the shared
-  screen's API. It compiles composables but never executes one, so it says nothing about layout,
-  rendering, accessibility or the real artifact signatures.
-- `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
-  `app/src/androidTest/kotlin` against test stubs.
+The UI gate compiles portable contracts without engine classes, foundation without
+JVM model/core classes, and JVM engine-to-presentation adapters without Compose.
+It runs shared presentation tests and headless scheduler tests, then checks host
+seams with [compile-only Compose/platform stubs](stubs-compose/README.md).
+No Swing UI fallback or obsolete table/display test suite is built.
 
-On 2026-10-22, with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
-144 JVM tests passed, and all twelve instrumentation sources type-checked against stand-ins.
+## What passing means
 
-## What it checks
+Checks cover known OTP/crypto vectors, document bounds, format routing, generation-
+bound sessions/tasks, cancellation, backup ownership, privacy/redaction and shared
+presentation policy. Each `PASS` line identifies a covered case. Some sources are
+only compiled/shape-checked, and some third-party behavior is substituted.
 
-- **OTP generation:** RFC 4226/6238 vectors for SHA-1/SHA-256/SHA-512, Steam and mOTP mapping,
-  token formatting, previous-token selection, and refresh after a backwards clock change.
-- **Parsing and input bounds:** `InputPolicy`, `OtpUriParser`, Google Authenticator migration QR
-  parsing and batch/session ownership, `EntryJson`/`EntryJsonResult`, bounded document reads and
-  provider output, encrypted-backup framing, and the replicated
-  `org.json`, Commons Codec Base32, and `android.net.Uri` subsets.
-- **Cryptography that a desktop JVM can run:** PBKDF2 against an independent derivation and the
-  RFC 6070 vector, AES-GCM against the NIST vector, current encrypted-backup round trips (including
-  wrong-password/tamper rejection) and rejection of headerless backups, login-derived backup keys and
-  their shared nonce budget, hardware-unlock AES-GCM envelope tampering and bounds, and RSA
-  wrap/unwrap with a generated key pair.
-- **Vault, session, and tasks:** typed vault outcomes, generation- and revision-bound key handoffs,
-  task cancellation/ownership, backup retry markers, credential staging, backup receivers and the
-  unregistered agent, the panic responder, and screen-off/obscured-touch handling. A fake document
-  provider exercises login-password automatic/manual exports, failure cleanup and revocation.
-  In-memory preferences and a scripted key API check hardware-enrollment invalidation, duplicate
-  refusal and late-result cleanup, not actual device communication.
-- **UI and Java-visible shapes:** dialog and preference wiring, tags, about rows, entry-card
-  binding (including hidden issuer/label formatting, issuer preference and action redaction),
-  active-search refresh and import-confirmation cleanup, and the retained task fragment.
-  Names, descriptors, annotations, enum order, and other ABI details are reflected from compiled
-  classes where a class cannot be loaded.
+No composable is executed or measured. No real Android window, resources, IME,
+KeyStore, camera, file provider, permission prompt or UIKit service is exercised.
+Stub APIs can accept calls that the real SDK rejects. Handwritten Foundation/Vision/
+pasteboard signatures are not Kotlin/Native or Apple ABI verification.
 
-Some sources are fully executed; others are only compiled and shape-checked. The `PASS` lines
-name what each check actually exercises.
-
-## Limits
-
-- The stubs are approximations, not the Android platform. There is no real window, theme,
-  resource resolution, IME, `Looper`/`Handler` timing, notification channel, camera, KeyStore,
-  or Storage Access Framework provider. The fake document resolver verifies backup bytes and
-  permission gates, not Google Drive, Work Profile grants, or any real provider's behavior.
-- `AtomicFile` refuses every operation, and `Context.getFilesDir()` is the working directory.
-  The real file transaction is deliberately never executed.
-- Some stub behavior is itself replicated (for example `TypedValue.applyDimension`), so checks
-  that depend on it are only as accurate as the replica.
-- No Gradle invocation, lint, resource/manifest processing, APK packaging, signing, or
-  reproducible-build comparison happens here.
+These scripts perform no Gradle dependency resolution, Android manifest/resource
+processing, native compilation, APK/IPA packaging, signing or independent-build
+comparison. Native gates and current user-reported verification are documented in
+the [project guide](../../README.md) and
+[native handoff](../../docs/shared-ui-native-validation.md).
