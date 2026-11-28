@@ -64,7 +64,7 @@ echo "kotlinc:     $KOTLINC"
 echo "androidTest: ${#ANDROID_TEST_SOURCES[@]} files"
 echo "output:      $OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn \
+"$KOTLINC" -jvm-target 11 -nowarn \
     "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" "${ANDROID_TEST_SOURCES[@]}" \
     "${TEST_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT"

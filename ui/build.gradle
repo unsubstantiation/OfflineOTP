@@ -14,7 +14,6 @@ kotlin {
         }
     }
     // Both hosts target JVM 11 so inline Compose/AndroidX calls can compile.
-    // Toolkit-free engine modules may still publish Java 8-compatible bytecode.
     jvm('desktop') {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)

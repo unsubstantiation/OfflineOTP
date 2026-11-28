@@ -128,7 +128,7 @@ class JvmTestRunnerBehaviorTest(unittest.TestCase):
         env.setdefault("JAVA_HOME", str(Path(java).resolve().parent.parent))
         env["PATH"] = f"{Path(java).resolve().parent}:{env.get('PATH', '')}"
         result = subprocess.run(
-            [kotlinc, "-jvm-target", "1.8", "-nowarn",
+            [kotlinc, "-jvm-target", "11", "-nowarn",
              *sorted(str(path) for path in SHIM.rglob("*.kt")),
              *map(str, sources), "-d", str(out)],
             capture_output=True, text=True, timeout=600, env=env)

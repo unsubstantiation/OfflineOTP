@@ -1,4 +1,4 @@
-"""Guard Compose consumers' targets and reproduce Kotlin's inline-bytecode constraint.
+"""Guard all JVM/Android targets and reproduce Kotlin's inline-bytecode constraint.
 
 The compiler fixture uses no SDK substitutes, but is not an Android/Gradle build.
 """
@@ -15,8 +15,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class JvmBytecodeTargetsTest(unittest.TestCase):
-    def test_compose_consumers_align_java_and_kotlin_at_jvm_11(self):
-        for module in ('app', 'ui', 'ui-foundation', 'desktop', 'desktop-compose'):
+    def test_all_modules_align_java_and_kotlin_at_jvm_11(self):
+        for module in ('app', 'core', 'shared-domain', 'ui-contract', 'ui-foundation',
+                       'ui-model', 'ui', 'desktop', 'desktop-compose'):
             with self.subTest(module=module):
                 text = (ROOT / module / 'build.gradle').read_text()
                 self.assertIn('JvmTarget.JVM_11', text)
@@ -25,9 +26,20 @@ class JvmBytecodeTargetsTest(unittest.TestCase):
                 self.assertEqual(2, text.count('JavaVersion.VERSION_11'))
                 self.assertNotIn('JvmTarget.JVM_1_8', text)
                 self.assertNotIn('JavaVersion.VERSION_1_8', text)
-        # Both Android and desktop compilations of the multiplatform UI need the target.
-        for module in ('ui', 'ui-foundation'):
+        # Both Android and desktop compilations of multiplatform modules need the target.
+        for module in ('shared-domain', 'ui-contract', 'ui-model', 'ui', 'ui-foundation'):
             self.assertEqual(2, (ROOT / module / 'build.gradle').read_text().count('JvmTarget.JVM_11'))
+
+    def test_sandbox_compilers_use_the_production_target(self):
+        import re
+        invocations = 0
+        for script in (ROOT / 'scripts').rglob('*.sh'):
+            for target in re.findall(r'-jvm-target\s+([0-9.]+)', script.read_text()):
+                self.assertEqual('11', target, str(script))
+                invocations += 1
+        self.assertGreaterEqual(invocations, 20)
+        shim = (ROOT / 'scripts/tests/test_jvm_test_suite.py').read_text()
+        self.assertIn('[kotlinc, "-jvm-target", "11", "-nowarn",', shim)
 
     def test_real_compiler_rejects_8_to_11_inline_and_accepts_aligned_target(self):
         toolchain = Path(os.environ.get('KOTLIN_SANDBOX_TOOLCHAIN', '/tmp/kotlin-sandbox-toolchain'))

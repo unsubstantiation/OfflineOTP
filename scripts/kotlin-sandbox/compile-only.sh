@@ -53,5 +53,5 @@ CORE_SOURCES=("${CORE_SOURCES[@]//\$ROOT/$ROOT}")
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn "$@" "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT"
+"$KOTLINC" -jvm-target 11 -nowarn "$@" "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT"
 echo "COMPILE OK -> $OUT"

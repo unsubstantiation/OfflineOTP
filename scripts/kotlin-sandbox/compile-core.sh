@@ -69,7 +69,7 @@ echo "kotlinc: $KOTLINC"
 echo "core:    ${#CORE_SOURCES[@]} files (no android/androidx stubs on classpath)"
 echo "output:  $OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn \
+"$KOTLINC" -jvm-target 11 -nowarn \
     "${CORE_SOURCES[@]}" "${THIRD_PARTY_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT"
 

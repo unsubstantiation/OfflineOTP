@@ -93,8 +93,9 @@ See [iOS hardware](docs/ios-hardware.md) for SDK and transport limitations.
 
 ## Build and run
 
-Use JDK 17 and Android SDK platform 37/build-tools 37.0.0. Gradle configures Android
-modules even for desktop/Apple tasks. Dependency resolution requires network access.
+All JVM/Android modules target Java 11 bytecode. Run Gradle and packaging with
+JDK 17 and Android SDK platform 37/build-tools 37.0.0; Android modules are configured
+even for desktop/Apple tasks. Dependency resolution requires network access.
 Use Rust/rustup to build the native OpenPGP backend before packaging; Android also
 needs cargo-ndk and an NDK. See [native build commands](scripts/openpgp/README.md).
 
