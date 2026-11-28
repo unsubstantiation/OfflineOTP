@@ -10,11 +10,10 @@ kotlin {
     // Android and desktop consume jvmHostMain adapters; portable rendering is re-exported.
     androidTarget {
         compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
         }
     }
-    // The desktop target is JVM 11 because the Compose Desktop runtime requires it, while :core and
-    // the Android target stay on the 1.8 bytecode the app has always shipped.
+    // Both hosts target JVM 11 so inline Compose/AndroidX calls can compile.
     jvm('desktop') {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
@@ -58,7 +57,7 @@ android {
         minSdkVersion 28
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 }

@@ -94,16 +94,16 @@ android {
         // Flag to enable support for the new language APIs
         coreLibraryDesugaringEnabled = true
 
-        // Sets Java compatibility to Java 8
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        // Match the Java 11 bytecode required by the current Compose/AndroidX libraries.
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 }
 
-// Match Java bytecode without changing min/target SDK or introducing a toolchain download.
+// Match Java and Kotlin bytecode without changing Android min/target SDK or downloading a JDK.
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 

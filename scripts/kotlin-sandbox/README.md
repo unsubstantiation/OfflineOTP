@@ -3,6 +3,7 @@
 These are **non-authoritative JVM checks**, intended for environments without the
 Android SDK or published Compose/native dependencies. They compile selected
 production sources against narrow substitutes and run available headless tests.
+They compile to Java 11 bytecode, matching the JVM/Android production modules.
 They do not replace Gradle, lint, package/signature checks or device tests.
 
 ## Setup

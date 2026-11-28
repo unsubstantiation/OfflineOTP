@@ -80,12 +80,12 @@ mkdir -p "$OUT/core" "$OUT/desktop"
 
 echo "kotlinc: $KOTLINC"
 echo "phase 1: core + ui-model (${#CORE_SOURCES[@]} files, no android/androidx/compose stubs)"
-"$KOTLINC" -jvm-target 1.8 -nowarn \
+"$KOTLINC" -jvm-target 11 -nowarn \
     "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT/core"
 
 echo "phase 2: desktop (${#DESKTOP_SOURCES[@]} files, Swing/AWT from the JDK)"
-"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
+"$KOTLINC" -jvm-target 11 -nowarn -cp "$OUT/core:$STDLIB" \
     "${DESKTOP_SOURCES[@]}" "${DESKTOP_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT/desktop"
 

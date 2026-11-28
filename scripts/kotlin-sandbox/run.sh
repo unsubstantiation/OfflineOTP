@@ -453,13 +453,13 @@ echo "java:    $JAVA_BIN"
 echo "stdlib:  $STDLIB"
 echo "output:  $OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" -d "$OUT/core"
+"$KOTLINC" -jvm-target 11 -nowarn "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" -d "$OUT/core"
 
 # Phase 2 compiles the app and its Checks harness against core's compiled output exactly as a Gradle
 # project dependency (core sources are deliberately absent here), plus the full platform stub set.
-"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
+"$KOTLINC" -jvm-target 11 -nowarn -cp "$OUT/core:$STDLIB" \
     "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT/app"
 # Compile the checks separately: production cannot accidentally depend on legacy fixtures.
-"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/app:$OUT/core:$STDLIB" \
+"$KOTLINC" -jvm-target 11 -nowarn -cp "$OUT/app:$OUT/core:$STDLIB" \
     -Xfriend-paths="$OUT/app" "${LEGACY_FIXTURES[@]}" "$SANDBOX/Checks.kt" -d "$OUT/checks"
 "$JAVA_BIN" -cp "$OUT/checks:$OUT/app:$OUT/core:$STDLIB" ChecksKt

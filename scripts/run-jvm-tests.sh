@@ -83,7 +83,7 @@ echo "stdlib:  $STDLIB"
 echo "tests:   ${#TEST_SOURCES[@]} files"
 echo "output:  $OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn \
+"$KOTLINC" -jvm-target 11 -nowarn \
     "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" "${TEST_SOURCES[@]}" \
     "$SCRIPTS/jvm-tests/org/junit/JUnit4.kt" \
     "$SCRIPTS/jvm-tests/org/junit/internal/AssumptionViolatedException.kt" \

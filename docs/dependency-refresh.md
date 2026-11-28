@@ -29,6 +29,11 @@ Android's target/minimum SDK and Apple's deployment target are unchanged.
   alias only for platform selection and strictly overrides its version. Material3's
   separate alpha version is the one in the Compose 1.12.2 release's component table.
   Biometric moves from an old alpha to the published 1.4.0 release candidate.
+- **JVM bytecode:** all JVM/Android modules and sandbox compilation scripts target
+  Java/Kotlin 11; Gradle/Android tooling still runs on JDK 17. Target 1.8 cannot
+  inline JVM 11 library bytecode. No Android SDK level or native target changed.
+  The compiler regression reproduces the mismatch and verifies classfile version
+  55; it is not a full Gradle/CodeQL pass. Scanning remains unchanged.
 - **UniFFI:** runtime/build dependencies and all four Kotlin/Swift/header/module-map
   outputs move together from 0.28.3 to 0.31.0. The generator checks its own version
   and uses real Cargo workspace metadata without resolving external dependencies.

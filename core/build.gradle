@@ -1,17 +1,17 @@
 // Pure-JVM shared core: OTP/parser/policy primitives with no Android dependency. Both the Android
-// :app and the future desktop client depend on this module. A Python source guard and the
+// :app and desktop clients depend on this module. A Python source guard and the
 // kotlin-sandbox core compile (which puts no android.* stubs on the classpath) enforce the boundary.
 apply plugin: 'org.jetbrains.kotlin.jvm'
 apply plugin: 'java-library'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
