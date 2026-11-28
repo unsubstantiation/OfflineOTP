@@ -1,6 +1,6 @@
 package com.yubico.yubikit.oath
 
-/** Test-only access to YubiKit 3.2.1's package-private constructor; never opens a device.
+/** Test-only access to YubiKit 3.3.0's package-private constructor; never opens a device.
  * Keep this in the SDK package so real Gradle tests compile against the actual API.
  * Issuer/account/period are parsed by YubiKit from the ID, not invented by a fake.
  */

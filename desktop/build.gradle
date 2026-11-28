@@ -62,12 +62,12 @@ dependencies {
     implementation 'org.pgpainless:pgpainless-core:2.0.4'
 
     // JNA loads the unified Rust OpenPGP cdylib through the generated UniFFI bindings.
-    implementation 'net.java.dev.jna:jna:5.14.0'
+    implementation 'net.java.dev.jna:jna:5.19.1'
 
     // PC/SC security-key support through the yubikit desktop module. Raw HID is intentionally
     // excluded: OfflineOTP only uses javax.smartcardio (CCID) transports, never hid4java. The
     // portable core/oath/fido modules arrive through :core; this adds only the PC/SC discovery.
-    implementation('com.yubico.yubikit:desktop:3.2.1') {
+    implementation('com.yubico.yubikit:desktop:3.3.0') {
         exclude group: 'org.hid4java', module: 'hid4java'
     }
 

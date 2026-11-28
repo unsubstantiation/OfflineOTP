@@ -27,6 +27,7 @@ history for removed batch journals rather than treating them as active instructi
 - [Shared-code consolidation plan](shared-code-migration.md)
 - [iOS Kotlin cutover — in progress](ios-kotlin-cutover.md)
 - [Native validation handoff](shared-ui-native-validation.md)
+- [Dependency refresh and validation limits](dependency-refresh.md)
 - [Shared Compose device-verification checklist](shared-ui-device-checklist.md)
 - [Migration cleanup and release handoff](shared-migration-release.md)
 

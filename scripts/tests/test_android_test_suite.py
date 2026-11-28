@@ -40,8 +40,8 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
         self.assertNotIn("EntryViewHolder", source)
         self.assertNotIn("component_card_", source)
         gradle = BUILD_GRADLE.read_text()
-        self.assertIn("androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.10.3'", gradle)
-        self.assertIn("debugImplementation 'androidx.compose.ui:ui-test-manifest:1.10.3'", gradle)
+        self.assertIn("androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.12.1'", gradle)
+        self.assertIn("debugImplementation 'androidx.compose.ui:ui-test-manifest:1.12.1'", gradle)
         self.assertNotIn("implementation 'androidx.compose.ui:ui-test", gradle)
         for path in (TEST_STUBS / "androidx/compose").rglob("*.kt"):
             self.assertIn('error("device-only compile stub")', path.read_text())
@@ -129,9 +129,9 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
     def test_build_gradle_wires_the_instrumentation_dependencies(self):
         text = BUILD_GRADLE.read_text(encoding="utf-8")
         for needle in (
-            "androidTestImplementation 'androidx.test.ext:junit:1.2.1'",
-            "androidTestImplementation 'androidx.test:runner:1.6.2'",
-            "androidTestImplementation 'androidx.test:core:1.6.1'",
+            "androidTestImplementation 'androidx.test.ext:junit:1.3.0'",
+            "androidTestImplementation 'androidx.test:runner:1.7.0'",
+            "androidTestImplementation 'androidx.test:core:1.7.0'",
             'testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"',
         ):
             self.assertIn(needle, text, f"app/build.gradle lost: {needle}")

@@ -89,7 +89,7 @@ class NoGithubAutomationTest(unittest.TestCase):
         setups = android.count("android-actions/setup-android@")
         self.assertGreaterEqual(setups, 1)
         self.assertEqual(setups, android.count(setup_pin))
-        self.assertEqual(setups, android.count("cmdline-tools-version: '12266719'"))
+        self.assertEqual(setups, android.count("cmdline-tools-version: '15859902'"))
         self.assertIn("runs-on: windows-2022", windows)
         self.assertIn(":desktop-compose:packageDesktop", windows)
         self.assertIn("OfflineOTP.exe", windows)

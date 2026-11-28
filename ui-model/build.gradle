@@ -33,7 +33,7 @@ kotlin {
 
 android {
     namespace = "com.fairuniversal.offlineotp.ui.model"
-    compileSdk 36
+    compileSdk 37
     defaultConfig {
         minSdkVersion 28
     }

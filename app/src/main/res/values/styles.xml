@@ -17,9 +17,7 @@
     <!-- ============================================================================
          Unified Homemade Dark Forest Theme (Theme.OfflineOTP.DarkForest)
          ============================================================================ -->
-    <!-- Keep AboutLibraries 14.x: its listitem_opensource is a MaterialCardView. The bridge
-         supplies the full Material theme contract while retaining AppCompat widget defaults.
-         Every AppTheme hook (including values-v27) must inherit this, not Theme.AppCompat. -->
+    <!-- Material bridge supplies the Android widget contract alongside shared Compose UI. -->
     <style name="Theme.OfflineOTP.DarkForest" parent="Theme.MaterialComponents.Bridge">
         <item name="isMaterialTheme">true</item>
 
@@ -115,17 +113,6 @@
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.OfflineOTP.DarkForest.SmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.OfflineOTP.DarkForest.MediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.OfflineOTP.DarkForest.LargeComponent</item>
-
-        <!-- AboutLibraries 14.x Theme Attributes -->
-        <item name="aboutLibrariesStyle">@style/Widget.OfflineOTP.DarkForest.AboutLibraries</item>
-        <item name="aboutLibrariesCardBackground">@color/forest_surface</item>
-        <item name="aboutLibrariesDescriptionTitle">@color/forest_text_primary</item>
-        <item name="aboutLibrariesDescriptionText">@color/forest_text_secondary</item>
-        <item name="aboutLibrariesDescriptionDivider">@color/forest_divider</item>
-        <item name="aboutLibrariesOpenSourceTitle">@color/forest_text_primary</item>
-        <item name="aboutLibrariesOpenSourceText">@color/forest_text_secondary</item>
-        <item name="aboutLibrariesSpecialButtonText">@color/colorAccent</item>
-        <item name="aboutLibrariesOpenSourceDivider">@color/forest_divider</item>
 
     </style>
 
@@ -271,17 +258,6 @@
         <item name="tabTextColor">@color/forest_text_secondary</item>
         <item name="tabSelectedTextColor">@color/colorAccent</item>
         <item name="tabRippleColor">@color/forest_ripple</item>
-    </style>
-
-    <style name="Widget.OfflineOTP.DarkForest.AboutLibraries" parent="AboutLibrariesStyle">
-        <item name="aboutLibrariesCardBackground">@color/forest_surface</item>
-        <item name="aboutLibrariesDescriptionTitle">@color/forest_text_primary</item>
-        <item name="aboutLibrariesDescriptionText">@color/forest_text_secondary</item>
-        <item name="aboutLibrariesDescriptionDivider">@color/forest_divider</item>
-        <item name="aboutLibrariesOpenSourceTitle">@color/forest_text_primary</item>
-        <item name="aboutLibrariesOpenSourceText">@color/forest_text_secondary</item>
-        <item name="aboutLibrariesSpecialButtonText">@color/colorAccent</item>
-        <item name="aboutLibrariesOpenSourceDivider">@color/forest_divider</item>
     </style>
 
     <!-- Homemade Dark Forest Typography & Shape Styles -->

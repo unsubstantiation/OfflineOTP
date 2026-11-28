@@ -41,7 +41,7 @@ kotlin {
                 implementation compose.material3
                 api compose.ui // Public Android host extends AbstractComposeView.
 
-                implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+                implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
             }
         }
         androidMain.dependsOn jvmHostMain
@@ -56,7 +56,7 @@ kotlin {
 
 android {
     namespace = "com.fairuniversal.offlineotp.ui"
-    compileSdk 36
+    compileSdk 37
     defaultConfig {
         minSdkVersion 28
     }

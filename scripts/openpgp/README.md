@@ -1,6 +1,6 @@
 # Unified OpenPGP backend packaging
 
-The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21 + UniFFI 0.28).
+The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21.1 + UniFFI 0.28.3).
 The foreign-language contract is `rust/offlineotp-openpgp/src/offlineotp_openpgp.udl`.
 `rust/offlineotp-openpgp/uniffi.toml` keeps the generated loaders pointed at the
 packaged `offlineotp_openpgp` library name.

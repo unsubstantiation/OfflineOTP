@@ -27,16 +27,16 @@ dependencies {
 
     // org.json types appear in the Entry/EntryJson public surface (the JSONObject adapters). The
     // desktop JVM has no platform org.json, so this is an api dependency, not implementation.
-    api 'org.json:json:20240303'
+    api 'org.json:json:20260814'
 
     // Portable PC/SC-capable YubiKit surface for OATH accounts and FIDO2 PRF unlock. Only the
     // pure-JVM core/oath/fido modules: the yubikit android transport (YubiKitManager/NFC/USB) stays
     // in :app, and the desktop client will supply its own PcscManager-based discovery. These types
     // occur in the hardware clients' public signatures, hence api.
-    api 'com.yubico.yubikit:core:3.2.1'
-    api 'com.yubico.yubikit:oath:3.2.1'
-    api 'com.yubico.yubikit:fido:3.2.1'
+    api 'com.yubico.yubikit:core:3.3.0'
+    api 'com.yubico.yubikit:oath:3.3.0'
+    api 'com.yubico.yubikit:fido:3.3.0'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.json:json:20260814'
 }

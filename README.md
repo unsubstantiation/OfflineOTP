@@ -8,7 +8,7 @@ logic and Compose Multiplatform UI. The iOS engine/host conversion is still in p
 
 ## Status and platforms
 
-- **Android:** Android 9/API 28 minimum; compile SDK 36, target SDK 35; F-Droid and Play flavors.
+- **Android:** Android 9/API 28 minimum; compile SDK 37, target SDK 35; F-Droid and Play flavors.
 - **Desktop:** Compose/JVM; Debian and Windows artifacts target x86-64, macOS targets ARM64.
 - **iOS:** iOS 17 deployment minimum; shared Compose UI with remaining Swift production
   dependencies. Only a thin YubiKit SDK bridge is intended to remain in Swift.
@@ -92,7 +92,7 @@ See [iOS hardware](docs/ios-hardware.md) for SDK and transport limitations.
 
 ## Build and run
 
-Use JDK 17 and Android SDK platform 36/build-tools 36.0.0. Gradle configures Android
+Use JDK 17 and Android SDK platform 37/build-tools 36.0.0. Gradle configures Android
 modules even for desktop/Apple tasks. Dependency resolution requires network access.
 
 ```sh

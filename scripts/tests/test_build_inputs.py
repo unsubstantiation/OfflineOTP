@@ -38,7 +38,7 @@ class BuildInputsCheckerTest(unittest.TestCase):
         work = self.copy_fixture()
         properties = work / "gradle/wrapper/gradle-wrapper.properties"
         text = properties.read_text(encoding="utf-8").replace(
-            "gradle-9.6.0-all.zip", "gradle-9.7.0-all.zip")
+            check_build_inputs.DISTRIBUTION_URL, r"https\://example.invalid/gradle-unreviewed.zip")
         properties.write_text(text, encoding="utf-8")
         errors = check_build_inputs.check(work)
         self.assertTrue(any("Unexpected Gradle distribution URL" in error for error in errors), errors)

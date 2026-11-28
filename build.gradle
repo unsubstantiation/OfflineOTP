@@ -17,8 +17,8 @@ buildscript {
         classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21') {
             version { strictly '2.4.21' }
         }
-        classpath 'com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin:14.2.1'
-        classpath 'org.jetbrains.compose:compose-gradle-plugin:1.10.3'
+        classpath 'com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin:15.3.0'
+        classpath 'org.jetbrains.compose:compose-gradle-plugin:1.12.2'
         classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.4.21'
     }
 

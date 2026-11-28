@@ -22,9 +22,10 @@ packages:
   YubiKit:
     url: https://github.com/Yubico/yubikit-swift.git
     revision: 03fe66d15b6e863e87a44c7a263b7bffedda9d79
+  # 1.10.0: newest release compatible with the current Swift 6.1 toolchain.
   SwiftLog:
     url: https://github.com/apple/swift-log.git
-    revision: ce592ae52f982c847a4efc0dd881cc9eb32d29f2
+    revision: 8fb4e7147d24498c94ef5b8a55b26f709ccd981f
   OfflineOTPKit:
     path: .
 

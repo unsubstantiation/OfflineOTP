@@ -6,6 +6,4 @@
         <attr name="wrapSelectorWheel" format="boolean"/>
     </declare-styleable>
 
-    <!-- Theme attributes of the About screen. AboutLibraries 6.x defined these; the 14.x library
-         uses aboutLibraries* names instead, so the app declares the ones its themes and layouts use. -->
 </resources>
