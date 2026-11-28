@@ -68,7 +68,7 @@ class LoginBackupWiringTest(unittest.TestCase):
         self.assertNotIn("copyBackupKey()", manual)
         settings = source("Activities/SettingsActivity.kt")
         self.assertIn("settings_dialog_msg_remove_old_backup_password", settings)
-        self.assertIn("activity.confirmLegacyBackupPasswordRemoval()", settings)
+        self.assertIn("else if (login && settings!!.hasLegacyBackupPassword(this)) confirmLegacyBackupPasswordRemoval()", settings)
         self.assertIn("applyBackupPasswordSource(this, useLogin = true, removeLegacy = true)", settings)
 
     def test_pre_063_encrypted_restore_option_stays_removed(self):

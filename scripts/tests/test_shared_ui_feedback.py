@@ -173,12 +173,13 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("if (!foreground || !sessionReady()", activity)
         self.assertNotIn("putExtra(", activity)
 
-    def test_settings_overview_keeps_native_only_preferences_accessible(self):
+    def test_settings_overview_is_the_only_settings_surface(self):
         import xml.etree.ElementTree as ET
         base = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities"
         settings = (base / "SettingsActivity.kt").read_text()
         self.assertIn("SettingsOverviewComposeView(this, ::dispatchSettingsOverviewAction)", settings)
-        self.assertIn(".replace(R.id.settings_legacy_content, settingsFragment)", settings)
+        self.assertNotIn("PreferenceFragment", settings)
+        self.assertNotIn("getFragmentManager()", settings)
         self.assertNotIn("STATE_ADVANCED_SETTINGS", settings)
         self.assertNotIn("returnToSettingsOverview()", settings)
         self.assertIn("overviewGeneration = VaultSession.generation()", settings)
@@ -189,7 +190,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("overviewPickerPending || settingsConfirmationPrompt != null", settings)
         layout = ET.parse(ROOT / "app/src/main/res/layout/content_settings.xml").getroot()
         self.assertEqual("FrameLayout", layout.tag)
-        self.assertEqual("gone", layout[0].get("{http://schemas.android.com/apk/res/android}visibility"))
+        self.assertEqual(0, len(layout))
         screen = (FOUNDATION / "SharedBackupScreen.kt").read_text()
         self.assertIn("fun SharedVaultToolsScreen(", screen)
         host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text()
@@ -344,7 +345,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
         settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
         form = settings.split("private fun showSharedPolicyChecklist", 1)[1].split("private fun showSharedAutoBackupMode", 1)[0]
         for marker in ("MultiChoiceSelectionComposeView(", "values.toSet() != policy.allowed", "allowEmpty = true",
-                       "VaultSession.isCurrent(generation)", "NotificationHelper.requestNotificationPermission(it)",
+                       "VaultSession.isCurrent(generation)", "NotificationHelper.requestNotificationPermission(this)",
                        "else if (!panic && chosen.isNotEmpty())"):
             self.assertIn(marker, form)
         self.assertNotIn("wipeDatabase", form)
@@ -476,9 +477,8 @@ class SharedUiFeedbackTest(unittest.TestCase):
                        "settings!!.getEncryption() == encryption", "R.string.settings_dialog_msg_clear_keystore_password",
                        "R.string.settings_dialog_msg_clear_keystore_keystore", "clearKeyStore()"):
             self.assertIn(marker, form)
-        native = settings.split("val clearKeyStore = findPreference", 1)[1].split("// Theme mode", 1)[0]
-        self.assertIn("activity.showSharedKeyStoreReset()", native)
-        self.assertNotIn("activity.clearKeyStore()", native)
+        self.assertNotIn("findPreference", settings)
+        self.assertIn('"resetKeyStore" -> showSharedKeyStoreReset()', settings)
         special = settings.split("private fun showSharedSpecialFeatures", 1)[1].split("private fun showSharedKeyStoreReset", 1)[0]
         self.assertIn("SingleChoiceSelectionComposeView(", special)
         self.assertIn("R.string.about_dialog_special_features", special)
@@ -623,18 +623,19 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("WrongPlatformException", validation)
         self.assertIn("R.string.preferences_import_wrong_platform else R.string.preferences_import_failed", validation)
 
-    def test_settings_compatibility_callbacks_reuse_shared_feedback_and_live_guards(self):
+    def test_settings_shared_callbacks_keep_feedback_and_live_guards_without_legacy_widgets(self):
         settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
         self.assertNotIn("Toast.makeText", settings)
         self.assertNotIn("Snackbar.make", settings)
-        login = settings.split("loginBackup?.setOnPreferenceChangeListener", 1)[1].split("useAutoBackup =", 1)[0]
-        self.assertIn("activity.confirmLegacyBackupPasswordRemoval()", login)
-        self.assertNotIn("sharedPref.edit().remove", login)
-        self.assertIn("activity.overviewSessionReady()", login)
-        biometric = settings.split("biometricPref.setOnPreferenceChangeListener", 1)[1].split("if (sharedPref.contains", 1)[0]
-        self.assertIn("val passwordVaultNow =", biometric)
-        self.assertIn("if (!passwordVaultNow)", biometric)
-        self.assertIn("activity.overviewSessionReady()", biometric)
+        self.assertNotIn("setOnPreferenceChangeListener", settings)
+        self.assertNotIn("findPreference", settings)
+        login = settings.split("private fun showSharedBackupPasswordSource", 1)[1].split("private fun ", 1)[0]
+        self.assertIn("confirmLegacyBackupPasswordRemoval()", login)
+        self.assertIn("overviewSessionReady()", login)
+        biometric = settings.split("private fun showSharedBiometric", 1)[1].split("private fun promptBiometricEnrollment", 1)[0]
+        self.assertIn("overviewSessionReady()", biometric)
+        self.assertIn("AuthMethod.PASSWORD", biometric)
+        self.assertIn("promptBiometricEnrollment(this)", biometric)
 
     def test_backup_picker_failures_use_session_guarded_shared_feedback(self):
         backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text()

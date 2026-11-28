@@ -48,14 +48,13 @@ object NotificationHelper {
      * A no-op before Android 13 (API 33).
      */
     @JvmStatic
-    fun requestNotificationPermission(fragment: android.app.Fragment) {
-        val context: Context? = fragment.getActivity()
-        if (context == null || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+    fun requestNotificationPermission(activity: android.app.Activity) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
             return
         }
 
-        if (ContextCompat.checkSelfPermission(context, POST_NOTIFICATIONS_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
-            fragment.requestPermissions(arrayOf(POST_NOTIFICATIONS_PERMISSION), POST_NOTIFICATIONS_REQUEST_CODE)
+        if (ContextCompat.checkSelfPermission(activity, POST_NOTIFICATIONS_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
+            activity.requestPermissions(arrayOf(POST_NOTIFICATIONS_PERMISSION), POST_NOTIFICATIONS_REQUEST_CODE)
         }
     }
 
