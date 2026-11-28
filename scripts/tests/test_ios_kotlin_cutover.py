@@ -45,6 +45,10 @@ class IosKotlinCutoverTest(unittest.TestCase):
     def test_ci_backed_images_render_to_owned_cgimage_for_vision(self):
         adapter = (NATIVE / "IosQrImageReader.kt").read_text()
         self.assertIn("import platform.CoreImage.CIContext", adapter)
+        self.assertIn("import platform.CoreImage.createCGImage", adapter)
+        core_image_stub = (ROOT / "scripts/kotlin-sandbox/stubs-compose/ios/platform/CoreImage/CIContext.kt").read_text()
+        self.assertIn("fun CIContext.createCGImage(", core_image_stub)
+        self.assertNotIn("    fun createCGImage(", core_image_stub)
         self.assertIn("CIContext().createCGImage(ciImage, fromRect = ciImage.extent) ?: return null", adapter)
         self.assertIn("sourceCgImage ?: renderedCgImage ?: return null", adapter)
         self.assertIn("finally {", adapter)

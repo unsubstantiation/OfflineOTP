@@ -27,8 +27,9 @@ The iOS service stand-ins do not simulate OS expiry, local-only pasteboards,
 Core Image rendering, CGImage ownership or QR decoding. Service stubs throw if executed where applicable.
 Their presence does not validate Swift export names, native ownership or Apple ABI.
 
-The date stub exposes `timeIntervalSince1970` as an extension property, requiring
-an explicit production import. Vision deliberately has no compatible Core Image
+The date stub exposes `timeIntervalSince1970` as an extension property; Core Image
+exposes `CIContext.createCGImage` as an extension function. Both require explicit
+production imports, matching the category bindings missed by earlier stubs. Vision deliberately has no compatible Core Image
 overload: production renders CI-backed input to CGImage. These shapes guard the
 [reported metadata errors](../../../docs/ios-kotlin-cutover.md#metadata-compilation-follow-up),
 not the completeness of the Apple bindings.
