@@ -1,0 +1,75 @@
+{
+  "description": "Independent synthetic framed payloads for all nine entry kinds. Regenerate with scripts/fixtures/generate-entry-documents.py.",
+  "valid": [
+    {
+      "kind": "TOTP",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYZNN52HALLTMVSWI===\",\"issuer\":\"Synthetic 😀\",\"label\":\"TOTP example\",\"digits\":6,\"type\":\"TOTP\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]},\"period\":45}]"
+    },
+    {
+      "kind": "HOTP",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYZNNBXXI4BNONSWKZA=\",\"issuer\":\"Synthetic 😀\",\"label\":\"HOTP example\",\"digits\":8,\"type\":\"HOTP\",\"algorithm\":\"SHA512\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]},\"counter\":9007199254740993}]"
+    },
+    {
+      "kind": "MOTP",
+      "document": "[{\"secret\":\"MFRGGZDFMYYDCMRTGQ2TMNZYHE======\",\"issuer\":\"Synthetic 😀\",\"label\":\"MOTP example\",\"digits\":6,\"type\":\"MOTP\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]},\"pin\":\"1234\"}]"
+    },
+    {
+      "kind": "STEAM",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYZNON2GKYLNFVZWKZLE\",\"issuer\":\"Synthetic 😀\",\"label\":\"STEAM example\",\"digits\":5,\"type\":\"STEAM\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]},\"period\":60}]"
+    },
+    {
+      "kind": "NOTE",
+      "document": "[{\"secret\":\"KN4W45DIMV2GSYZANZXXIZJA6CPZRAA=\",\"issuer\":\"Synthetic 😀\",\"label\":\"NOTE example\",\"digits\":6,\"type\":\"NOTE\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]}}]"
+    },
+    {
+      "kind": "SSH_KEY",
+      "document": "[{\"secret\":\"AAAAAH3TONUC2ZLEGI2TKMJZEBJVSTSUJBCVISKDEB2GK43UFVXW43DZAAAAAILTPFXHI2DFORUWGIDQOJUXMYLUMUQHIZLYOQWCA3TPOQQGCIDLMV4Q====\",\"issuer\":\"Synthetic 😀\",\"label\":\"SSH_KEY example\",\"digits\":6,\"type\":\"SSH_KEY\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]},\"ssh_host\":\"host.example.invalid\",\"ssh_port\":2222,\"ssh_username\":\"synthetic\",\"ssh_password\":\"synthetic-only\"}]"
+    },
+    {
+      "kind": "PASSWORD",
+      "document": "[{\"secret\":\"KBLUIMIAAAAAGAAAAABXK4TMAAAAAF3IOR2HA4Z2F4XWK6DBNVYGYZJONFXHMYLMNFSAAAAABB2XGZLSNZQW2ZIAAAAAS43ZNZ2GQZLUNFRQAAAABBYGC43TO5XXEZAAAAAA443ZNZ2GQZLUNFRS233ONR4Q====\",\"issuer\":\"Synthetic 😀\",\"label\":\"PASSWORD example\",\"digits\":6,\"type\":\"PASSWORD\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]}}]"
+    },
+    {
+      "kind": "PASSWORD_ARCHIVE",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYZAMFZGG2DJOZSSA5DFON2CAYTZORSXG===\",\"issuer\":\"Synthetic 😀\",\"label\":\"PASSWORD_ARCHIVE example\",\"digits\":6,\"type\":\"PASSWORD_ARCHIVE\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]}}]"
+    },
+    {
+      "kind": "EMAIL",
+      "document": "[{\"secret\":\"PMRGMYLJOJWWC2LML5QWGY3POVXHIIR2PMRGQ33TOQRDUITJNVQXALTFPBQW24DMMUXGS3TWMFWGSZBCFQRHA33SOQRDUOJZGMWCEZLOMNZHS4DUNFXW4IR2GAWCEYLVORUF65DZOBSSEORRFQRHK43FOIRDUITTPFXHI2DFORUWGQDFPBQW24DMMUXGS3TWMFWGSZBCFQRHAYLTON3W64TEEI5CE43ZNZ2GQZLUNFRS233ONR4SELBCNZQW2ZJCHIRFG6LOORUGK5DJMMQG2YLJNQRCYITQOJXXI33DN5WCEORQPUWCEZTBNFZG2YLJNRPWSZDFNZ2GS5DJMVZSEOS3PMRGQ33TOQRDUITTNV2HALTFPBQW24DMMUXGS3TWMFWGSZBCFQRHA33SOQRDUNBWGUWCEZLOMNZHS4DUNFXW4IR2GAWCEYLVORUF65DZOBSSEORRFQRHK43FOIRDUITTPFXHI2DFORUWGQDFPBQW24DMMUXGS3TWMFWGSZBCFQRHAYLTON3W64TEEI5CE43ZNZ2GQZLUNFRS233ONR4SELBCMVWWC2LMEI5CE43ZNZ2GQZLUNFRUAZLYMFWXA3DFFZUW45TBNRUWIIT5LV6Q====\",\"issuer\":\"Synthetic 😀\",\"label\":\"EMAIL example\",\"digits\":6,\"type\":\"EMAIL\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":7,\"tags\":[\"ordered\",\"duplicate\",\"duplicate\"],\"hidden_label\":\"Synthetic hidden\",\"details_visible\":true,\"extension_null\":null,\"extension_object\":{\"future\":[true,null,{\"large_integer\":9007199254740995,\"fraction\":1.25}]}}]"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "missing-secret",
+      "document": "[{\"label\":\"missing\"}]"
+    },
+    {
+      "name": "unknown-kind",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"synthetic\",\"type\":\"FUTURE\"}]"
+    },
+    {
+      "name": "fractional-digits",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"synthetic\",\"digits\":6.5}]"
+    },
+    {
+      "name": "counter-overflow",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"synthetic\",\"type\":\"HOTP\",\"counter\":9223372036854775808}]"
+    },
+    {
+      "name": "invalid-tag-type",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"synthetic\",\"tags\":[null]}]"
+    },
+    {
+      "name": "valid-prefix-invalid-tail",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"synthetic\"},{}]"
+    },
+    {
+      "name": "duplicate-field",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"x\",\"label\":\"y\"}]"
+    },
+    {
+      "name": "trailing-document",
+      "document": "[{\"secret\":\"ON4W45DIMV2GSYY=\",\"label\":\"synthetic\"}][]"
+    }
+  ]
+}

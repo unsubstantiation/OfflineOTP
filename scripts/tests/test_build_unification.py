@@ -7,7 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / 'app/src/main/kotlin/com/fairuniversal/offlineotp'
-UI = ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui'
+UI = ROOT / 'ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui'
 
 class BuildUnificationTest(unittest.TestCase):
     def test_generated_theme_bindings_are_fresh(self):
@@ -36,7 +36,7 @@ class BuildUnificationTest(unittest.TestCase):
     def test_native_password_policy_and_shared_contract_are_wired(self):
         sheet = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         for guard in ('openedGeneration.map { store.generation == $0 } == true',
-                      'store.entries[index].fields == openedFields',
+                      'store.entries[index].compact() == openedFields',
                       'store.isRevealed(store.entries[index])', 'PasswordCsvExport.supportsCommonEdit'):
             self.assertIn(guard, sheet)
         for source in ('desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/control/PasswordEditContractTest.kt',

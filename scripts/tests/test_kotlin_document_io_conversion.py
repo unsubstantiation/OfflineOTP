@@ -59,14 +59,16 @@ class BackupHelperGuardTest(unittest.TestCase):
         header = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/EncryptedBackupHeader.kt").read_text(encoding="utf-8")
         self.assertIn("EncryptedBackupHeader.frameArgon2id(", codec)
         self.assertIn("CryptoPrimitives.generateSymmetricKeyArgon2id(", codec)
-        self.assertIn(".allocate(ARGON2_HEADER_BYTES + encrypted.size)", header)
-        self.assertIn(".put(MAGIC_0)", header)
-        self.assertIn(".put(FORMAT_VERSION_ARGON2ID.toByte())", header)
-        self.assertIn(".putInt(memoryKiB)", header)
-        self.assertIn(".putInt(iterations)", header)
-        self.assertIn(".put(parallelism.toByte())", header)
-        self.assertIn(".put(salt)", header)
-        self.assertIn(".put(encrypted)", header)
+        self.assertIn("VaultProtocol().makeBackupHeader", header)
+        self.assertIn("descriptor.bytes() + encrypted", header)
+        self.assertIn("VaultProtocol().backupHeader", header)
+        policy = (ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/VaultProtocol.kt").read_text()
+        self.assertIn("BACKUP_MAGIC.copyInto(bytes)", policy)
+        self.assertIn("putInt(bytes, 5, memoryKiB)", policy)
+        self.assertIn("putInt(bytes, 9, iterations)", policy)
+        self.assertIn("bytes[13] = parallelism.toByte()", policy)
+        self.assertIn("salt.copyInto(bytes, 14)", policy)
+
 
 
 class StorageAccessHelperGuardTest(unittest.TestCase):

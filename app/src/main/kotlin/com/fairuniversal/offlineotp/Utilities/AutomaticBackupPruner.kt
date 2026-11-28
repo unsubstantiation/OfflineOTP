@@ -76,9 +76,9 @@ object AutomaticBackupPruner {
             } catch (_: RuntimeException) {
                 null
             }
-            // A directory has no prunable name; isPrunableName() rejects it, and isDirectory()
-            // would be another provider call whose failure mode we would have to guess at.
             if (!BackupRetention.isPrunableName(name)) continue
+            // A hostile/mistakenly named directory must never be recursively deleted as a backup.
+            try { if (file.isDirectory()) continue } catch (_: RuntimeException) { continue }
             documents.add(file)
             candidates.add(BackupRetention.Candidate(name!!, lastModifiedOf(file)))
         }

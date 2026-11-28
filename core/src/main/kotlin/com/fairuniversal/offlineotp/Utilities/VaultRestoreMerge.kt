@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.Utilities
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.domain.RestoreMergePolicy
 
 /**
  * How a restored backup is combined with the entries already in the vault — the rule behind both
@@ -28,24 +29,20 @@ object VaultRestoreMerge {
      */
     @JvmStatic
     fun plan(imported: MutableList<Entry>, current: List<Entry>, replace: Boolean): ArrayList<Entry> {
-        if (!replace) {
-            // `current` is empty for a replace, so this branch is skipped and the import is taken
-            // verbatim — the entries the vault held are dropped (and zeroized) by the caller.
-            val retained = HashSet(current)
-            val iterator = imported.iterator()
-            while (iterator.hasNext()) {
-                val entry = iterator.next()
-                if (retained.contains(entry)) {
-                    iterator.remove()
-                    entry.destroy()
-                }
-            }
+        val retained = HashSet(current)
+        val decision = RestoreMergePolicy().plan(imported.map { retained.contains(it) }, current.size,
+            imported.toHashSet().size == imported.size, retained.size == current.size, replace)
+        require(decision.failure == null) { "Invalid restore combination" }
+        val keep = decision.importedIndices.toHashSet()
+        val iterator = imported.iterator()
+        var index = 0
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (!keep.contains(index)) { iterator.remove(); entry.destroy() }
+            index++
         }
         val merged = ArrayList<Entry>(imported)
-        if (!replace) merged.addAll(current)
-        require(merged.toHashSet().size == merged.size) {
-            "The restored entries would duplicate entries already in the vault"
-        }
+        if (decision.retainCurrent) merged.addAll(current)
         return merged
     }
 }

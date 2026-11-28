@@ -18,7 +18,9 @@ class ThunderbirdSupportTest(unittest.TestCase):
         self.assertIn("MAX_FILE_BYTES", csv)
         self.assertIn("hostname", csv.lower())
         self.assertIn("username", csv.lower())
-        # Must accept both url and hostname as origin
+        # The native wrapper delegates the common tokenizer and header validation.
+        self.assertIn("ThunderbirdCsvCodec.parse(bytes)", csv)
+        csv = (ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/ThunderbirdCsvCodec.kt").read_text()
         self.assertIn('"hostname"', csv)
         self.assertIn('"url"', csv)
         imp = (CORE / "Utilities/ThunderbirdImport.kt").read_text(encoding="utf-8")
@@ -62,7 +64,7 @@ class ThunderbirdSupportTest(unittest.TestCase):
         self.assertIn("ThunderbirdImport.exportCsv", exp)
         self.assertIn("ThunderbirdImport.isExportable", exp)
         self.assertIn("ExclusiveExportFile::writeNew", exp)
-        tools = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultTools.kt").read_text(encoding="utf-8")
+        tools = (ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultTools.kt").read_text(encoding="utf-8")
         self.assertIn("IMPORT_THUNDERBIRD", tools)
         self.assertIn("EXPORT_THUNDERBIRD", tools)
         picker = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/DesktopSavePicker.kt").read_text(encoding="utf-8")

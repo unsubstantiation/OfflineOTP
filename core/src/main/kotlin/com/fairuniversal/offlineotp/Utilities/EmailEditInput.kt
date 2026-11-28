@@ -60,7 +60,7 @@ data class EmailEditInput(val issuer: String, val label: String, val hiddenLabel
         listOf(issuer, label, hiddenLabel, thumbnail).forEach { InputPolicy.text(it, InputPolicy.MAX_TEXT_CHARS) }
         val bytes = EmailMaterial.encode(EmailFieldInput.json(account), identities.map { EmailFieldInput.json(it) })
         try {
-            val result = Entry(existing.toJSON())
+            val result = existing.detachedCopy()
             try {
                 result.setSecret(bytes)
                 result.setIssuer(issuer, false); result.setLabel(label); result.setHiddenLabel(hiddenLabel)

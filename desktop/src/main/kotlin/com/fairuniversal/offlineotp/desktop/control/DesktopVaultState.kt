@@ -27,8 +27,12 @@ import javax.crypto.SecretKey
  */
 class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryList()) {
 
-    @Volatile var isLocked: Boolean = false
-        private set
+    private val session = com.fairuniversal.offlineotp.domain.SessionAuthority().apply { activate(0, true) }
+    // Publish shared authority metadata to detached export workers without sharing mutable policy.
+    @Volatile private var publishedGeneration = session.generation
+    val generation: Long get() = publishedGeneration
+    @Volatile private var revoked = false
+    val isLocked: Boolean get() = revoked
 
     var key: SecretKey = key
         private set
@@ -46,6 +50,8 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
 
     /** Replaces the session key after a password change without losing open UI state. */
     fun updateKey(newKey: SecretKey) {
+        check(!isLocked && session.activate(session.generation, key !== newKey) == null) { "Session revoked" }
+        publishedGeneration = session.generation
         val oldKey = this.key
         this.key = newKey
         if (oldKey !== newKey) runCatching { oldKey.destroy() }
@@ -53,7 +59,10 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
 
     /** Zeroizes every in-memory entry and clears the projection when locking the vault. */
     fun lock() {
-        isLocked = true
+        if (revoked) return
+        session.lock(com.fairuniversal.offlineotp.domain.SessionLockReason.EXPLICIT)
+        publishedGeneration = session.generation
+        revoked = true
         val current = ArrayList(entries.getEntries())
         while (entries.getEntries().isNotEmpty()) entries.removeEntry(entries.getEntries().size - 1)
         current.forEach { it.destroy() }

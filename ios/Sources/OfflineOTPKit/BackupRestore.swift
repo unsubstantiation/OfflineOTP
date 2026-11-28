@@ -75,6 +75,7 @@ public struct RestorePlan: Equatable {
     public let entries: [Entry]
     /// Imported entries the vault did not already hold — what a merge reports as "N new entries".
     public let added: Int
+    public init(entries: [Entry], added: Int) { self.entries = entries; self.added = added }
 }
 
 /// How a restored backup is combined with the entries already in the vault — the port of

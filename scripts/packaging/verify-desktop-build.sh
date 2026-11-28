@@ -51,6 +51,10 @@ printf 'Independent desktop distributions are byte-identical.\n' | tee "$report/
 # app image from the first distribution and verifies the launcher and full dependency set exist.
 jpackage_bin="$(dirname "$(readlink -f "$(command -v java)")")/jpackage"
 if [[ ! -x "$jpackage_bin" ]]; then
+    if [[ "${REQUIRE_NATIVE_PACKAGE:-0}" == 1 ]]; then
+        echo 'Release validation requires jpackage; install a full JDK.' >&2
+        exit 1
+    fi
     printf 'jpackage unavailable: skipping native app-image smoke test.\n' | tee -a "$report/result.txt"
     exit 0
 fi
@@ -66,7 +70,8 @@ test -x "$work/source-1/desktop-compose/build/release/OfflineOTP/bin/OfflineOTP"
     -o -f "$work/source-1/desktop-compose/build/release/OfflineOTP/OfflineOTP.exe"
 # The app image must bundle the application jar plus every declared runtime dependency.
 app_lib="$work/source-1/desktop-compose/build/release/OfflineOTP/lib/app"
-for jar in desktop-compose.jar desktop.jar pgpainless-core bcpg-jdk18on bcprov-jdk18on core.jar; do
+for jar in desktop-compose.jar desktop.jar pgpainless-core bcpg-jdk18on bcprov-jdk18on core.jar \
+    shared-domain ui-contract ui-model ui-foundation ui-desktop; do
     ls "$app_lib" | grep -q "$jar" || { echo "missing runtime jar: $jar" >&2; exit 1; }
 done
 printf 'jpackage app-image smoke test passed.\n' | tee -a "$report/result.txt"

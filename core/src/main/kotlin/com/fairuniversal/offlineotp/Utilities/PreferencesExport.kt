@@ -452,44 +452,20 @@ object PreferencesExport {
         } catch (_: CharacterCodingException) {
             throw InvalidPreferencesException("Invalid encoding")
         }
-        val document = try {
-            JSONObject(text)
-        } catch (_: Exception) {
-            throw InvalidPreferencesException("Invalid document")
+        val rules = catalogFor(platform).map { com.fairuniversal.offlineotp.domain.PreferenceRule(it.key, it.kind.name) }
+        val plan = com.fairuniversal.offlineotp.domain.PreferencesInterchangeCodec().decode(
+            text, platform, rules, neverExported.map { it.first })
+        if (plan.error == "PLATFORM") throw WrongPlatformException(plan.source, platform)
+        if (plan.error != null) throw InvalidPreferencesException("Invalid preferences document")
+        val document = JSONObject(requireNotNull(plan.json))
+        val settings = document.getJSONObject("settings")
+        val accepted = plan.accepted.map { key ->
+            val entry = requireNotNull(setting(key, platform))
+            entry to read(settings, entry)
         }
-        if (document.optString("format") != FORMAT) throw InvalidPreferencesException("Not a preferences file")
-        if (exactInteger(document.opt("version")) != VERSION) throw InvalidPreferencesException("Unsupported version")
-        // Addressed to one client: see [PLATFORM_ANDROID]. A mismatch is refused before any write.
-        val sourcePlatform = document.optString("platform") ?: ""
-        if (sourcePlatform != platform) throw WrongPlatformException(sourcePlatform, platform)
-        val settings = try {
-            document.getJSONObject("settings")
-        } catch (_: Exception) {
-            throw InvalidPreferencesException("Missing settings")
-        }
-        if (settings.length() > MAX_KEYS) throw InvalidPreferencesException("Too many settings")
-
-        // Parse everything first; only a document that fully validates reaches the store.
-        val accepted = ArrayList<Pair<Setting, Value>>()
-        val unknown = ArrayList<String>()
-        val refused = ArrayList<String>()
-        var secrets = document.optBoolean("includesSecrets", false)
-        val keys = settings.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            // A device-bound key comes first: a file that carries one was either hand-edited or
-            // written by a build that wrongly exported it, and either way it is refused rather than
-            // filed away as "a key from a newer release".
-            if (isDeviceBound(key)) { refused.add(key); continue }
-            val entry = setting(key, platform)
-            if (entry == null) { unknown.add(key); continue }
-            if (entry.kind == Kind.DEVICE_BOUND) { refused.add(key); continue }
-            accepted.add(entry to read(settings, entry))
-        }
-        // The document must not understate what it carries: a secret present is a secret.
-        if (accepted.any { it.first.kind == Kind.SECRET }) secrets = true
+        // Native mapping is complete before invoking any mutation port.
         for ((entry, value) in accepted) port.write(entry.key, value)
-        return Import(accepted.size, unknown.sorted(), refused.sorted(), secrets)
+        return Import(accepted.size, plan.unknown, plan.refused, plan.includesSecrets)
     }
 
     private fun write(target: JSONObject, entry: Setting, value: Value, fail: (String) -> Exception) {

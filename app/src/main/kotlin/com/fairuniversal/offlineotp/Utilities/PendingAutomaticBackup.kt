@@ -59,8 +59,8 @@ internal object PendingAutomaticBackup {
     /** A pre-change digest cannot suppress retry while an older snapshot can still finish. */
     fun canDropReverted(context: Context, marker: Marker, digest: String?): Boolean = synchronized(VaultSession.MutationLock) {
         val current = read(context)
-        current == marker && marker.before != null && marker.before == digest &&
-            inFlight.none { it != marker.token }
+        com.fairuniversal.offlineotp.domain.BackupAutomationPolicy().canDropReverted(
+            current == marker, marker.before, digest, inFlight.any { it != marker.token })
     }
 
     fun complete(context: Context, token: String) = synchronized(VaultSession.MutationLock) {
@@ -68,7 +68,7 @@ internal object PendingAutomaticBackup {
         val edit = PreferenceManager.getDefaultSharedPreferences(context).edit()
         if (current.token == token) {
             edit.remove(TOKEN).remove(BEFORE).commit()
-        } else if (current.before != null) {
+        } else if (com.fairuniversal.offlineotp.domain.BackupAutomationPolicy().clearPriorDigest(false, current.before != null)) {
             // An older snapshot succeeded while a newer change was pending. The prior digest no
             // longer proves that a reversion needs no backup: force a retry of the newer state.
             edit.remove(BEFORE).commit()

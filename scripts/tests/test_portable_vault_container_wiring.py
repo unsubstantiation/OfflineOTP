@@ -22,6 +22,23 @@ class PortableVaultContainerWiringTest(unittest.TestCase):
         self.assertIn("authMethod != Constants.AuthMethod.PASSWORD", intro)
         self.assertIn("credentials?.containerHeader()", intro)
 
+    def test_android_copied_file_is_its_own_password_authority(self):
+        settings = source("app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Settings.kt")
+        for method, result in [("getAuthMethod", "Constants.AuthMethod.PASSWORD"),
+                               ("getEncryption", "Constants.EncryptionType.PASSWORD"),
+                               ("getFirstTimeWarningShown", "true")]:
+            body = settings.split(f"open fun {method}()", 1)[1].split("\n    }", 1)[0]
+            self.assertIn(f"if (DatabaseHelper.hasPortableVault(context)) return {result}", body)
+        auth = source("app/src/main/kotlin/com/fairuniversal/offlineotp/Tasks/AuthenticationTask.kt")
+        self.assertLess(auth.index("DatabaseHelper.portableRecoveryKey"), auth.index("return if (isAuthUpgrade)"))
+        activity = source("app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AuthenticateActivity.kt")
+        self.assertIn("existingAuthCredentials.isEmpty() && !portableVault", activity)
+        db = source("app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/DatabaseHelper.kt")
+        recover = db.split("fun portableRecoveryKey", 1)[1].split("/** Non-secret", 1)[0]
+        self.assertIn("VaultContainer.header(bytes)", recover)
+        self.assertIn("VaultContainer.openWithKey(key, bytes)", recover)
+        self.assertNotIn("settings", recover)
+
     def test_full_copy_does_not_serialize_live_entries_or_reencrypt(self):
         android = source("app/src/main/kotlin/com/fairuniversal/offlineotp/Tasks/EncryptedBackupTask.kt").split("open class VaultSnapshotBackupTask", 1)[1]
         self.assertIn("DatabaseHelper.vaultSnapshot", android)
@@ -40,8 +57,10 @@ class PortableVaultContainerWiringTest(unittest.TestCase):
     def test_all_restore_decoders_recognize_container_before_other_framing(self):
         kotlin = source("core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/EncryptedBackupCodec.kt")
         swift = source("ios/Sources/OfflineOTPKit/EncryptedBackup.swift")
-        self.assertIn("VaultContainer.isContainer", kotlin)
-        self.assertLess(swift.index("VaultContainer.isContainer"), swift.index("LinScpVault.isEncryptedVault"))
+        self.assertIn("route == BackupRoute.VAULT_COPY", kotlin)
+        self.assertIn('protocolPolicy.route(data, format: "auto"', swift)
+        policy = source("shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/VaultProtocol.kt")
+        self.assertLess(policy.index("vault -> route(BackupRoute.VAULT_COPY)"), policy.index("linscp -> route(BackupRoute.LINSCP)"))
         self.assertIn("VaultContainer.open", kotlin)
         self.assertIn("VaultContainer.open", swift)
 
@@ -67,7 +86,7 @@ class PortableVaultContainerWiringTest(unittest.TestCase):
 
     def test_automatic_copies_have_separate_mode_without_reinterpreting_export_versions(self):
         codec = source("core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AutomaticBackupCredentialCodec.kt")
-        self.assertIn('put("version", 3).put("mode", "vault-copy")', codec)
+        self.assertIn('configuration.encode(folder, "", minutes, keep, emptyList(), false, true)', codec)
         desktop = source("desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopAutomaticBackup.kt")
         self.assertIn('if (vaultCopy) "" else snapshot()', desktop)
         self.assertIn('requireNotNull(rawSnapshot).invoke(key)', desktop)
@@ -87,5 +106,5 @@ class PortableVaultContainerWiringTest(unittest.TestCase):
         self.assertIn('automaticVaultCopyMode = false; automaticRequiresSigning = true', desktop)
         swift = source("ios/App/Sources/ComposeVaultHost.swift")
         restore = swift.split('if let config = try store.loadAutomaticBackupConfiguration()', 1)[1]
-        self.assertLess(restore.index('automaticVaultCopyMode = config.vaultCopy'), restore.index('if config.requiresSigning == true'))
+        self.assertLess(restore.index('automaticVaultCopyMode = config.vaultCopy'), restore.index('BackupAutomationPolicy().resume('))
         self.assertIn('draft["automaticVaultCopy"] ?? String(automaticVaultCopyMode)', swift)

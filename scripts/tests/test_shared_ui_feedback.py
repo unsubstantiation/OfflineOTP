@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-UI = ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault"
+UI = ROOT / "ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault"
 FOUNDATION = ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault"
 
 
@@ -108,11 +108,12 @@ class SharedUiFeedbackTest(unittest.TestCase):
             self.assertIn("RestoreModeSelection(replace = replace, busy = busy", form)
             self.assertNotIn("Selected: Replace all current entries", form)
         backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text()
-        self.assertIn("chooseRestoreMode(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)", backup)
-        self.assertIn("chooseRestoreMode(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)", backup)
-        self.assertIn("chooseRestoreMode(requestedTool)", backup)
-        self.assertEqual(2, backup.count("activeRestoreModeDialog?.dismiss()\n        activeRestoreModeDialog = null"))
-        self.assertIn("ownsPrompt && VaultSession.isCurrent(generation) && canOperate()", backup)
+        self.assertIn("chooseRestoreSource(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)", backup)
+        self.assertIn("chooseRestoreSource(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)", backup)
+        self.assertIn("chooseRestoreSource(requestedTool)", backup)
+        self.assertNotIn("activeRestoreModeDialog", backup)
+        self.assertIn("Backup contains ${workflow.count} entries", backup)
+        self.assertIn("pendingRestoreWorkflow === workflow && workflow.confirm(ticket, VaultSession.generation(), canOperate(), replace)", backup)
 
     def test_backup_overview_is_visible_compose_with_shared_group_renderer(self):
         import xml.etree.ElementTree as ET

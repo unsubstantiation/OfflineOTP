@@ -14,7 +14,7 @@ DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
 DESKTOP_TEST = ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop"
 APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
 CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
-MODEL_STRINGS = ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt"
+MODEL_STRINGS = ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt"
 
 
 def text(path):

@@ -34,75 +34,41 @@ object AutomaticBackupCredentialCodec {
         override fun close() { password.fill('\u0000'); recipientKeys.forEach { it.fill(0) } }
         override fun toString() = "AutomaticBackupConfiguration(redacted)"
     }
-    fun configurationDocument(folder: String, password: CharArray, minutes: Int, keep: Int): ByteArray {
-        require(folder.length in 1..4096 && password.size in 1..InputPolicy.MAX_TEXT_CHARS && minutes in 1..1440 && keep in 1..100)
-        return JSONObject().put("version", 1).put("folder", folder).put("password", password.concatToString())
-            .put("minutes", minutes).put("keep", keep).toString().toByteArray(Charsets.UTF_8)
-    }
+    private val configuration = com.fairuniversal.offlineotp.domain.AutomaticBackupConfigurationCodec()
+    fun configurationDocument(folder: String, password: CharArray, minutes: Int, keep: Int): ByteArray =
+        requireNotNull(configuration.encode(folder, password.concatToString(), minutes, keep, emptyList(), false, false)).toByteArray(Charsets.UTF_8)
     /** Version 3 is exclusively a saved-vault copy, with no export password or recipients. */
-    fun snapshotConfigurationDocument(folder: String, minutes: Int, keep: Int): ByteArray {
-        require(folder.length in 1..4096 && minutes in 1..1440 && keep in 1..100)
-        return JSONObject().put("version", 3).put("mode", "vault-copy").put("folder", folder)
-            .put("password", "").put("minutes", minutes).put("keep", keep).toString().toByteArray(Charsets.UTF_8)
-    }
-
-    // Public certificates are snapshotted, not paths that can later resolve to different recipients.
+    fun snapshotConfigurationDocument(folder: String, minutes: Int, keep: Int): ByteArray =
+        requireNotNull(configuration.encode(folder, "", minutes, keep, emptyList(), false, true)).toByteArray(Charsets.UTF_8)
     const val MAX_RECIPIENT_BYTES = 32768
-    fun validRecipients(keys: List<ByteArray>): Boolean = keys.size in 1..OpenPgpKeyFilePolicy.MAX_RECIPIENTS &&
-        keys.all { it.isNotEmpty() } && keys.sumOf { it.size.toLong() } <= MAX_RECIPIENT_BYTES &&
-        keys.indices.none { i -> (0 until i).any { keys[i].contentEquals(keys[it]) } }
-
+    fun validRecipients(keys: List<ByteArray>): Boolean = com.fairuniversal.offlineotp.domain.BackupAutomationPolicy().validRecipients(keys)
     fun recipientConfigurationDocument(folder: String, keys: List<ByteArray>, minutes: Int, keep: Int, requiresSigning: Boolean = false): ByteArray {
-        require(folder.length in 1..4096 && minutes in 1..1440 && keep in 1..100 && validRecipients(keys))
-        return JSONObject().put("version", 2).put("mode", "openpgp").put("folder", folder).put("password", "")
-            .put("minutes", minutes).put("keep", keep)
-            .put("requiresSigning", requiresSigning)
-            .put("recipientKeys", org.json.JSONArray(keys.map { java.util.Base64.getEncoder().encodeToString(it) }))
-            .toString().toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_PLAINTEXT_BYTES) }
+        require(validRecipients(keys))
+        return requireNotNull(configuration.encode(folder, "", minutes, keep,
+            keys.map { java.util.Base64.getEncoder().encodeToString(it) }, requiresSigning, false)).toByteArray(Charsets.UTF_8)
+    }
+    fun configurationDocument(folder: String, password: CharArray, minutes: Int, keep: Int,
+                              keys: List<ByteArray>, requiresSigning: Boolean, vaultCopy: Boolean): ByteArray {
+        require(keys.isEmpty() || validRecipients(keys))
+        return requireNotNull(configuration.encode(folder, password.concatToString(), minutes, keep,
+            keys.map { java.util.Base64.getEncoder().encodeToString(it) }, requiresSigning, vaultCopy)).toByteArray(Charsets.UTF_8)
     }
     fun parseConfiguration(document: ByteArray): Configuration {
         require(document.isNotEmpty() && document.size <= MAX_PLAINTEXT_BYTES)
-        val text = Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
-            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(document)).toString()
-        InputPolicy.jsonDepth(text)
-        val json = JSONObject(text)
-        fun integer(key: String): Int {
-            val value = json.opt(key)
-            require(value is Int || value is Long)
-            val number = (value as Number).toLong()
-            require(number in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong())
-            return number.toInt()
-        }
-        require(json.opt("password") is String && json.opt("folder") is String)
-        val version = integer("version")
-        require(version in 1..3)
-        val password = json.getString("password").toCharArray()
+        val text = document.decodeToString(throwOnInvalidSequence = true)
+        val json = JSONObject(requireNotNull(configuration.canonical(text)))
         val keys = arrayListOf<ByteArray>()
+        var password: CharArray? = null
         try {
-            val folder = json.getString("folder"); val minutes = integer("minutes"); val keep = integer("keep")
-            require(folder.length in 1..4096 && minutes in 1..1440 && keep in 1..100)
-            if (version == 1) require(password.size in 1..InputPolicy.MAX_TEXT_CHARS)
-            else if (version == 3) {
-                require(json.opt("mode") == "vault-copy" && password.isEmpty() && !json.has("recipientKeys"))
-            } else {
-                require(json.opt("mode") is String && json.getString("mode") == "openpgp" && password.isEmpty())
-                val array = json.getJSONArray("recipientKeys")
-                require(array.length() in 1..OpenPgpKeyFilePolicy.MAX_RECIPIENTS)
-                for (i in 0 until array.length()) {
-                    val encoded = array.opt(i) as? String ?: error("Invalid recipient")
-                    require(encoded.length <= MAX_RECIPIENT_BYTES * 2)
-                    keys.add(java.util.Base64.getDecoder().decode(encoded))
-                }
-                require(validRecipients(keys))
-            }
-            require(!json.has("requiresSigning") || json.opt("requiresSigning") is Boolean)
-            val requiresSigning = json.opt("requiresSigning") == true
-            require(!requiresSigning || version == 2)
-            return Configuration(folder, password.copyOf(), minutes, keep, keys.map { it.copyOf() }, requiresSigning, version == 3)
-        } finally { password.fill('\u0000'); keys.forEach { it.fill(0) } }
+            password = json.getString("password").toCharArray()
+            val array = json.opt("recipientKeys") as? org.json.JSONArray
+            if (array != null) for (i in 0 until array.length()) keys.add(java.util.Base64.getDecoder().decode(array.getString(i)))
+            return Configuration(json.getString("folder"), password, json.getInt("minutes"), json.getInt("keep"),
+                keys.toList(), json.optBoolean("requiresSigning", false), json.getInt("version") == 3).also { password = null; keys.clear() }
+        } finally { password?.fill('\u0000'); keys.forEach { it.fill(0) } }
     }
     private fun derive(key: SecretKey): ByteArray {
-        val encoded = requireNotNull(key.encoded)
+        val encoded = requireNotNull(key.encoded).copyOf()
         try {
             require(encoded.size in listOf(16, 24, 32))
             return Mac.getInstance("HmacSHA256").run {

@@ -69,7 +69,7 @@ class SharedClientLogicTest(unittest.TestCase):
         self.assertIn("EntryTagFilter.matches(", text(CORE / "Database/EntryList.kt"))
         # The desktop no longer applies the tag rule itself: it hands a VaultFilter to the shared
         # projection, which is the one place the selection is applied.
-        self.assertIn("EntryTagFilter.matches(", text(ROOT / "ui-model/src/commonMain/kotlin/"
+        self.assertIn("EntryTagFilter.matches(", text(ROOT / "ui-model/src/jvmHostMain/kotlin/"
                          "com/fairuniversal/offlineotp/ui/vault/VaultProjection.kt"))
         self.assertIn("projection.applyFilter(", text(DESKTOP / "control/DesktopVaultState.kt"))
         self.assertNotIn("EntryTagFilter", text(DESKTOP / "control/DesktopVaultState.kt"))
@@ -100,7 +100,7 @@ class SharedClientLogicTest(unittest.TestCase):
         android = text(APP / "Dialogs/ManualEntryDialog.kt")
         # A new entry is stamped; an edit keeps the stamp the entry already carries.
         self.assertIn("newEntry = true", android)
-        compose_input = text(ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt")
+        compose_input = text(ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt")
         self.assertIn("EntryDraft", compose_input)
 
     def test_the_sandbox_gate_compiles_the_shared_helpers(self):

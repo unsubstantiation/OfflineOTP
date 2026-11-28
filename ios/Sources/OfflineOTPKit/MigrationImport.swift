@@ -29,6 +29,12 @@ public enum MigrationError: String, Error, Equatable {
 /// are copied on write and released deterministically, so the copy that reaches `Entry` is the only
 /// one that outlives the parse.
 public struct MigrationAccount: Equatable {
+    public init(kind: EntryKind, secret: [UInt8], digits: Int, algorithm: OtpHashAlgorithm,
+                counter: Int64, issuer: String, label: String) {
+        self.kind = kind; self.secret = secret; self.digits = digits; self.algorithm = algorithm
+        self.counter = counter; self.issuer = issuer; self.label = label
+    }
+
     public let kind: EntryKind
     public let secret: [UInt8]
     public let digits: Int
@@ -66,6 +72,11 @@ public struct MigrationAccount: Equatable {
 
 /// One QR code of a Google Authenticator export: the batch it belongs to and the accounts it carries.
 public struct MigrationPayload: Equatable {
+    public init(version: Int, batchSize: Int, batchIndex: Int, batchId: Int, accounts: [MigrationAccount]) {
+        self.version = version; self.batchSize = batchSize; self.batchIndex = batchIndex
+        self.batchId = batchId; self.accounts = accounts
+    }
+
     public let version: Int
     public let batchSize: Int
     public let batchIndex: Int
@@ -89,7 +100,8 @@ public struct MigrationPayload: Equatable {
     /// is unofficial, so the parser validates every length and every enum against the values the
     /// other clients accept, and refuses an unknown field instead of quietly importing accounts whose
     /// codes would be wrong.
-    public static func parse(_ input: String?) throws -> MigrationPayload {
+    public static func parse(_ input: String?, interchange: InterchangeAdapter? = nil) throws -> MigrationPayload {
+        if let interchange { return try interchange.migration(input ?? "") }
         guard let input, !input.isEmpty else { throw MigrationError.invalidURI }
         guard input.count <= InputPolicy.maxURIChars else { throw MigrationError.tooLarge }
 
@@ -429,18 +441,29 @@ public struct MigrationBatchCollector {
     private var total = 0
     private var closed = false
 
-    public init(generation: Int) {
+    private let authority: MigrationBatchAuthority?
+    public init(generation: Int, authority: MigrationBatchAuthority? = nil) {
         self.generation = generation
+        self.authority = authority
     }
 
-    public var received: Int { parts.count }
-    public var expected: Int { batchSize }
-    public var isOpen: Bool { !closed }
+    public var received: Int { authority?.received ?? parts.count }
+    public var expected: Int { authority?.expected ?? batchSize }
+    public var isOpen: Bool { authority?.isOpen ?? !closed }
 
     /// Adds one code. The payload is consumed either way: a rejection ends the import rather than
     /// leaving a partly-collected export behind.
     public mutating func add(_ payload: MigrationPayload, generation current: Int,
                              sessionReady: Bool) -> MigrationBatchStatus {
+        if let authority {
+            let status = authority.add(payload, generation: current, sessionReady: sessionReady)
+            switch status {
+            case .added, .complete: parts[payload.batchIndex] = payload
+            case .stale, .tooMany: cancel()
+            default: break
+            }
+            return status
+        }
         if closed || !sessionReady || current != generation {
             cancel()
             return .stale
@@ -467,6 +490,11 @@ public struct MigrationBatchCollector {
     /// Every account, in code order, exactly once — or nil when the export is not complete yet.
     public mutating func takeAccounts(generation current: Int, sessionReady: Bool)
         -> [MigrationAccount]? {
+        if let authority {
+            guard authority.take(generation: current, sessionReady: sessionReady) else { cancel(); return nil }
+            let ordered = parts.keys.sorted().compactMap { parts[$0] }.flatMap { $0.accounts }
+            cancel(); return ordered
+        }
         guard !closed, sessionReady, current == generation, parts.count == batchSize,
               !parts.isEmpty else {
             cancel()
@@ -478,6 +506,7 @@ public struct MigrationBatchCollector {
     }
 
     public mutating func cancel() {
+        authority?.cancel()
         parts.removeAll()
         total = 0
         closed = true

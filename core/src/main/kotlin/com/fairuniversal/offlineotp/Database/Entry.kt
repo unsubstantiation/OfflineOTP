@@ -84,6 +84,7 @@ open class Entry {
     private var listId = 0L
     // Detached immutable JSON, never shared with a caller's mutable JSONObject/JSONArray.
     private var extensionFields: String? = null
+    private var portableExtensions: Map<String, String>? = null
 
     constructor()
 
@@ -268,14 +269,30 @@ open class Entry {
         visible = false
         hideTask = null
         extensionFields = null
+        portableExtensions = null
     }
 
     /** Preserve opaque newer-client fields when a form replaces the typed portion of an entry. */
-    fun preserveExtensionFieldsFrom(source: Entry) { extensionFields = source.extensionFields }
+    fun preserveExtensionFieldsFrom(source: Entry) {
+        extensionFields = source.extensionFields
+        portableExtensions = source.portableExtensions?.toMap()
+    }
 
-    /** Serializes this entry to the JSON object used in the database and in backups. */
-    @Throws(JSONException::class)
-    fun toJSON(): JSONObject = EntryJson.serialize(
+    /** Detached engine copy without reparsing opaque values through org.json numbers. */
+    fun detachedCopy(): Entry = Entry(nativeJSON()).also { it.preserveExtensionFieldsFrom(this) }
+
+    internal fun setPortableExtensions(fields: Map<String, String>) { portableExtensions = fields.toMap() }
+
+    /** Exact opaque JSON is kept outside org.json's coercing number representation. */
+    internal fun portableJson(): String {
+        val raw = portableExtensions ?: return toJSON().toString()
+        val base = nativeJSON().toString().dropLast(1)
+        val extras = raw.keys.sorted().joinToString(",") { com.fairuniversal.offlineotp.domain.EntryText(it).json() + ":" + raw.getValue(it) }
+        return base + (if (extras.isEmpty()) "" else "," + extras) + "}"
+    }
+
+    /** Native typed/material projection, before opaque extension fields. */
+    private fun nativeJSON(): JSONObject = EntryJson.serialize(
         kind = OtpKind.valueOf(type.name),
         secret = ownedSecret(),
         issuer = getIssuer(),
@@ -292,10 +309,19 @@ open class Entry {
         pin = getPin(),
         detailsVisible = detailsVisible,
         sshConnection = sshConnection
-    ).also { result ->
+    )
+
+    /** Legacy org.json projection. Use VaultJson for lossless full-document transport. */
+    @Throws(JSONException::class)
+    fun toJSON(): JSONObject = nativeJSON().also { result ->
         extensionFields?.let { text ->
             val extras = JSONObject(text)
             for (key in extras.keys().asSequence().toList().sorted()) result.put(key, extras.get(key))
+        }
+        portableExtensions?.let { fields ->
+            val text = fields.keys.sorted().joinToString(",", "{", "}") { com.fairuniversal.offlineotp.domain.EntryText(it).json() + ":" + fields.getValue(it) }
+            val extras = JSONObject(text)
+            for (key in extras.keys().asSequence().toList()) result.put(key, extras.get(key))
         }
     }
 
@@ -305,61 +331,10 @@ open class Entry {
      */
     fun toUriString(): String {
         require(isTimeBased() || isCounterBased()) { "This entry cannot be exported as an OTP URI" }
-        val typeName = when (type) {
-            OTPType.TOTP -> "totp"
-            OTPType.HOTP -> "hotp"
-            OTPType.STEAM -> "steam"
-            OTPType.MOTP -> "motp"
-            OTPType.NOTE, OTPType.SSH_KEY, OTPType.PASSWORD, OTPType.PASSWORD_ARCHIVE, OTPType.EMAIL -> throw IllegalArgumentException("This entry cannot be exported as an OTP URI")
+        return requireNotNull(com.fairuniversal.offlineotp.domain.ProvisioningCodec.encode(
+            type.name, ownedSecret(), period, digits, counter, issuer, label, algorithm.name, tags)) {
+            "This entry cannot be exported as an OTP URI"
         }
-
-        val query = LinkedHashMap<String, String>()
-        if (type == OTPType.MOTP)
-            query["secret"] = String(ownedSecret())
-        else
-            query["secret"] = Base32().encodeAsString(ownedSecret())
-
-        query["issuer"] = issuer
-
-        if (type == OTPType.HOTP) {
-            query["counter"] = counter.toString()
-        }
-        // Export non-default TOTP/Steam periods. HOTP also emits a legacy period, but import ignores it.
-        if (type == OTPType.HOTP || type == OTPType.TOTP || type == OTPType.STEAM) {
-            if (period != TokenCalculator.TOTP_DEFAULT_PERIOD)
-                query["period"] = period.toString()
-        }
-        if (digits != TokenCalculator.TOTP_DEFAULT_DIGITS) {
-            query["digits"] = digits.toString()
-        }
-        if (algorithm != TokenCalculator.DEFAULT_ALGORITHM) {
-            query["algorithm"] = algorithm.name
-        }
-
-        val builder = StringBuilder("otpauth://")
-            .append(typeName)
-            .append('/')
-            .append(percentEncode(label))
-            .append('?')
-            .append(query.entries.joinToString("&") { "${it.key}=${percentEncode(it.value)}" })
-        for (tag in tags) {
-            builder.append("&tags=").append(percentEncode(tag))
-        }
-        return builder.toString()
-    }
-
-    /** RFC 3986 unreserved characters pass through; every other byte (including space and `+`) is encoded. */
-    private fun percentEncode(value: String): String {
-        val bytes = value.toByteArray(StandardCharsets.UTF_8)
-        val builder = StringBuilder(bytes.size)
-        for (raw in bytes) {
-            val c = raw.toInt() and 0xFF
-            val unreserved = (c in 'A'.code..'Z'.code) || (c in 'a'.code..'z'.code) ||
-                    (c in '0'.code..'9'.code) || c == '-'.code || c == '_'.code ||
-                    c == '.'.code || c == '~'.code
-            if (unreserved) builder.append(c.toChar()) else builder.append('%').append(String.format("%02X", c))
-        }
-        return builder.toString()
     }
 
     fun isTimeBased(): Boolean = type == OTPType.TOTP || type == OTPType.STEAM || type == OTPType.MOTP

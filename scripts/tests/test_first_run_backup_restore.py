@@ -26,7 +26,7 @@ class FirstRunBackupRestoreTest(unittest.TestCase):
         self.assertIn("credentials?.containerHeader()", finish)
         self.assertIn("encryptionType != Constants.EncryptionType.PASSWORD", finish)
         db = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/DatabaseHelper.kt").read_text()
-        self.assertIn("Entry(it.toJSON())", db)
+        self.assertIn("it.detachedCopy()", db)
         self.assertIn("initialEntries", db)
 
     def test_restore_dialog_is_shared_for_desktop_and_ios(self):

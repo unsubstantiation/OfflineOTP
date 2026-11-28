@@ -302,4 +302,38 @@ class DesktopAutomaticBackupTest {
         } finally { holder.close(); backup.close(); state.lock(); folder.deleteRecursively() }
     }
 
+    @Test fun keyReplacementRevokesQueuedAndInFlightAutomaticExports() {
+        for (duringEncryption in listOf(false, true)) {
+            val folder = Files.createTempDirectory("auto-rekey-").toFile()
+            val state = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
+            val worker = Queue(); val ui = Queue(); val timer = Timer()
+            var seals = 0
+            val backup = DesktopAutomaticBackup(state, timer, worker, ui::execute, {}, snapshot = { "sensitive" }, seal = { _, _ ->
+                seals++
+                if (duringEncryption) state.updateKey(SecretKeySpec(ByteArray(32) { 2 }, "AES"))
+                byteArrayOf(1)
+            })
+            try {
+                assertTrue(backup.configure(folder, "secret".toCharArray(), "secret".toCharArray(), 1, 2))
+                if (!duringEncryption) state.updateKey(SecretKeySpec(ByteArray(32) { 2 }, "AES"))
+                worker.run(); ui.run()
+                assertEquals(if (duringEncryption) 1 else 0, seals)
+                assertEquals(0, File(folder, "OfflineOTP-automatic").listFiles()!!.size)
+                assertFalse(backup.enabled); assertFalse(backup.busy); assertTrue(timer.pending == null)
+            } finally { backup.close(); state.lock(); folder.deleteRecursively() }
+        }
+    }
+    @Test fun rekeyDuringConfigurationCannotEnableTheOldGeneration() {
+        val folder = Files.createTempDirectory("auto-config-rekey-").toFile()
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+        val worker = Queue()
+        val backup = DesktopAutomaticBackup(state, Timer(), worker, { it.run() }, {})
+        try {
+            assertFalse(backup.configure(folder, "secret".toCharArray(), "secret".toCharArray(), 1, 2) {
+                state.updateKey(SecretKeySpec(ByteArray(32) { 3 }, "AES"))
+            })
+            assertFalse(backup.enabled); assertTrue(worker.tasks.isEmpty())
+        } finally { backup.close(); state.lock(); folder.deleteRecursively() }
+    }
+
 }

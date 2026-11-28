@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Password-encrypted backups, byte-compatible with `EncryptedBackupCodec` and
 /// `EncryptedBackupHeader` in `:core`.
@@ -36,10 +37,17 @@ public enum EncryptedBackup {
         public let parallelism: Int
         public let salt: [UInt8]
         public let encrypted: Data
+        public init(kdf: Kdf, iterations: Int, memoryKiB: Int, parallelism: Int, salt: [UInt8], encrypted: Data) {
+            self.kdf = kdf; self.iterations = iterations; self.memoryKiB = memoryKiB
+            self.parallelism = parallelism; self.salt = salt; self.encrypted = encrypted
+        }
     }
 
     /// Validates the framing of an untrusted blob before any key derivation happens.
-    public static func parse(_ data: Data) throws -> Header {
+    public static func parse(_ data: Data, protocolPolicy: VaultProtocolAdapter = NativeVaultProtocolAdapter()) throws -> Header {
+        try protocolPolicy.backupHeader(data)
+    }
+    static func nativeParse(_ data: Data) throws -> Header {
         guard data.count >= minBytes else { throw EncryptedBackupError.truncated }
         guard data.count <= InputPolicy.maxDocumentBytes else { throw EncryptedBackupError.tooLarge }
         let bytes = [UInt8](data)
@@ -107,25 +115,15 @@ public enum EncryptedBackup {
         iterations: Int = VaultCrypto.argon2Iterations,
         parallelism: Int = VaultCrypto.argon2Parallelism,
         salt: [UInt8],
-        nonce: [UInt8]
+        nonce: [UInt8],
+        protocolPolicy: VaultProtocolAdapter = NativeVaultProtocolAdapter()
     ) throws -> Data {
         guard password.count <= InputPolicy.maxVaultPasswordChars, !password.isEmpty else {
             throw EncryptedBackupError.invalidPassword
         }
-        guard salt.count == argon2SaltBytes else {
-            throw EncryptedBackupError.invalidParameters
-        }
-        do {
-            try Argon2id.validateParameters(
-                saltCount: salt.count,
-                memoryKiB: memoryKiB,
-                iterations: iterations,
-                parallelism: parallelism,
-                tagLength: VaultCrypto.derivedKeyBytes
-            )
-        } catch {
-            throw EncryptedBackupError.invalidParameters
-        }
+        guard plain.utf8.count <= InputPolicy.maxDocumentBytes - argon2HeaderBytes - 28 else { throw EncryptedBackupError.tooLarge }
+        let framing = try protocolPolicy.makeBackupHeader(salt: salt, memoryKiB: memoryKiB,
+            iterations: iterations, parallelism: parallelism)
 
         var key = try VaultCrypto.argon2id(
             password: password,
@@ -139,16 +137,7 @@ public enum EncryptedBackup {
         }
         let encrypted = try VaultCrypto.seal(Data(plain.utf8), key: key, nonce: nonce)
 
-        var out = Data()
-        out.reserveCapacity(argon2HeaderBytes + encrypted.count)
-        out.append(contentsOf: magic)
-        out.append(formatVersionArgon2id)
-        appendBigEndianInt32(memoryKiB, to: &out)
-        appendBigEndianInt32(iterations, to: &out)
-        out.append(UInt8(parallelism & 0xFF))
-        out.append(contentsOf: salt)
-        out.append(encrypted)
-        return out
+        return framing + encrypted
     }
 
     /// Legacy PBKDF2 deterministic sealer retained so the legacy golden fixture test can verify
@@ -171,7 +160,7 @@ public enum EncryptedBackup {
     }
 
     /// Encrypts with Argon2id (`64 MiB, t=3, p=4`), a fresh 16-byte salt, and a fresh 12-byte GCM nonce.
-    public static func sealWithFreshParameters(password: String, plain: String) throws -> Data {
+    public static func sealWithFreshParameters(password: String, plain: String, protocolPolicy: VaultProtocolAdapter = NativeVaultProtocolAdapter()) throws -> Data {
         try sealArgon2id(
             password: password,
             plain: plain,
@@ -179,25 +168,27 @@ public enum EncryptedBackup {
             iterations: VaultCrypto.argon2Iterations,
             parallelism: VaultCrypto.argon2Parallelism,
             salt: VaultCrypto.randomBytes(argon2SaltBytes),
-            nonce: VaultCrypto.randomBytes(nonceBytes)
+            nonce: VaultCrypto.randomBytes(nonceBytes), protocolPolicy: protocolPolicy
         )
     }
 
     /// Decrypts an Argon2id or legacy PBKDF2 backup (or a LinSCP `LSCPVLT2` vault), or fails.
-    public static func open(password: String, data: Data) throws -> String {
-        if VaultContainer.isContainer(data) {
-            var plaintext = try VaultContainer.open(password: password, data: data)
+    public static func open(password: String, data: Data, protocolPolicy: VaultProtocolAdapter = NativeVaultProtocolAdapter(),
+                            interchange: InterchangeAdapter? = nil) throws -> String {
+        let route = try protocolPolicy.route(data, format: "auto", variant: "")
+        if route == "vault-copy" {
+            var plaintext = try VaultContainer.open(password: password, data: data, protocolPolicy: protocolPolicy)
             defer { plaintext.resetBytes(in: 0..<plaintext.count) }
             guard let text = String(data: plaintext, encoding: .utf8) else { throw EncryptedBackupError.invalidUTF8 }
             return text
         }
-        if LinScpVault.isEncryptedVault(data) {
-            return try LinScpVault.openToDocument(password: password, data: data)
+        if route == "linscp" {
+            return try LinScpVault.openToDocument(password: password, data: data, interchange: interchange)
         }
         guard password.count <= InputPolicy.maxVaultPasswordChars, !password.isEmpty else {
             throw EncryptedBackupError.invalidPassword
         }
-        let header = try parse(data)
+        let header = try parse(data, protocolPolicy: protocolPolicy)
         var key: [UInt8]
         switch header.kdf {
         case .argon2id:
@@ -219,6 +210,34 @@ public enum EncryptedBackup {
         guard let text = String(data: plain, encoding: .utf8) else {
             throw EncryptedBackupError.invalidUTF8
         }
+        return text
+    }
+
+    /// Explicit source selection; no authentication-failure fallback to another format/KDF.
+    public static func openSelected(password: String, data: Data, format: String, andOtpVariant: String = "encrypted",
+                                    documents: EntryDocumentAdapter = NativeEntryDocumentAdapter(),
+                                    protocolPolicy: VaultProtocolAdapter = NativeVaultProtocolAdapter(),
+                                    interchange: InterchangeAdapter? = nil) throws -> String {
+        let route = try protocolPolicy.route(data, format: format, variant: andOtpVariant)
+        var plain: Data
+        switch route {
+        case "vault-copy":
+            plain = try VaultContainer.open(password: password, data: data, protocolPolicy: protocolPolicy)
+        case "offlineotp", "andotp-pbkdf2":
+            plain = Data(try open(password: password, data: data, protocolPolicy: protocolPolicy, interchange: interchange).utf8)
+        case "plain": plain = data
+        case "pre063":
+            guard !password.isEmpty, password.utf16.count <= InputPolicy.maxTextChars else { throw EncryptedBackupError.invalidPassword }
+            var key = Array(SHA256.hash(data: Data(password.utf8)))
+            defer { for index in key.indices { key[index] = 0 } }
+            plain = try VaultCrypto.open(data, key: key)
+        default: throw EncryptedBackupError.invalidParameters
+        }
+        defer { plain.resetBytes(in: 0..<plain.count) }
+        guard var text = String(data: plain, encoding: .utf8) else { throw EncryptedBackupError.invalidUTF8 }
+        if text.first == "\u{feff}" { text.removeFirst() }
+        let entries = try documents.decode(text)
+        guard Set(entries).count == entries.count else { throw EncryptedBackupError.invalidParameters }
         return text
     }
 

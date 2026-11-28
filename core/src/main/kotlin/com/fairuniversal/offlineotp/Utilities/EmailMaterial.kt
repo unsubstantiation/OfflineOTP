@@ -129,12 +129,13 @@ object EmailMaterial {
         val envelope = JSONObject().put("fairmail_account", account).put("fairmail_identities", identityArray)
         val bytes = envelope.toString().toByteArray(Charsets.UTF_8)
         require(bytes.size <= MAX_BYTES) { "Email entry too large" }
+        require(com.fairuniversal.offlineotp.domain.CredentialMaterialCodec().emailValid(bytes)) { "Invalid email entry" }
         return bytes
     }
 
     @JvmStatic
     fun decode(bytes: ByteArray): Account {
-        require(bytes.isNotEmpty() && bytes.size <= MAX_BYTES) { "Invalid email entry" }
+        require(com.fairuniversal.offlineotp.domain.CredentialMaterialCodec().emailValid(bytes)) { "Invalid email entry" }
         val json = decodeUtf8(bytes)
         InputPolicy.jsonDepth(json)
         val envelope = JSONObject(json)

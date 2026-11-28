@@ -91,3 +91,13 @@ Local macOS `:desktop-compose:packageDesktop` now runs
 `sips`/`iconutil`). CI uses that same generator. An explicit `-PmacIconFile` remains supported,
 but a missing file fails packaging instead of substituting the Java/default icon.
 OS masks, corners and taskbar/launcher caching can still affect presentation.
+
+### Shared migration release gate
+
+Run `REQUIRE_NATIVE_PACKAGE=1 scripts/packaging/verify-desktop-build.sh` on the
+equipped Linux release host to reject a missing jpackage toolchain rather than
+accepting a skipped native smoke check. Shared domain/contract/model/foundation/UI
+jars are now required in the app image alongside the engine and crypto runtime.
+This shell check does not launch the GUI or certify Windows/macOS packaging;
+use the [migration release checklist](../../docs/shared-migration-release.md) for
+those remaining gates.

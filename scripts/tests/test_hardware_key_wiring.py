@@ -48,7 +48,7 @@ class HardwareKeyWiringTest(unittest.TestCase):
         self.assertNotIn("EXTRA_AUTH_ALLOW_HARDWARE", settings)
         self.assertIn("newEncryption.isNullOrEmpty() && authMethod == AuthMethod.PASSWORD", auth)
         self.assertIn("settings?.getEncryption() == Constants.EncryptionType.PASSWORD", auth)
-        self.assertIn("hardwarePending && resultCode == RESULT_OK && VaultSession.isCurrent(hardwareGeneration)", auth)
+        self.assertIn("hardwareAttempt.complete(hardwareTicket, VaultSession.generation(), hardwarePending && !isFinishing(), resultCode == RESULT_OK)", auth)
         self.assertIn("finishWithResult(true, null, hardwareGeneration)", auth)
 
     def test_unwrap_is_verified_and_secrets_do_not_cross_intents(self):

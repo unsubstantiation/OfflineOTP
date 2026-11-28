@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.Database.VaultJson
 import java.security.MessageDigest
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
@@ -31,7 +32,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
         fun destroy() { digests.forEach { it.fill(0) }; digests.clear(); entries.clear() }
         companion object {
             private fun fingerprint(entry: Entry): ByteArray {
-                val bytes = entry.toJSON().toString().toByteArray(Charsets.UTF_8)
+                val bytes = VaultJson.entriesToString(listOf(entry)).toByteArray(Charsets.UTF_8)
                 return try { MessageDigest.getInstance("SHA-256").digest(bytes) } finally { bytes.fill(0) }
             }
         }
@@ -51,7 +52,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
     /** Copies the caller's draft; caller retains ownership on every outcome. */
     fun submitNew(draft: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked) return false
-        val owned = try { Entry(draft.toJSON()) } catch (_: Exception) { return false }
+        val owned = try { draft.detachedCopy() } catch (_: Exception) { return false }
         try { owned.validate() } catch (_: Exception) { owned.destroy(); return false }
         ownedDraft = owned
         val accepted = submit(owned, Kind.ADD, active, completed)
@@ -62,7 +63,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
     /** Copies the edited entry; target must still be the exact live instance. */
     fun submitReplacement(target: Entry, replacement: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked) return false
-        val owned = try { Entry(replacement.toJSON()) } catch (_: Exception) { return false }
+        val owned = try { replacement.detachedCopy() } catch (_: Exception) { return false }
         owned.preserveExtensionFieldsFrom(target)
         try { owned.validate() } catch (_: Exception) { owned.destroy(); return false }
         ownedDraft = owned
@@ -112,8 +113,8 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
         val accepted = save.submitCandidate(state, ::authorized,
             prepare = { candidate ->
                 when (kind) {
-                    Kind.ADD -> candidate.add(Entry(target.toJSON()))
-                    Kind.REPLACE -> candidate.set(index, Entry(checkNotNull(ownedDraft).toJSON())).destroy()
+                    Kind.ADD -> candidate.add(target.detachedCopy())
+                    Kind.REPLACE -> candidate.set(index, checkNotNull(ownedDraft).detachedCopy()).destroy()
                     Kind.DELETE -> candidate.removeAt(index).destroy()
                     Kind.ADVANCE_COUNTER -> check(EntryUsage.advanceHotp(candidate[index]))
                     Kind.SET_PIN -> { candidate[index].setPin(String(checkNotNull(ownedPin))); candidate[index].updateOTP(true) }

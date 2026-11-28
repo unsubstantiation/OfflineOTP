@@ -2,49 +2,31 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import com.fairuniversal.offlineotp.ui.portable.*
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
-import kotlinx.coroutines.delay
 
 /**
  * Portable unlocked vault screen built on the same [SharedVaultTopBar], [SharedVaultEmptyState],
@@ -63,46 +45,6 @@ fun PortableVaultScreen(
     cardLayout: PortableCardLayout = PortableCardLayout.DEFAULT,
     artwork: VaultArtwork? = null
 ) {
-    val listState = rememberLazyListState()
-    val latestCards by rememberUpdatedState(state.cards)
-    val latestOnCard by rememberUpdatedState(onCard)
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
-    var pointerY by remember { mutableStateOf(0f) }
-    var grabOffset by remember { mutableStateOf(0f) }
-    fun endDrag() {
-        draggingIndex = null
-    }
-    fun moveIfNeeded() {
-        val activeIndex = draggingIndex ?: return
-        val card = latestCards.firstOrNull { it.index == activeIndex } ?: run { endDrag(); return }
-        if (!card.canReorder) { endDrag(); return }
-        val order = latestCards.map { it.index.toLong() }
-        val visible = listState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
-            val keyIndex = (item.key as? Int)?.toLong() ?: (item.key as? Long)
-            keyIndex?.let { PortableEntryDragBounds(it, item.offset.toFloat(), item.size.toFloat()) }
-        }
-        val direction = portableEntryDragDirection(activeIndex.toLong(), pointerY, order, visible)
-        if (direction == 0) return
-        val pos = latestCards.indexOfFirst { it.index == activeIndex }
-        val targetPos = pos + direction
-        if (pos < 0 || targetPos !in latestCards.indices) return
-        val neighborIndex = latestCards[targetPos].index
-        draggingIndex = neighborIndex
-        latestOnCard(activeIndex, if (direction < 0) "moveUp" else "moveDown")
-    }
-    LaunchedEffect(draggingIndex != null) {
-        while (draggingIndex != null) {
-            val info = listState.layoutInfo
-            val scroll = sharedVaultViewportScroll(
-                pointerY = pointerY,
-                viewportStartOffset = info.viewportStartOffset,
-                viewportEndOffset = info.viewportEndOffset
-            )
-            if (scroll != 0f) listState.scrollBy(scroll)
-            moveIfNeeded()
-            delay(16)
-        }
-    }
     val filterKey = listOf(
         state.tabs.indexOfFirst { it.selected },
         state.query,
@@ -110,9 +52,6 @@ fun PortableVaultScreen(
         state.includeUntagged,
         state.tags.filter { it.selected }.joinToString("\n") { it.label }
     )
-    LaunchedEffect(filterKey) {
-        endDrag()
-    }
     SharedVaultScaffold(
         isEmpty = state.cards.isEmpty(),
         backgroundColor = ForestPalette.background,
@@ -223,212 +162,14 @@ fun PortableVaultScreen(
             )
         },
         listContent = {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .pointerInput(Unit) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { position ->
-                                val hit = listState.layoutInfo.visibleItemsInfo.firstOrNull {
-                                    position.y >= it.offset && position.y < it.offset + it.size
-                                }
-                                val hitKey = (hit?.key as? Int) ?: (hit?.key as? Long)?.toInt()
-                                val card = latestCards.firstOrNull { it.index == hitKey }
-                                if (card != null && card.canReorder) {
-                                    draggingIndex = card.index
-                                    pointerY = position.y
-                                    grabOffset = position.y - checkNotNull(hit).offset
-                                }
-                            },
-                            onDrag = { change, amount ->
-                                if (draggingIndex != null) {
-                                    change.consume()
-                                    pointerY += amount.y
-                                    moveIfNeeded()
-                                }
-                            },
-                            onDragEnd = { endDrag() },
-                            onDragCancel = { endDrag() }
-                        )
-                    }
-            ) {
-                items(state.cards, key = { it.index }) { card ->
-                    val dragging = draggingIndex == card.index
-                    SharedVaultDraggedItemBox(
-                        dragging = dragging,
-                        pointerY = pointerY,
-                        grabOffset = grabOffset,
-                        itemOffsetPx = {
-                            listState.layoutInfo.visibleItemsInfo
-                                .firstOrNull { it.key == card.index }?.offset?.toFloat() ?: 0f
-                        },
-                        activeShadowElevation = 12f
-                    ) {
-                        PortableCardView(
-                            card = card,
-                            hideIssuer = state.hiddenTitleEnabled,
-                            cardLayout = cardLayout,
-                            labelDisplay = state.labelDisplay,
-                            showThumbnails = state.showThumbnails,
-                            customThumbnailSizeDp = state.customThumbnailSizeDp,
-                            labelSizeSp = state.labelSizeSp.takeIf { it > 0 },
-                            highlightExpiringTokens = state.highlightExpiringTokens,
-                            tapSingle = state.tapSingle,
-                            tapDouble = state.tapDouble,
-                            artwork = artwork,
-                            onCard = onCard
-                        )
-                    }
-                }
+            SharedVaultList(cards = state.cards, key = { it.stableId }, filterKey = filterKey,
+                canMove = { card, _ -> card.canReorder },
+                onMove = { card, direction -> onCard(card.index, if (direction < 0) "moveUp" else "moveDown") },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 24.dp),
+                spacingDp = 0, shadow = 12f
+            ) { card ->
+                SharedVaultRenderedCard(portableCardContent(card, state, cardLayout), artwork) { command -> onCard(card.index, command) }
             }
-        }
-    )
-}
-
-@Composable
-private fun PortableCardView(
-    card: PortableCard,
-    hideIssuer: Boolean,
-    cardLayout: PortableCardLayout,
-    labelDisplay: PortableLabelDisplay,
-    showThumbnails: Boolean,
-    customThumbnailSizeDp: Int,
-    labelSizeSp: Int?,
-    highlightExpiringTokens: Boolean,
-    tapSingle: PortableTapMode,
-    tapDouble: PortableTapMode,
-    artwork: VaultArtwork?,
-    onCard: (Int, String) -> Unit
-) {
-    val displayTitle = card.visibleTitle(hideIssuer)
-    val displayMark = card.visibleMark(hideIssuer)
-    val resolvedThumbSizeDp = cardLayout.effectiveThumbnailSizeDp(customThumbnailSizeDp)
-    val verticalPad = cardLayout.cardVerticalPaddingDp
-    val maxLines = labelDisplay.labelMaxLines(cardLayout)
-    val stackCodeBelow = cardLayout.codeBelowIdentity
-    val showCodeArea = card.hasCode || (card.pinRequired && card.revealed) || (card.counterLabel.isNotEmpty() && card.revealed)
-    fun dispatchTap(mode: PortableTapMode) {
-        when (mode) {
-            PortableTapMode.NOTHING -> Unit
-            PortableTapMode.REVEAL -> onCard(card.index, "reveal")
-            PortableTapMode.COPY -> if (card.canCopy) onCard(card.index, "copy")
-        }
-    }
-    val defaultRevealClick = if (tapSingle == PortableTapMode.REVEAL && tapDouble == PortableTapMode.NOTHING) {
-        Modifier.clickable { onCard(card.index, "reveal") }
-    } else {
-        null
-    }
-    SharedVaultEntryCard(
-        title = displayTitle,
-        subtitle = card.subtitle,
-        revealed = card.revealed,
-        showThumbnail = showThumbnails,
-        thumbnailSizeDp = resolvedThumbSizeDp,
-        tileSeed = displayMark,
-        artworkSlot = if (artwork != null) {
-            {
-                SharedIssuerArtwork(
-                    thumbnailName = if (card.revealed || !hideIssuer) card.mark else "",
-                    title = displayTitle,
-                    sizeDp = resolvedThumbSizeDp,
-                    artwork = artwork,
-                    seed = displayMark
-                )
-            }
-        } else null,
-        scrollLabels = labelDisplay.scrollLabels,
-        labelSizeSp = labelSizeSp,
-        labelMaxLines = maxLines,
-        verticalPaddingDp = verticalPad,
-        outerVerticalPaddingDp = 4,
-        codeBelowIdentity = stackCodeBelow,
-        showCodeArea = showCodeArea,
-        pillTags = if (card.revealed) card.tags else emptyList(),
-        customPeriodLabel = card.customPeriodLabel.ifEmpty { null },
-        detailLabel = card.visibleDetailLabel().ifEmpty { null },
-        metadataLabel = card.metadata,
-        metadataWarning = highlightExpiringTokens && card.isExpiring && card.revealed,
-        revealedContent = card.visibleRevealedContent().ifEmpty { null },
-        isNote = card.isNote,
-        interactionModifier = defaultRevealClick,
-        onClick = if (defaultRevealClick == null && (tapSingle != PortableTapMode.NOTHING || tapDouble != PortableTapMode.NOTHING)) {
-            { dispatchTap(tapSingle) }
-        } else null,
-        onDoubleClick = if (defaultRevealClick == null && tapDouble != PortableTapMode.NOTHING) {
-            { dispatchTap(tapDouble) }
-        } else null,
-        codeAreaContent = {
-            PortableCardCodeArea(card = card, highlightExpiringTokens = highlightExpiringTokens)
-        },
-        actionsContent = {
-            ForestTextAction(if (card.revealed) "Hide" else "Reveal",
-                onClick = { onCard(card.index, "reveal") },
-                contentDescription = "Show or hide the code for " + displayTitle)
-            if (card.canCopy) {
-                ForestTextAction(if (card.hasCode) "Copy Token" else "Copy",
-                    onClick = { onCard(card.index, "copy") },
-                    contentDescription = "Copy Token for " + displayTitle)
-            }
-            if (card.canCopyAccount) {
-                ForestTextAction("Copy Account",
-                    onClick = { onCard(card.index, "copyAccount") },
-                    contentDescription = "Copy Account for " + displayTitle)
-            }
-            if (card.canCopyPassword) {
-                ForestTextAction("Copy Password",
-                    onClick = { onCard(card.index, "copyPassword") },
-                    contentDescription = "Copy Password for " + displayTitle)
-            }
-            if (card.pinRequired) {
-                ForestTextAction("Enter PIN", onClick = { onCard(card.index, "pin") },
-                    contentDescription = "Enter PIN for " + displayTitle)
-            }
-            if (card.canReorder) {
-                ForestTextAction("Move up", onClick = { onCard(card.index, "moveUp") },
-                    contentDescription = "Move " + displayTitle + " up")
-                ForestTextAction("Move down", onClick = { onCard(card.index, "moveDown") },
-                    contentDescription = "Move " + displayTitle + " down")
-            }
-            if (card.canStep) ForestTextAction("Next code",
-                onClick = { onCard(card.index, "step") },
-                onLongClick = { onCard(card.index, "counter") },
-                contentDescription = "Next code for " + displayTitle)
-            if (card.isEmail && card.revealed) {
-                ForestTextAction("Connection details",
-                    onClick = { onCard(card.index, "emailDetails") },
-                    contentDescription = "Connection details for " + displayTitle)
-            }
-            if (card.revealed) {
-                ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
-                    contentDescription = "Edit " + displayTitle)
-            }
-        }
-    )
-}
-
-@Composable
-private fun PortableCardCodeArea(card: PortableCard, highlightExpiringTokens: Boolean = true) {
-    val visibleCode = card.visibleCode()
-    SharedVaultCodeArea(
-        displayedToken = if (card.hasCode) {
-            if (card.revealed) visibleCode else "••• •••"
-        } else null,
-        tokenVisible = card.revealed && card.hasCode,
-        showsExpiry = highlightExpiringTokens && card.isExpiring,
-        previousToken = card.previousCode.ifEmpty { null },
-        showCountdown = card.hasCode && card.showCountdown && card.secondsLeft > 0,
-        progress = card.countdownProgress,
-        remainingSeconds = card.secondsLeft,
-        showSecondsText = true,
-        pinRequired = card.pinRequired && card.revealed,
-        pinRequiredLabel = "PIN required",
-        counterText = if (card.revealed) card.counterLabel.ifEmpty { null } else null,
-        contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" "),
-        previousSemanticsModifier = Modifier.semantics {
-            contentDescription = "Previous token " + card.previousCode.toCharArray().joinToString(" ")
         }
     )
 }

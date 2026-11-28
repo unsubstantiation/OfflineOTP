@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.Utilities
 
 import android.content.Context
+import com.fairuniversal.offlineotp.domain.RestoreWorkflow
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.UiBasedBackgroundTask
@@ -33,6 +34,8 @@ class VaultRestoreOperation(context: Context) {
     fun restore(text: String, replace: Boolean, key: SecretKey?, generation: Long,
                 permitted: BooleanSupplier,
                 backupCallback: UiBasedBackgroundTask.OutcomeCallback<BackupTaskResult>?): Result {
+        val workflow = RestoreWorkflow()
+        val ticket = workflow.start(generation, false)
         val imported = ArrayList<Entry>()
         val current = ArrayList<Entry>()
         try {
@@ -42,7 +45,10 @@ class VaultRestoreOperation(context: Context) {
             } catch (invalid: RuntimeException) {
                 return Result.INVALID_IMPORT
             }
-            if (imported.isEmpty()) return Result.EMPTY_IMPORT
+            if (!workflow.decoded(ticket, VaultSession.generation(), authorized(key, generation, permitted),
+                    imported.size, imported.toHashSet().size == imported.size))
+                return if (imported.isEmpty()) Result.EMPTY_IMPORT else Result.INVALID_IMPORT
+            if (!workflow.confirm(ticket, VaultSession.generation(), authorized(key, generation, permitted), replace)) return Result.SESSION_REVOKED
             // The read/merge/write is one mutation, not a stale read followed by a later save.
             synchronized (VaultSession.MutationLock) {
                 if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
@@ -59,8 +65,10 @@ class VaultRestoreOperation(context: Context) {
                 // a replace dropping the current entries) is shared with the desktop restore.
                 val merged = VaultRestoreMerge.plan(imported, current, replace)
                 if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
+                if (!workflow.beginInstall(ticket, VaultSession.generation(), authorized(key, generation, permitted), merged.size)) return Result.SESSION_REVOKED
                 // An import is a real entry change. The persistence layer suppresses no-op imports.
                 val write = persistence.save(merged, key, settings.getAutoBackupEncryptedPasswordsEnabled(), backupCallback)
+                workflow.installed(ticket, write is VaultWriteResult.Saved)
                 return when (write) {
                     is VaultWriteResult.Saved -> Result.SAVED
                     is VaultWriteResult.RecoveryRequired -> Result.RECOVERY_REQUIRED
@@ -71,6 +79,7 @@ class VaultRestoreOperation(context: Context) {
             // An unexpected policy/storage failure is not evidence of malformed import data.
             return Result.OPERATION_FAILED
         } finally {
+            workflow.cancel()
             for (entry in imported) entry.destroy()
             for (entry in current) entry.destroy()
         }

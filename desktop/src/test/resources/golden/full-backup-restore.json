@@ -1,0 +1,29 @@
+{
+  "description": "Synthetic test-only independent Python hashlib/cryptography vectors matching andOTP v0.9.0 EncryptedRestoreTask and pre-0.6.3 SHA-256 path. No real secrets.",
+  "vectors": [
+    {
+      "name": "andotp-password-v0.9",
+      "format": "andotp",
+      "variant": "encrypted",
+      "password": "synthetic-andotp-recovery",
+      "dataHex": "000222e0202122232425262728292a2b707172737475767778797a7b8f4a0b7b62efb66b41b3fcf6b9baa53bae011e235309f0cb3cd342cb55c847ad48ec3cc268bd0328a4d01e4f72c1627b8f06b8c43a0b904cfcf12ea86ade729404ebd904410d687eb615ff867ad3271494f05eea3e0657e7936cd6b45529d697f2f970658a094c2b5b4d751947a98515afbe1370eb2bdfd8b6097b6496bad10d0e987455b8959957a37b6c7e6cfbf53a1f59aefbfc790a277ea0d022c184520c66b5c222cb277b705eed9399bea9810015fbeb3decc7099c72f472b3763d8ca7ebabf925afb86f14dac8171e3a70bc0c4cd10f6aaec63756a8e8a2f8359a159c8846e16f0aae011dd4db155410b6a51704fbd157c152315fc34b008c3eccf23712c9249261592898f3e2c0d57495a4f0c071bd5f39ac77a396abbc53e4411235d8ad463e29d2a9b7ec6fefb5d89e455fa247a02ec7acad0b92e28388be4d9ecf08d930b9178320e3784b41892e087ee95037cb0932152051617b466fb952f1fae85d1397bce194e64469d598a73a93890c413297227157cd6f5bbc00f86c315654192f745c6539f0e2fee94f8019c34913802fa650ec0265f2ba83f8c7ee34ba5fb1fc11dff5cc83a27128a9011c14ca73699d",
+      "plaintext": "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"issuer\":\"andOTP fixture\",\"label\":\"synthetic-alice\",\"digits\":6,\"type\":\"TOTP\",\"algorithm\":\"SHA1\",\"period\":30,\"tags\":[\"work\",\"test\"],\"thumbnail\":\"Default\",\"last_used\":0,\"used_frequency\":0},{\"secret\":\"KRSXG5A=\",\"issuer\":\"Counter fixture\",\"label\":\"synthetic-bob\",\"digits\":8,\"type\":\"HOTP\",\"algorithm\":\"SHA256\",\"counter\":9,\"tags\":[\"test\"],\"thumbnail\":\"Default\",\"last_used\":0,\"used_frequency\":0}]"
+    },
+    {
+      "name": "andotp-before-0.6.3",
+      "format": "andotp",
+      "variant": "pre063",
+      "password": "synthetic-andotp-recovery",
+      "dataHex": "707172737475767778797a7b0200d5b00efd0df9a8b59160bded3b996edbf10c65355a46ccebd5327e03558252681a51a2123669e42dd2c3ff0c7b96d0fcc05851f9ed308d5de44174dd45ce28f9dbf2ba7e57e49e0747e86ed5546b7ddb1eb0197ba03eaf5a592c27e5b9684ee45fa6e13dca7e1bef9107f19a5cc4dfdedfc416bacd575dfe845891ae7844ca30b9801c23f2df8e88d30a30b907f5856e3463a3a2604483394e88f6f01253b874f55830e5f9b68a9a9de200669dbab6d9d7eb5a45e9b1a379b41d513275dd8eb330dc63f86dee320f1b29075e6891f4e99fbe9c8b5702522dc945207669e37a295db53bb66badc893ffe87e98662c4026ed8be7eb2d4144e78d3f5d022306f978b04c0d3cd5f1878263887c7c22690c25b6f7f92a1918c32d16b29bb5c80a3e3503580b7495f5b76ac2fa0a50424e2e11d46ad771fe8bbe3d986bf9ef08acd6966963bdd48af664b985ef8a976424152944e40524d44cff35c6e27296884f071d057c40ae3f50f9e1c3be70f387400a850d82319042f268f73a02affa618d06ac6abc2319f3eddc724339c86a7fd1cd20d6597a8bf7d1232379a953b6ec7c5eaa458690526569bcd82394a15f0c859aa57d",
+      "plaintext": "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"issuer\":\"andOTP fixture\",\"label\":\"synthetic-alice\",\"digits\":6,\"type\":\"TOTP\",\"algorithm\":\"SHA1\",\"period\":30,\"tags\":[\"work\",\"test\"],\"thumbnail\":\"Default\",\"last_used\":0,\"used_frequency\":0},{\"secret\":\"KRSXG5A=\",\"issuer\":\"Counter fixture\",\"label\":\"synthetic-bob\",\"digits\":8,\"type\":\"HOTP\",\"algorithm\":\"SHA256\",\"counter\":9,\"tags\":[\"test\"],\"thumbnail\":\"Default\",\"last_used\":0,\"used_frequency\":0}]"
+    },
+    {
+      "name": "andotp-unencrypted-json",
+      "format": "andotp",
+      "variant": "plain",
+      "password": "",
+      "dataHex": "5b7b22736563726574223a224a425357593344504548504b33505850222c22697373756572223a22616e644f54502066697874757265222c226c6162656c223a2273796e7468657469632d616c696365222c22646967697473223a362c2274797065223a22544f5450222c22616c676f726974686d223a2253484131222c22706572696f64223a33302c2274616773223a5b22776f726b222c2274657374225d2c227468756d626e61696c223a2244656661756c74222c226c6173745f75736564223a302c22757365645f6672657175656e6379223a307d2c7b22736563726574223a224b5253584735413d222c22697373756572223a22436f756e7465722066697874757265222c226c6162656c223a2273796e7468657469632d626f62222c22646967697473223a382c2274797065223a22484f5450222c22616c676f726974686d223a22534841323536222c22636f756e746572223a392c2274616773223a5b2274657374225d2c227468756d626e61696c223a2244656661756c74222c226c6173745f75736564223a302c22757365645f6672657175656e6379223a307d5d",
+      "plaintext": "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"issuer\":\"andOTP fixture\",\"label\":\"synthetic-alice\",\"digits\":6,\"type\":\"TOTP\",\"algorithm\":\"SHA1\",\"period\":30,\"tags\":[\"work\",\"test\"],\"thumbnail\":\"Default\",\"last_used\":0,\"used_frequency\":0},{\"secret\":\"KRSXG5A=\",\"issuer\":\"Counter fixture\",\"label\":\"synthetic-bob\",\"digits\":8,\"type\":\"HOTP\",\"algorithm\":\"SHA256\",\"counter\":9,\"tags\":[\"test\"],\"thumbnail\":\"Default\",\"last_used\":0,\"used_frequency\":0}]"
+    }
+  ]
+}

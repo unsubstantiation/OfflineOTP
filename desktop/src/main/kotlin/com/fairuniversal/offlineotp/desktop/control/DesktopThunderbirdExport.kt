@@ -34,9 +34,13 @@ class DesktopThunderbirdExport(
             internal set
     }
 
-    private class Work(private var bytes: ByteArray?) {
-        @Synchronized fun take(): ByteArray? = bytes.also { bytes = null }
-        @Synchronized fun cancel() { bytes?.fill(0); bytes = null }
+    private class Work(private var bytes: ByteArray?, generation: Long) {
+        private val delivery = com.fairuniversal.offlineotp.domain.InterchangeWorkflow(generation).also { check(it.preview(0)) }
+        @Synchronized fun take(generation: Long, ready: Boolean): ByteArray? {
+            if (!delivery.consume(generation, ready)) { cancel(); return null }
+            return bytes.also { bytes = null }
+        }
+        @Synchronized fun cancel() { delivery.cancel(); bytes?.fill(0); bytes = null }
     }
 
     var pending: Request? = null
@@ -101,7 +105,7 @@ class DesktopThunderbirdExport(
             bytes.fill(0)
             return false
         }
-        val task = Work(bytes)
+        val task = Work(bytes, state.generation)
         work = task
         request.count = selected.size
         request.status = Status.WRITING
@@ -109,7 +113,7 @@ class DesktopThunderbirdExport(
         try {
             worker.execute {
                 if (state.isLocked) { task.cancel(); return@execute }
-                val data = task.take() ?: return@execute
+                val data = task.take(state.generation, !state.isLocked) ?: return@execute
                 val result = try {
                     write(target, data)
                     Status.SAVED

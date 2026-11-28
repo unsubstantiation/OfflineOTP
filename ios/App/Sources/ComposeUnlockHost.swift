@@ -18,6 +18,7 @@ final class UnlockCoordinator: NSObject, UnlockActions {
     private var hardwareVisible = false
     private var hardwareBusy = false
     private var hardwareError: String?
+    private let hardwareAttempt = UnlockAttemptPolicy()
 
     init(store: VaultStore, onRestore: @escaping () -> Void) {
         self.store = store
@@ -95,24 +96,29 @@ final class UnlockCoordinator: NSObject, UnlockActions {
         guard foreground else { return }
         guard active, hardwareVisible, !hardwareBusy, !store.isUnlocked else { return }
         let generation = store.generation
+        let ticket = hardwareAttempt.start(generation: Int64(generation), permitted: active && foreground)
+        guard ticket != 0 else { return }
         do {
-            guard let envelope = try store.hardwareUnlockEnvelope() else { hardwareError = "No enrolled local record. Use the vault password."; render(); return }
+            guard let envelope = try store.hardwareUnlockEnvelope() else { hardwareAttempt.cancel(); hardwareError = "No enrolled local record. Use the vault password."; render(); return }
             hardwareBusy = true; hardwareError = nil; render()
             hardware.unlock(transport: usb ? .usbC : .nfc, pin: pin, envelope: envelope) { [weak self] key, error in
                 var key = key
                 defer { if let count = key?.count { key?.resetBytes(in: 0..<count) } }
-                guard let self = self, self.active, self.hardwareVisible, !self.store.isUnlocked, self.store.generation == generation else { return }
+                guard let self = self, self.hardwareAttempt.current(ticket: ticket, generation: Int64(self.store.generation),
+                    permitted: self.active && self.foreground && self.hardwareVisible && !self.store.isUnlocked) else { return }
+                _ = self.hardwareAttempt.complete(ticket: ticket, generation: Int64(self.store.generation), permitted: true, authenticated: key != nil)
                 self.hardwareBusy = false
                 if let key = key {
-                    if !self.store.unlockWithHardwareKey(key) { self.hardwareError = self.store.message }
+                    if !self.store.unlockWithHardwareKey(key, expectedGeneration: generation) { self.hardwareError = self.store.message }
                 } else { self.hardwareError = error }
                 self.render()
             }
-        } catch { hardwareBusy = false; hardwareError = "The local hardware record is unreadable. Use the vault password."; render() }
+        } catch { hardwareAttempt.cancel(); hardwareBusy = false; hardwareError = "The local hardware record is unreadable. Use the vault password."; render() }
     }
-    @objc private func suspendHardware() { foreground = false; hardwareCancel() }
+    @objc private func suspendHardware() { foreground = false; store.cancelPendingUnlock(); hardwareCancel() }
     @objc private func resume() { foreground = true; refresh() }
     func hardwareCancel() {
+        hardwareAttempt.cancel()
         hardware.cancel(); hardwareBusy = false; hardwareVisible = false; hardwareError = nil
         render()
     }
@@ -120,6 +126,7 @@ final class UnlockCoordinator: NSObject, UnlockActions {
 
     func close() {
         active = false
+        hardwareAttempt.close(); store.cancelPendingUnlock()
         hardware.cancel(); hardwareBusy = false; hardwareVisible = false; hardwareError = nil
         onAbout = nil
         subscription?.cancel()
@@ -282,6 +289,13 @@ final class RestoreCoordinator: NSObject, NewVaultRestoreActions {
         guard active, !store.hasVault, !store.isUnlocked else { return "A vault already exists here." }
         return store.restoreNewVault(encrypted: data, backupPassword: backupPassword,
                                      newPassword: newPassword, confirmation: confirmation)
+            ? nil : (store.message ?? "The backup could not be restored.")
+    }
+
+    func restoreSelected(backupPassword: String, newPassword: String, confirmation: String, format: String, andOtpVariant: String) -> String? {
+        guard active, !store.hasVault, !store.isUnlocked else { return "A vault already exists here." }
+        return store.restoreNewVault(encrypted: data, backupPassword: backupPassword,
+            newPassword: newPassword, confirmation: confirmation, format: format, andOtpVariant: andOtpVariant)
             ? nil : (store.message ?? "The backup could not be restored.")
     }
 

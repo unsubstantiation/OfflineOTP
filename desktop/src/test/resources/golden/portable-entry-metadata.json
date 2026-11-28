@@ -1,0 +1,13 @@
+{
+  "description": "Synthetic chunk-2 metadata adapter corpus. No real credentials. Preserve extension values and exact signed 64-bit metadata.",
+  "cases": [
+    {
+      "name": "unicode-and-extensions",
+      "document": "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"issuer\":\"日本語 😀 é\",\"label\":\"quotes\\\" \\\\ </script>\\n\\t\\u0000\",\"digits\":8,\"type\":\"TOTP\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":9007199254740993,\"used_frequency\":9223372036854775807,\"period\":60,\"tags\":[\"duplicate\",\"order\",\"duplicate\"],\"hidden_label\":\"Private label\",\"extension_null\":null,\"extension_list\":[1,true,\"Unicode →\",{\"nested\":\"preserved\"}],\"extension_object\":{\"version\":2,\"enabled\":false,\"opaque\":\"not interpreted by older clients\"},\"details_visible\":true}]"
+    },
+    {
+      "name": "hotp-explicit-defaults",
+      "document": "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"issuer\":\"\",\"label\":\"synthetic@example.invalid\",\"digits\":8,\"type\":\"HOTP\",\"algorithm\":\"SHA256\",\"thumbnail\":\"Default\",\"last_used\":-9223372036854775808,\"used_frequency\":-1,\"tags\":[],\"hidden_label\":\"\",\"extension_null\":null,\"extension_list\":[1,true,\"Unicode →\",{\"nested\":\"preserved\"}],\"extension_object\":{\"version\":2,\"enabled\":false,\"opaque\":\"not interpreted by older clients\"},\"counter\":9007199254740993,\"details_visible\":false}]"
+    }
+  ]
+}

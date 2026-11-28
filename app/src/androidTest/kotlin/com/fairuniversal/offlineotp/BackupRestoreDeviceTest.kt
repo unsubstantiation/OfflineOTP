@@ -47,6 +47,43 @@ import javax.crypto.spec.IvParameterSpec
 
 @RunWith(AndroidJUnit4::class)
 class BackupRestoreDeviceTest {
+    @Test fun portableRestoreWorkflowRequiresPreviewConsentAndLiveAuthorityOnAndroid() {
+        val flow = com.fairuniversal.offlineotp.domain.RestoreWorkflow()
+        val old = flow.start(1, false); val ticket = flow.start(2, false)
+        assertFalse(flow.decoded(old, 1, true, 1, true))
+        assertFalse(flow.confirm(ticket, 2, true, true))
+        assertTrue(flow.decoded(ticket, 2, true, 1, true))
+        assertFalse(flow.beginInstall(ticket, 2, true, 1))
+        assertTrue(flow.confirm(ticket, 2, true, false))
+        assertFalse(flow.beginInstall(ticket, 3, true, 1))
+        assertEquals(com.fairuniversal.offlineotp.domain.RestoreFailure.STALE, flow.failure)
+        val plan = com.fairuniversal.offlineotp.domain.RestoreMergePolicy().plan(listOf(true, false), 1, true, true, false)
+        assertEquals(listOf(1), plan.importedIndices)
+        assertEquals(2, plan.resultCount)
+    }
+
+    @Test fun portableVaultProtocolCorpusAndCryptoProvidersAgreeOnAndroid() {
+        val policy = com.fairuniversal.offlineotp.domain.VaultProtocol()
+        fun hex(value: String) = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val root = javaClass.classLoader!!.getResourceAsStream("golden/portable-vault-protocol.json")!!.bufferedReader().use { org.json.JSONObject(it.readText()) }
+        val rows = root.getJSONArray("headers")
+        for (i in 0 until rows.length()) {
+            val row = rows.getJSONObject(i); val prefix = hex(row.getString("prefixHex"))
+            val result = if (row.getString("family") == "vault") policy.vaultHeader(prefix, row.getInt("totalBytes")) else policy.backupHeader(prefix, row.getInt("totalBytes"))
+            assertEquals(row.getString("name"), row.optString("error", null), result.failure?.name)
+            assertEquals(row.optString("kdf", null), result.header?.kdf?.name)
+        }
+        val vectors = javaClass.classLoader!!.getResourceAsStream("golden/vault-container.json")!!.bufferedReader().use { org.json.JSONObject(it.readText()).getJSONArray("vectors") }
+        for (i in 0 until vectors.length()) {
+            val row = vectors.getJSONObject(i); val file = hex(row.getString("fileHex"))
+            assertEquals(row.getString("plaintext"), String(com.fairuniversal.offlineotp.Utilities.VaultContainer.open(row.getString("password"), file), StandardCharsets.UTF_8))
+            assertEquals(row.getString("plaintext"), EncryptedBackupCodec.openSelected(row.getString("password"), file, "vault-copy"))
+            val tampered = file.copyOf(); tampered[24] = (tampered[24].toInt() xor 1).toByte()
+            try { com.fairuniversal.offlineotp.Utilities.VaultContainer.openWithKey(javax.crypto.spec.SecretKeySpec(hex(row.getString("keyHex")), "AES"), tampered); fail("Unauthenticated header") }
+            catch (_: Exception) { }
+        }
+    }
+
     private val document = """[{"secret":"JBSWY3DPEHPK3PXP","issuer":"Example","label":"alice",""" +
         """"digits":6,"type":"TOTP","algorithm":"SHA1","thumbnail":"Default","last_used":0,""" +
         """"used_frequency":0,"period":30,"tags":["work"]}]"""
@@ -62,6 +99,35 @@ class BackupRestoreDeviceTest {
     fun settleTheApp() {
         DeviceTestSupport.finishActivities()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+    }
+
+    @Test
+    fun portableEntryDocumentsPreserveEveryKindAndFutureNumbersOnAndroid() {
+        val rows = org.json.JSONObject(String(golden("portable-entry-documents.json"), StandardCharsets.UTF_8)).getJSONArray("valid")
+        assertEquals(9, rows.length())
+        for (index in 0 until rows.length()) {
+            val row = rows.getJSONObject(index)
+            val entries = VaultJson.stringToEntries(row.getString("document"))
+            val copy = entries.single().detachedCopy()
+            try {
+                val restored = VaultJson.stringToEntries(VaultJson.entriesToString(listOf(copy)))
+                try {
+                    assertEquals(row.getString("kind"), restored.single().getType().name)
+                    assertEquals(copy.getLastUsed(), restored.single().getLastUsed())
+                    assertEquals(copy.toJSON().get("extension_object").toString(), restored.single().toJSON().get("extension_object").toString())
+                } finally { restored.forEach { it.destroy() } }
+            } finally { copy.destroy(); entries.forEach { it.destroy() } }
+        }
+        val text = """[{"secret":"JBSWY3DPEHPK3PXP","label":"synthetic","future":{"number":123456789012345678901234567890,"fraction":1.2300e-15,"exponent":1e9999}}]"""
+        val entries = VaultJson.stringToEntries(text)
+        val copy = entries.single().detachedCopy()
+        try {
+            copy.setLabel("edited")
+            val saved = VaultJson.entriesToString(listOf(copy))
+            assertTrue(saved.contains("123456789012345678901234567890"))
+            assertTrue(saved.contains("1.2300e-15"))
+            assertTrue(saved.contains("1e9999"))
+        } finally { copy.destroy(); entries.forEach { it.destroy() } }
     }
 
     @Test

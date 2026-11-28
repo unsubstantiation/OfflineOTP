@@ -197,7 +197,7 @@ object LinScpCredentials {
     @JvmStatic
     @Throws(GeneralSecurityException::class)
     fun openVault(bytes: ByteArray, password: String): ArrayList<Entry> {
-        require(bytes.size >= MIN_VAULT_BYTES) { "The LinSCP credential vault is truncated" }
+        require(com.fairuniversal.offlineotp.domain.CredentialDocumentCodec().encryptedLinScp(bytes.take(8).toByteArray(), bytes.size)) { "Invalid LinSCP vault framing" }
         require(bytes.size <= MAX_FILE_BYTES) { "The LinSCP credential vault exceeds 16 MiB" }
         require(isEncryptedVault(bytes)) { "Unsupported LinSCP credential-vault format or version" }
         require(password.isNotEmpty() && password.length <= InputPolicy.MAX_TEXT_CHARS) {
@@ -313,6 +313,7 @@ object LinScpCredentials {
     }
 
     private fun importPlainDocument(text: String): ArrayList<Entry> {
+        require(com.fairuniversal.offlineotp.domain.CredentialDocumentCodec().linScp(text, false) != null) { "Invalid LinSCP credential document" }
         InputPolicy.jsonDepth(text)
         require(text.trimStart().startsWith("[")) { "Credential document must be a JSON array" }
         val array = JSONArray(text)
@@ -755,6 +756,7 @@ object LinScpCredentials {
     // --- BackupBundle JSON & sessions.ini parsing ---
 
     private fun importBackupBundleJson(jsonText: String, callerMasterKey: ByteArray?): ArrayList<Entry> {
+        require(com.fairuniversal.offlineotp.domain.CredentialDocumentCodec().linScp(jsonText, true) != null) { "Invalid LinSCP bundle" }
         InputPolicy.jsonDepth(jsonText)
         val bundle = try {
             JSONObject(jsonText)
@@ -932,22 +934,12 @@ object LinScpCredentials {
             )
         }
 
-        for (rawLine in iniText.lineSequence()) {
-            val line = rawLine.removeSuffix("\r")
-            val trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith(";")) continue
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                flushSection()
-                currentSection = unescapeIniValue(trimmed.substring(1, trimmed.length - 1))
-                continue
-            }
-            val eq = line.indexOf('=')
-            require(eq > 0 && currentSection != null) { "Malformed LinSCP sessions.ini line" }
-            val key = line.substring(0, eq).trim()
-            val value = unescapeIniValue(line.substring(eq + 1))
-            currentFields[key] = value
+        val sections = requireNotNull(com.fairuniversal.offlineotp.domain.LinScpSessionCodec().parse(iniText)) { "Malformed LinSCP sessions.ini" }
+        for (section in sections) {
+            currentSection = section.name
+            currentFields.putAll(section.fields)
+            flushSection()
         }
-        flushSection()
         return ArrayList(byName.values)
     }
 

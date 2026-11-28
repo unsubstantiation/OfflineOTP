@@ -1,11 +1,11 @@
 package com.fairuniversal.offlineotp.ui.portable
 
 /**
- * Toolkit-free presentation values for the portable iOS surface.
+ * Toolkit-free presentation values for the shared production renderer and Apple host bridge.
  *
- * This is deliberately not `:ui-model`: that module is compiled against JVM `core` and cannot be
- * consumed by Kotlin/Native. These values contain strings, numbers and booleans only, so the same
- * Compose declaration can be hosted by UIKit without dragging the engine into the framework.
+ * JVM entry projections are adapters in `:ui-model/jvmHostMain`, not portable UI dependencies.
+ * Both JVM and Apple adapters feed the engine-free VaultCardContent contract. Legacy bridge values
+ * here contain strings, numbers and booleans only; no engine type enters the Compose framework.
  */
 
 /** One vault card. [index] is an index into the host's live entry array, never a row position. */
@@ -34,7 +34,9 @@ data class PortableCard(
     val periodSeconds: Int = 30,
     val showCountdown: Boolean = true,
     val counterLabel: String = "",
-    val isEmail: Boolean = false
+    val isEmail: Boolean = false,
+    /** Opaque identity supplied by native owners, stable across display reordering. */
+    val stableId: Long = index.toLong()
 ) {
     constructor(
         index: Int,

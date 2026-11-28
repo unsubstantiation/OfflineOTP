@@ -15,9 +15,9 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_MAIN = ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui"
+MODEL_MAIN = ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui"
 MODEL_TEST = ROOT / "ui-model/src/desktopTest/kotlin/com/fairuniversal/offlineotp/ui"
-UI_MAIN = ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui"
+UI_MAIN = ROOT / "ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui"
 UI_FOUNDATION = ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui"
 UI_ANDROID = ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui"
 COMPOSE_HOST = ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose"
@@ -77,6 +77,16 @@ def kotlin_label_map(constant_function):
     return {key: label for key, label in re.findall(r"(\w+)\s*->\s*\"([^\"]*)\"", body)}
 
 
+
+# Chunk 9: assertions follow adapters into the sole portable card/list renderer.
+def card_render_chain():
+    return "\n".join((ROOT / path).read_text() for path in (
+        "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultCardPresentation.kt",
+        "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCardPresentation.kt",
+        "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/VaultRenderContract.kt",
+        "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedVaultRenderer.kt"))
+
+
 class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_frame_layer_never_imports_a_toolkit_or_platform_api(self):
@@ -108,7 +118,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("api project(':ui-model')", ui)
 
     def test_delete_action_requires_host_support_and_confirmation(self):
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
         self.assertNotIn("strings.deleteAction", widgets)
         self.assertNotIn("strings.entryActions", widgets)
         manual_adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
@@ -140,8 +150,8 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive)", host)
         self.assertIn("dialogs.close()", host)
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        self.assertIn("card.pinRequired && enterPin != null", widgets)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
+        self.assertIn("card.pinRequired && actions.onEnterPin != null", widgets)
 
     def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
         dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt").read_text()
@@ -345,20 +355,20 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("rememberSaveable", dialog)
 
     def test_drag_reordering_replaces_move_buttons_and_rechecks_current_frame(self):
-        components = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
+        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text() + card_render_chain()
         self.assertNotIn("text = strings.moveUp", components)
         self.assertNotIn("text = strings.moveDown", components)
-        for guard in ("detectDragGesturesAfterLongPress", "rememberUpdatedState(state.cards)",
-                      "rememberUpdatedState(actions)", "onDragCancel = { endDrag() }",
-                      "order == awaitingOrder", "order != expectedOrder", "order != dragOrder",
-                      "LaunchedEffect(state.filter)", "listState.scrollBy(scroll)", "action(card)"):
+        for guard in ("SharedVaultList(", "detectDragGesturesAfterLongPress", "rememberUpdatedState(cards)",
+                      "rememberUpdatedState(onMove)", "onDragCancel = { endDrag() }", "current == awaiting",
+                      "current != expected", "current != order", "LaunchedEffect(filterKey)",
+                      "listState.scrollBy(scroll)", "latestOnMove(item, direction)"):
             self.assertIn(guard, screen)
         portable = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt").read_text()
         self.assertIn("val canReorder: Boolean = false", portable)
-        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text()
-        self.assertIn('ForestTextAction("Move up"', renderer)
-        self.assertIn('ForestTextAction("Move down"', renderer)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text() + card_render_chain()
+        self.assertIn('command("moveUp", "Move up"', renderer)
+        self.assertIn('command("moveDown", "Move down"', renderer)
         ios = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
         self.assertIn("canReorder: store.canReorder", ios)
         self.assertIn('case "moveUp", "moveDown":', ios)
@@ -368,7 +378,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt", "PortablePresentationTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt", "PortablePresentationTest.kt", "VaultRenderContractTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -400,9 +410,9 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_codes_are_masked_until_revealed(self):
         """A card's digits are drawn only through the reveal flag, never by default."""
         card = (MODEL_MAIN / "vault/VaultCardState.kt").read_text(encoding="utf-8")
-        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("val tokenVisible: Boolean get() = token != null && revealed", card)
-        self.assertIn("if (card.tokenVisible) token else TokenDisplay.mask(token)", components)
+        self.assertIn("if (card.tokenVisible) it else TokenDisplay.mask(it)", components)
 
     def test_secret_bearing_state_redacts_its_diagnostics(self):
         card = (MODEL_MAIN / "vault/VaultCardState.kt").read_text(encoding="utf-8")
@@ -542,7 +552,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertNotIn(marker, text)
 
     def test_compose_artwork_uses_host_loaders_and_preserves_privacy(self):
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
         shared_artwork = (UI_FOUNDATION / "vault/VaultArtwork.kt").read_text()
         self.assertIn("appearance.showThumbnails && card.detailsVisible", widgets)
         self.assertIn("SharedIssuerArtwork(", widgets)
@@ -564,8 +574,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         for call in ("settings.getLabelSize()", "settings.getThumbnailSize() / density", "settings.getCardLayout()"):
             self.assertIn(call, controller)
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        shared_widgets = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text()
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
+        shared_widgets = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text() + card_render_chain()
         self.assertIn("SharedVaultEntryCard(", widgets)
         self.assertIn("Modifier.basicMarquee", shared_widgets)
         for marker in ("appearance.scrollLabels", "appearance.labelSizeSp", "appearance.labelMaxLines",
@@ -582,7 +592,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn(expression, controller)
         tools = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Tools.kt").read_text()
         self.assertIn("TokenFormat.groupFromRight(s, chunkSize)", tools)
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
         self.assertIn("card.hasCountdown && card.showCountdown", widgets)
 
     def test_activity_publishes_compose_frames_instead_of_attaching_recycler(self):
@@ -619,12 +629,12 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("importEntries(arrayListOf(draft))", controller)
         self.assertIn("if (!recordCopyUse(selected))", controller)
         self.assertIn("candidate.forEach { it.destroy() }", controller)
-        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text()
-        self.assertIn('contentDescription = "Copy Token for "', renderer)
-        self.assertIn('contentDescription = "Previous token "', renderer)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text() + card_render_chain()
+        self.assertIn('if (card.hasCode) "Copy Token" else "Copy"', renderer)
+        self.assertIn('previousToken = content.previousToken', renderer)
         host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
         self.assertIn("guard store.recordUse(at: index), store.isUnlocked else", host)
-        self.assertIn("store.entries[index].fields == openedFields", host)
+        self.assertIn("store.entries[index].compact() == openedFields", host)
         self.assertIn("store.isRevealed(store.entries[index])", host)
         self.assertNotIn('Button("Copy code")', host)
 
@@ -652,10 +662,10 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) }", activity)
         self.assertIn("onCopyAccount = { published.perform(it.id, AndroidCardCommand.COPY_ACCOUNT) }", activity)
         self.assertIn("onCopyPassword = { published.perform(it.id, AndroidCardCommand.COPY_PASSWORD) }", activity)
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
         self.assertNotIn("strings.deleteAction", widgets)
-        self.assertIn("card.detailsVisible && card.canCopyAccount && copyAccount != null", widgets)
-        self.assertIn("card.detailsVisible && card.canCopyPassword && copyPassword != null", widgets)
+        self.assertIn("card.detailsVisible && card.canCopyAccount && actions.onCopyAccount != null", widgets)
+        self.assertIn("card.detailsVisible && card.canCopyPassword && actions.onCopyPassword != null", widgets)
         self.assertIn("card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null", widgets)
         adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
         form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
@@ -692,11 +702,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         self.assertIn("composeRevealOverrides[entry] = !composeRevealed(entry)", controller)
         self.assertEqual(2, controller.count("composeRevealOverrides.clear()"))
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
         self.assertIn("!card.detailsVisible && actions.onTogglePrivacy == null", widgets)
 
     def test_reveal_and_hide_choices_persist_across_android_desktop_and_ios(self):
-        presenter = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultPresenter.kt").read_text()
+        presenter = (ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultPresenter.kt").read_text()
         self.assertIn("initialRevealedIds: Set<Long> = emptySet()", presenter)
         self.assertIn("revealChanged: ((Long, Boolean) -> Boolean)? = null", presenter)
         desktop_main = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
@@ -725,10 +735,10 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_shared_custom_period_uses_android_localization_and_privacy_gating(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertIn("getString(R.string.format_custom_period, seconds)", activity)
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        shared_widgets = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text()
-        self.assertIn("card.detailsVisible && customPeriod != null", widgets)
-        self.assertIn("strings.customPeriod(customPeriod)", widgets)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
+        shared_widgets = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text() + card_render_chain()
+        self.assertIn("card.customPeriodSeconds?.takeIf { card.detailsVisible }", widgets)
+        self.assertIn("strings.customPeriod(it)", widgets)
         self.assertIn("Text(text = customPeriodLabel", shared_widgets)
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         self.assertIn("customPeriodSeconds = null", controller)
@@ -861,7 +871,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation, plainText)", host)
 
     def test_secondary_tools_are_grouped_scrolled_and_closed_before_dispatch(self):
-        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
+        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text() + card_render_chain()
         self.assertIn("VaultToolsBar(actions = actions, strings = strings)", screen)
         self.assertNotIn("actions.onImportLinScp", screen)
         tools = (UI_MAIN / "vault/VaultToolsBar.kt").read_text()
@@ -902,8 +912,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))", host)
         self.assertIn("emailDetails.close()", host)
         self.assertIn("PasswordEntryInput.supports(it)", host)
-        components = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        self.assertIn("card.kind == VaultEntryKind.PASSWORDS && card.canEditPassword", components)
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text() + card_render_chain()
+        self.assertIn("card.kind != VaultEntryKind.PASSWORDS || card.canEditPassword", components)
         adapter = (UI_MAIN / "vault/EmailDetailsDialog.kt").read_text()
         form = (UI_FOUNDATION / "vault/SharedEmailDetailsDialog.kt").read_text()
         self.assertIn("SharedEmailDetailsDialog(", adapter)
@@ -987,7 +997,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", form)
         self.assertNotIn("rememberSaveable", form)
         self.assertIn("Replace all entries", form)
-        self.assertIn('password = ""; onDecode(text)', form)
+        self.assertIn('val text = password; password = "";', form)
+        self.assertIn('onDecodeSelected(text, format, variant)', form)
+        self.assertIn('else onDecode(text)', form)
 
     def test_encrypted_export_uses_a_worker_and_rechecks_after_native_picker(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
@@ -1191,7 +1203,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn(widget, host)
         self.assertIn("tagRuleSelected = { mode -> controller.saveTagFunctionality(mode) }", host)
 
-        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("onCycleTagRule", components)
 
     def test_cross_platform_credential_copy_and_desktop_hide_issuer_parity(self):
@@ -1224,7 +1236,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("fun openSingle(", pw_exp)
         arch_exp = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopArchiveExport.kt").read_text(encoding="utf-8")
         self.assertNotIn("fun openSingle(", arch_exp)
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertNotIn('onCard(card.index, "more")', portable_screen)
         self.assertNotIn('onCard(card.index, "details")', portable_screen)
 
@@ -1268,7 +1280,7 @@ class ComposeUiWiringTest(unittest.TestCase):
 
         drag_contract = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableEntryDrag.kt").read_text(encoding="utf-8")
         self.assertIn("fun portableEntryDragDirection(", drag_contract)
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("detectDragGesturesAfterLongPress(", portable_screen)
         self.assertIn("portableEntryDragDirection(", portable_screen)
 
@@ -1295,15 +1307,15 @@ class ComposeUiWiringTest(unittest.TestCase):
             ("vault/VaultComponents.kt", ("SharedVaultTopBar(", "SharedVaultSortBar(", "SharedVaultEmptyState(", "SharedVaultEntryCard(", "SharedVaultCodeArea(")),
             ("vault/VaultScreen.kt", ("SharedVaultScaffold(",)),
         ):
-            adapter_text = (UI_MAIN / adapter_rel).read_text(encoding="utf-8")
+            adapter_text = (UI_MAIN / adapter_rel).read_text(encoding="utf-8") + (card_render_chain() if adapter_rel == "vault/VaultComponents.kt" else "")
             for call in shared_calls:
                 self.assertIn(call, adapter_text, f"{adapter_rel} must delegate to {call}")
             self.assertNotIn("AlertDialog(", adapter_text, f"{adapter_rel} should not own a second AlertDialog")
 
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         for call in ("SharedVaultScaffold(", "SharedVaultTopBar(", "SharedVaultEmptyState(", "SharedVaultEntryCard(", "SharedVaultCodeArea("):
             self.assertIn(call, portable_screen)
-        self.assertIn('onLongClick = { onCard(card.index, "counter") }', portable_screen)
+        self.assertIn('longPress = "counter"', portable_screen)
         self.assertIn("card.visibleRevealedContent()", portable_screen)
         self.assertIn("card.visibleDetailLabel()", portable_screen)
 
@@ -1321,9 +1333,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("presenter.entryRemoved(editRequest.entryId)", host)
         self.assertIn("archiveExporter.openForEntry(entryId, target, lifetime::checkActive)", host)
 
-        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
-        self.assertIn("val viewEmailDetails = actions.onViewEmailDetails", components)
-        self.assertIn("ForestTextAction(text = strings.emailDetails", components)
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8") + card_render_chain()
+        self.assertIn("card.kind == VaultEntryKind.EMAILS && actions.onViewEmailDetails != null", components)
+        self.assertIn('command("emailDetails", strings.emailDetails', components)
 
         email_edit = (UI_FOUNDATION / "vault/SharedEmailEditDialog.kt").read_text(encoding="utf-8")
         self.assertIn("onViewDetails: (() -> Unit)? = null", email_edit)
@@ -1338,8 +1350,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("fun sharedVaultViewportScroll(", shared_screen)
         self.assertIn("fun SharedVaultDraggedItemBox(", shared_screen)
 
-        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         for screen in (vault_screen, portable_screen):
             self.assertIn("sharedVaultViewportScroll(", screen)
             self.assertIn("SharedVaultDraggedItemBox(", screen)
@@ -1380,11 +1392,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn('action.hasPrefix("sortIndex:")', ios_host)
 
     def test_shared_filter_header_and_card_label_thumbnail_display_parity(self):
-        shared_components = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text(encoding="utf-8")
+        shared_components = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("fun SharedVaultFilterHeader(", shared_components)
 
-        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("SharedVaultFilterHeader(", vault_screen)
         self.assertIn("SharedVaultFilterHeader(", portable_screen)
 
@@ -1448,11 +1460,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("fun SharedIssuerArtwork(", foundation_artwork)
         self.assertIn("fun SharedCatalogArtworkIcon(", foundation_artwork)
 
-        shared_components = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text(encoding="utf-8")
+        shared_components = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("fun SharedVaultGlobalProgressBar(", shared_components)
 
-        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("SharedVaultGlobalProgressBar(", vault_screen)
         self.assertIn("SharedVaultGlobalProgressBar(", portable_screen)
 
@@ -1496,7 +1508,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("enum class EntryCreationMode { MANUAL, PASSWORD, EMAIL }", manual_adapter)
         self.assertIn("onPasswordSubmit: ((PasswordEntryInput) -> Unit)? = null", manual_adapter)
 
-        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("val addLabel = strings.addEntryTitle(state.filter.category)", vault_screen)
         self.assertIn("actionLabel = if (addAction != null) addLabel else null", vault_screen)
 
@@ -1521,15 +1533,15 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("creating = !controller.isInitialized()", desktop_host)
         self.assertIn("onCreate = { password, confirmation ->", desktop_host)
 
-        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn('contentDescription = "How selected tags combine"', components)
         self.assertIn('contentDescription = "Clear the search and tag filters"', components)
-        self.assertIn("pillTags = if (card.detailsVisible) card.tags else emptyList()", components)
-        self.assertIn('"Code " + token.toCharArray().joinToString(" ")', components)
-        self.assertIn('"Previous token " + previousToken.toCharArray().joinToString(" ")', components)
+        self.assertIn("tags = if (card.detailsVisible) card.tags else emptyList()", components)
+        self.assertIn('"Code " + it.toCharArray().joinToString(" ")', components)
+        self.assertIn('previousToken = content.previousToken', components)
 
-        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
-        self.assertIn('if (card.canStep) ForestTextAction("Next code"', portable_screen)
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
+        self.assertIn('if (card.canStep) command("step", "Next code"', portable_screen)
 
         compose_views = (UI_ANDROID / "host/ComposeDialogViews.kt").read_text(encoding="utf-8")
         self.assertIn("class PasswordChangeComposeView(", compose_views)

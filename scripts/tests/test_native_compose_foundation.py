@@ -6,12 +6,24 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE = ROOT / 'ui-foundation'
 COMMON = MODULE / 'src/commonMain/kotlin'
 
+
+# Chunk 9: assertions follow adapters into the sole portable card/list renderer.
+def card_render_chain():
+    return "\n".join((ROOT / path).read_text() for path in (
+        "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultCardPresentation.kt",
+        "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCardPresentation.kt",
+        "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/VaultRenderContract.kt",
+        "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedVaultRenderer.kt"))
+
+
 class NativeComposeFoundationTest(unittest.TestCase):
     def test_foundation_has_native_targets_and_no_engine_dependencies(self):
         build = (MODULE / 'build.gradle').read_text()
         for target in ('iosArm64()', 'iosSimulatorArm64()', 'iosX64()', 'androidTarget', "jvm('desktop')"):
             self.assertIn(target, build)
-        self.assertEqual(1, build.count('project('))
+        self.assertEqual(2, build.count('project('))
+        self.assertIn("api project(':shared-domain')", build)
+        self.assertIn("export rootProject.findProject(':shared-domain')", build)
         self.assertIn("api project(':ui-contract')", build)
         self.assertNotIn('project(', (ROOT / 'ui-contract/build.gradle').read_text())
         self.assertIn("baseName = 'OfflineOTPPresentation'", build)
@@ -24,12 +36,12 @@ class NativeComposeFoundationTest(unittest.TestCase):
     def test_existing_host_delegates_instead_of_copying_unlock(self):
         ui = ROOT / 'ui'
         self.assertIn("api project(':ui-foundation')", (ui / 'build.gradle').read_text())
-        adapter = (ui / 'src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockScreen.kt').read_text()
+        adapter = (ui / 'src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockScreen.kt').read_text()
         self.assertIn('SharedUnlockScreen(', adapter)
         self.assertNotIn('OutlinedTextField', adapter)
         self.assertNotIn('mutableStateOf', adapter)
-        self.assertFalse((ui / 'src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestTheme.kt').exists())
-        self.assertFalse((ui / 'src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt').exists())
+        self.assertFalse((ui / 'src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestTheme.kt').exists())
+        self.assertFalse((ui / 'src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt').exists())
         gate = (ROOT / 'scripts/kotlin-sandbox/compile-ui.sh').read_text()
         self.assertIn('"${FOUNDATION_SOURCES[@]}" "${COMPOSE_STUB_SOURCES[@]}" -d "$OUT/foundation"', gate)
 
@@ -65,7 +77,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn(':ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework', script)
 
     def test_about_is_shared_production_content_not_a_swift_copy(self):
-        self.assertFalse((ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').exists())
+        self.assertFalse((ROOT / 'ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').exists())
         self.assertTrue((COMMON / 'com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').is_file())
         generated = (ROOT / 'ios/App/Sources/AboutInfo.swift').read_text()
         self.assertIn('enum AboutInfo {', generated)
@@ -89,7 +101,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
 
     def test_auto_lock_uses_one_dialog_and_contract_with_guarded_native_save(self):
         self.assertFalse((ROOT / 'ios/Sources/OfflineOTPKit/AutoLockOptions.swift').exists())
-        self.assertFalse((ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt').exists())
+        self.assertFalse((ROOT / 'ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt').exists())
         contract = ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt'
         self.assertTrue(contract.is_file())
         self.assertNotIn('import ', contract.read_text())
@@ -132,7 +144,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         swift = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         self.assertIn('row("prefsImport", "Import preferences…")', swift)
         self.assertIn('case "prefsImport": kind = "preferences"', swift)
-        self.assertIn('PreferencesExport.apply(pendingImport, into: store.preferencesPort)', swift)
+        self.assertIn('PreferencesExport.apply(pendingImport, into: store.preferencesPort, interchange: store.interchangePolicy)', swift)
         self.assertIn('store.reloadInactivityLock()', swift)
         bridge = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportViewController.kt').read_text()
         self.assertIn('platformName = "iOS"', bridge)
@@ -164,7 +176,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('actions.confirm(password)', bridge)
 
     def test_desktop_otp_image_import_is_discoverable_from_tools(self):
-        strings = (ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt').read_text()
+        strings = (ROOT / 'ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt').read_text()
         self.assertIn('Import OTP URI / QR image', strings)
         dialog = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt').read_text()
         self.assertIn('Import QR code image…', dialog)
@@ -183,7 +195,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('no merge choice is needed', dialog)
         desktop = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text()
         self.assertIn('onRestore = if (!controller.isInitialized())', desktop)
-        self.assertIn('EncryptedBackupCodec.open(backupPassword, bytes)', desktop)
+        self.assertIn('EncryptedBackupCodec.openSelected(backupPassword, bytes, format, variant)', desktop)
         self.assertIn('controller.createVault(newPassword, imported!!)', desktop)
 
     def test_ios_unlocked_vault_is_rendered_by_shared_compose(self):
@@ -210,7 +222,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('fun updateVault(', bridge)
         self.assertIn('fun updateSurface(', bridge)
 
-        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text()
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text() + card_render_chain()
         self.assertIn('fun PortableVaultScreen(', screen)
         self.assertIn('fun PortableSurfaceDialog(', screen)
         for forbidden in ('com.fairuniversal.offlineotp.core', 'Database.', 'java.', 'android.'):
@@ -339,10 +351,10 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('QrImageReader.payload(in:)', root)
         self.assertIn('importedQrImagePayload(', root)
 
-        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text()
-        self.assertIn('clickable { onCard(card.index, "reveal") }', screen)
-        self.assertIn('onCard(card.index, "pin")', screen)
-        self.assertIn('if (card.revealed) {', screen)
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text() + card_render_chain()
+        self.assertIn('PortableTapMode.REVEAL -> "reveal"', screen)
+        self.assertIn('command("pin", "Enter PIN")', screen)
+        self.assertIn('if (card.revealed) command("edit", "Edit")', screen)
 
         host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         self.assertIn('func selectTab(position: Int32)', host)
@@ -421,7 +433,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         for sym in ('copySelect:', 'passwordExport', 'thumbnailEdit', 'thunderbirdConfirm', 'canCopy: canCopy'):
             self.assertIn(sym, host)
 
-        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8') + card_render_chain()
         self.assertIn('if (card.canCopy)', screen)
         self.assertIn('if (card.canCopyAccount)', screen)
         self.assertIn('if (card.canCopyPassword)', screen)
@@ -473,16 +485,16 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('flag.objCType', prefs_swift)
 
     def test_shared_vault_bars_ios_backups_tools_dialog_and_cross_platform_uri_import(self):
-        shared_components = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt').read_text(encoding='utf-8')
+        shared_components = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt').read_text(encoding='utf-8') + card_render_chain()
         self.assertIn('fun SharedVaultCategoryBar(', shared_components)
         self.assertIn('fun SharedVaultTagBar(', shared_components)
 
-        ui_components = (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComponents.kt').read_text(encoding='utf-8')
+        ui_components = (ROOT / 'ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComponents.kt').read_text(encoding='utf-8') + card_render_chain()
         self.assertIn('SharedVaultCategoryBar(', ui_components)
         self.assertIn('SharedVaultTagBar(', ui_components)
         self.assertIn('onCycleTagRule', ui_components)
 
-        portable_screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        portable_screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8') + card_render_chain()
         self.assertIn('SharedVaultCategoryBar(', portable_screen)
         self.assertIn('SharedVaultTagBar(', portable_screen)
 
@@ -501,7 +513,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('onSwitchToUriImport: (() -> Unit)? = null', shared_manual)
         self.assertIn('Import otpauth:// link', shared_manual)
 
-        ui_manual = (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryDialog.kt').read_text(encoding='utf-8')
+        ui_manual = (ROOT / 'ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryDialog.kt').read_text(encoding='utf-8')
         self.assertIn('onSwitchToUriImport: (() -> Unit)? = null', ui_manual)
 
         android_vault = (ROOT / 'ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt').read_text(encoding='utf-8')
@@ -526,23 +538,23 @@ class NativeComposeFoundationTest(unittest.TestCase):
                      'val counterLabel: String = ""', 'val isEmail: Boolean = false'):
             self.assertIn(prop, portable)
 
-        appearance = (ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultUiState.kt').read_text(encoding='utf-8')
+        appearance = (ROOT / 'ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultUiState.kt').read_text(encoding='utf-8')
         self.assertIn('portableLabelDisplay.labelMaxLines(portableLayout)', appearance)
         self.assertIn('portableLabelDisplay.scrollLabels', appearance)
         self.assertIn('portableLayout.codeBelowIdentity', appearance)
         self.assertIn('portableLayout.cardVerticalPaddingDp', appearance)
 
-        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8') + card_render_chain()
         self.assertIn('SharedVaultFilterHeader(', screen)
-        self.assertIn('showThumbnail = showThumbnails', screen)
-        self.assertIn('scrollLabels = labelDisplay.scrollLabels', screen)
-        self.assertIn('cardLayout.effectiveThumbnailSizeDp(customThumbnailSizeDp)', screen)
-        self.assertIn('val displayMark = card.visibleMark(hideIssuer)', screen)
+        self.assertIn('showThumbnail = state.showThumbnails', screen)
+        self.assertIn('scrollLabels = state.labelDisplay.scrollLabels', screen)
+        self.assertIn('layout.effectiveThumbnailSizeDp(state.customThumbnailSizeDp)', screen)
+        self.assertIn('tileSeed = card.visibleMark(state.hiddenTitleEnabled)', screen)
         self.assertIn('focusOnStart = state.focusSearchOnStart', screen)
         self.assertIn('showCountdown = card.hasCode && card.showCountdown && card.secondsLeft > 0', screen)
-        self.assertIn('showSecondsText = true', screen)
+        self.assertIn('showSecondsText = content.showSecondsText', screen)
         self.assertIn('counterText = if (card.revealed) card.counterLabel.ifEmpty { null } else null', screen)
-        self.assertIn('onCard(card.index, "emailDetails")', screen)
+        self.assertIn('command("emailDetails", "Connection details")', screen)
 
         host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
         self.assertIn('showCountdown: showCountdown', host)
@@ -624,7 +636,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
             self.assertIn(key, ios_prefs)
 
     def test_unified_vault_tools_bar_hideable_notice_and_tabbed_about_libraries_parity(self):
-        portable_screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        portable_screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8') + card_render_chain()
         self.assertIn('SharedVaultToolsBar(', portable_screen)
         self.assertIn('state.toolGroups.isNotEmpty()', portable_screen)
 

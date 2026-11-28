@@ -3,7 +3,10 @@ package com.fairuniversal.offlineotp.desktop.control
 import com.fairuniversal.offlineotp.Database.VaultJson
 import com.fairuniversal.offlineotp.Utilities.SessionOpenPgpSigningCredentials
 import com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec
-import com.fairuniversal.offlineotp.ui.portable.PortableAutomaticBackupPolicy
+import com.fairuniversal.offlineotp.domain.BackupAutomationPolicy
+import com.fairuniversal.offlineotp.domain.AutomaticBackupSchedule
+import com.fairuniversal.offlineotp.domain.InterchangeWorkflow
+import com.fairuniversal.offlineotp.domain.AutomaticBackupRetention
 import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
 import com.fairuniversal.offlineotp.desktop.storage.ExclusiveExportFile
 import com.fairuniversal.offlineotp.desktop.storage.PrivateFiles
@@ -37,10 +40,15 @@ class DesktopAutomaticBackup(
         override fun close() { key?.fill(0); password.fill('\u0000'); recipients.forEach { it.fill(0) }; signing?.close() }
         override fun toString() = "AutomaticBackupInput(redacted)"
     }
-    private class Work(private var input: Input?) {
+    private class Work(private var input: Input?, generation: Long) {
+        private val delivery = InterchangeWorkflow(generation).apply { check(preview(1)) }
+        @Synchronized fun current(generation: Long, ready: Boolean) = !cancelled && delivery.current(generation, ready)
         @Volatile var cancelled = false
-        @Synchronized fun take(): Input? = if (cancelled) null else input.also { input = null }
-        @Synchronized fun cancel() { cancelled = true; input?.close(); input = null }
+        @Synchronized fun take(generation: Long, ready: Boolean): Input? {
+            if (cancelled || !delivery.consume(generation, ready)) { cancel(); return null }
+            return input.also { input = null }
+        }
+        @Synchronized fun cancel() { cancelled = true; delivery.cancel(); input?.close(); input = null }
         @Synchronized fun claimWrite() = !cancelled
     }
     private var directory: File? = null
@@ -60,7 +68,8 @@ class DesktopAutomaticBackup(
     fun dismissNotice() { failed = false; changed() }
     var message = "Disabled. Enable for this unlocked session."; private set
     private var timer: Runnable? = null
-    private var pendingChange = false
+    private val automation = AutomaticBackupSchedule()
+    private val pendingChange get() = automation.pendingChange
     private fun cancelTimer() { val prior = timer; timer = null; prior?.let(scheduler::remove) }
     private fun scheduleNext(delay: Long) {
         cancelTimer()
@@ -70,18 +79,20 @@ class DesktopAutomaticBackup(
     }
     /** Called after a successful persisted vault change, never for presentation-only refreshes. */
     fun vaultChanged() {
-        if (closed || !enabled || state.isLocked || pendingChange) return
-        pendingChange = true
-        if (!busy) {
-            scheduleNext(PortableAutomaticBackupPolicy.CHANGE_DELAY_MILLIS)
+        if (closed || !enabled) return
+        val delay = automation.changed(state.generation, !state.isLocked)
+        if (!automation.enabled) { disable(); return }
+        if (delay >= 0) {
+            scheduleNext(delay)
             message = "Vault saved. Automatic backup scheduled shortly."; changed()
         }
     }
 
     fun configure(folder: File, password: CharArray, confirmation: CharArray, minutes: Int, retention: Int,
                   beforeEnable: () -> Unit = {}): Boolean {
+        val generation = state.generation
         try {
-            if (closed || state.isLocked || busy || !PortableAutomaticBackupPolicy.valid(
+            if (closed || state.isLocked || busy || !BackupAutomationPolicy().valid(
                 minutes, retention, password.size, password.contentEquals(confirmation))) return false
             val canonical = folder.toPath().toRealPath().toFile()
             require(canonical.isDirectory)
@@ -89,10 +100,10 @@ class DesktopAutomaticBackup(
             require(!Files.isSymbolicLink(managed.toPath()))
             PrivateFiles.ensureDirectory(managed)
             beforeEnable()
-            if (closed || state.isLocked) return false
+            if (closed || state.isLocked || generation != state.generation) return false
             disable()
             this.directory = managed; this.password = password.copyOf(); interval = minutes * 60_000L; keep = retention
-            enabled = true; message = "Enabled for this unlocked session. Running first encrypted backup…"
+            enabled = true; automation.enable(state.generation, minutes); message = "Enabled for this unlocked session. Running first encrypted backup…"
             runNow()
             return true
         } catch (_: Exception) {
@@ -101,7 +112,8 @@ class DesktopAutomaticBackup(
     }
 
     fun configureSnapshots(folder: File, minutes: Int, retention: Int, beforeEnable: () -> Unit = {}): Boolean {
-        if (closed || state.isLocked || busy || rawSnapshot == null || minutes !in 1..1440 || retention !in 1..100) return false
+        val generation = state.generation
+        if (closed || state.isLocked || busy || rawSnapshot == null || !BackupAutomationPolicy().timing(minutes, retention)) return false
         try {
             val canonical = folder.toPath().toRealPath().toFile()
             require(canonical.isDirectory)
@@ -111,9 +123,9 @@ class DesktopAutomaticBackup(
             // Fail visibly before remembering a configuration for a legacy/nonportable vault.
             rawSnapshot.invoke(state.key).fill(0)
             beforeEnable()
-            if (closed || state.isLocked) return false
+            if (closed || state.isLocked || generation != state.generation) return false
             disable(); directory = managed; password = CharArray(0); vaultCopy = true
-            interval = minutes * 60_000L; keep = retention; enabled = true
+            interval = minutes * 60_000L; keep = retention; enabled = true; automation.enable(state.generation, minutes)
             runNow(); return true
         } catch (_: Exception) {
             message = "Cannot enable full vault copies. Migrate the legacy vault in Backups first and choose a writable private folder."
@@ -123,7 +135,8 @@ class DesktopAutomaticBackup(
 
     fun configureRecipients(folder: File, keys: List<ByteArray>, minutes: Int, retention: Int,
                             signing: SessionOpenPgpSigningCredentials.Snapshot? = null, beforeEnable: () -> Unit = {}): Boolean {
-        if (closed || state.isLocked || busy || minutes !in 1..1440 || retention !in 1..100 ||
+        val generation = state.generation
+        if (closed || state.isLocked || busy || !BackupAutomationPolicy().timing(minutes, retention) ||
             !com.fairuniversal.offlineotp.Utilities.AutomaticBackupCredentialCodec.validRecipients(keys)) return false
         val owned = keys.map { it.copyOf() }
         val ownedSigning = signing?.copy()
@@ -134,11 +147,11 @@ class DesktopAutomaticBackup(
             require(!Files.isSymbolicLink(managed.toPath()))
             PrivateFiles.ensureDirectory(managed)
             beforeEnable()
-            if (closed || state.isLocked) return false
+            if (closed || state.isLocked || generation != state.generation) return false
             disable()
             directory = managed; recipients = owned.map { it.copyOf() }; password = CharArray(0)
             this.signing = ownedSigning?.copy()
-            interval = minutes * 60_000L; keep = retention; enabled = true
+            interval = minutes * 60_000L; keep = retention; enabled = true; automation.enable(state.generation, minutes)
             runNow(); return true
         } catch (_: Exception) {
             message = "Cannot configure automatic OpenPGP backups. Check the folder and public certificates."; changed(); return false
@@ -146,7 +159,7 @@ class DesktopAutomaticBackup(
     }
 
     fun disable() {
-        cancelTimer(); pendingChange = false; work?.cancel(); work = null
+        cancelTimer(); automation.disable(); work?.cancel(); work = null
         password?.fill('\u0000'); password = null; signing?.close(); signing = null; recipients.forEach { it.fill(0) }; recipients = emptyList(); directory = null
         vaultCopy = false; enabled = false; busy = false; failed = false; message = "Disabled. Existing backups were kept."; changed()
     }
@@ -155,42 +168,48 @@ class DesktopAutomaticBackup(
     fun runNow() {
         if (closed || !enabled || busy) return
         if (state.isLocked) { disable(); return }
-        cancelTimer(); pendingChange = false
+        cancelTimer()
+        val ticket = automation.begin(state.generation, !state.isLocked)
+        if (ticket == 0L) return
         val folder = directory ?: return
         val secret = password?.copyOf() ?: return
         val key = if (vaultCopy) try { requireNotNull(state.key.encoded).copyOf() } catch (_: Exception) { secret.fill('\u0000'); fail(); return } else null
         val document = try { if (vaultCopy) "" else snapshot() } catch (_: Exception) { key?.fill(0); secret.fill('\u0000'); fail(); return }
         val retain = keep
-        val task = Work(Input(document, secret, recipients.map { it.copyOf() }, signing?.copy(), key)); work = task; busy = true; message = "Writing automatic backup…"; changed()
+        val task = Work(Input(document, secret, recipients.map { it.copyOf() }, signing?.copy(), key), state.generation); work = task; busy = true; message = "Writing automatic backup…"; changed()
         try {
             worker.execute {
-                val input = task.take() ?: return@execute
+                val input = task.take(state.generation, !state.isLocked) ?: run {
+                    dispatch(Runnable { if (work === task) disable() })
+                    return@execute
+                }
                 var bytes: ByteArray? = null
                 var success = false
                 try {
-                    if (task.cancelled || state.isLocked) return@execute
+                    check(task.current(state.generation, !state.isLocked))
                     bytes = if (input.key != null) {
                         val key = javax.crypto.spec.SecretKeySpec(input.key, "AES")
                         try { requireNotNull(rawSnapshot).invoke(key) } finally { runCatching { key.destroy() } }
                     } else if (input.recipients.isEmpty()) seal(input.password.concatToString(), input.document)
                         else if (input.signing != null) sealSignedRecipients(input.document, input.recipients, input.signing)
                         else sealRecipients(input.document, input.recipients)
-                    if (state.isLocked || !task.claimWrite()) return@execute
+                    check(task.current(state.generation, !state.isLocked) && task.claimWrite())
                     require(!Files.isSymbolicLink(folder.toPath()) && folder.isDirectory)
                     val target = File(folder, "auto-${System.currentTimeMillis().toString().padStart(16, '0')}-${UUID.randomUUID()}.${input.extension}")
                     ExclusiveExportFile.writeNew(target, bytes)
-                    if (!task.cancelled && !state.isLocked) prune(folder, retain, input.extension)
+                    if (task.current(state.generation, !state.isLocked)) prune(folder, retain, input.extension)
                     success = true
                 } catch (_: Exception) { /* No filenames, plaintext or crypto diagnostics in UI. */ }
                 finally { bytes?.fill(0); input.close() }
                 try { dispatch(Runnable {
                     if (closed || work !== task || task.cancelled) return@Runnable
                     work = null; busy = false
-                    if (state.isLocked) { disable(); return@Runnable }
+                    val delay = automation.complete(ticket, state.generation, !state.isLocked, success)
+                    if (state.isLocked || delay < 0 && success) { disable(); return@Runnable }
                     if (!success) { fail(); return@Runnable }
                     message = if (pendingChange) "Automatic backup saved. New changes pending; another backup is scheduled shortly."
                         else "Automatic backup saved. Next periodic backup in ${interval / 60_000} minutes."
-                    scheduleNext(if (pendingChange) PortableAutomaticBackupPolicy.CHANGE_DELAY_MILLIS else interval); changed()
+                    scheduleNext(delay); changed()
                 }) } catch (_: Exception) { task.cancel() }
             }
         } catch (_: Exception) { task.cancel(); fail() }
@@ -210,9 +229,10 @@ class DesktopAutomaticBackup(
         internal fun prune(folder: File, keep: Int, extension: String = "aes") {
             require(keep in 1..100 && extension in listOf("aes", "pgp", "offlineotp") && !Files.isSymbolicLink(folder.toPath()))
             val owned = folder.listFiles()?.filter {
-                Regex("auto-[0-9]{16}-[0-9a-f-]{36}\\.$extension").matches(it.name) && Files.isRegularFile(it.toPath(), NOFOLLOW_LINKS)
-            }?.sortedByDescending { it.name } ?: error("Cannot list backup directory")
-            owned.drop(keep).forEach { Files.delete(it.toPath()) }
+                Files.isRegularFile(it.toPath(), NOFOLLOW_LINKS)
+            } ?: error("Cannot list backup directory")
+            val plan = AutomaticBackupRetention().managedPlan(owned.map { it.name }, keep, extension)
+            plan.forEach { Files.delete(File(folder, it).toPath()) }
         }
     }
 }

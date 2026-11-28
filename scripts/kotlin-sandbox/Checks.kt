@@ -9411,51 +9411,46 @@ fun main() {
         } finally { VaultSession.lock(); PreferenceManager.reset() }
     }
 
-    check("Shared restore mode snapshots merge/replace and rejects stale Android picker callbacks") {
+    check("Shared restore stages a read-only Android preview and rejects replaced or stale confirmations") {
         val fixture = SettingsFixture()
         var pickers = 0
-        var lastRequest = -1
         val activity = object : com.fairuniversal.offlineotp.Activities.BackupActivity() {
-            override fun startActivityForResult(intent: Intent, code: Int) { pickers++; lastRequest = code }
+            override fun startActivityForResult(intent: Intent, code: Int) { pickers++ }
         }
         activity.settings = fixture.settings
         val type = com.fairuniversal.offlineotp.Activities.BackupActivity::class.java
-        val keyField = type.getDeclaredField("encryptionKey").apply { isAccessible = true }
-        val hostField = type.getDeclaredField("activeRestoreModeDialog").apply { isAccessible = true }
-        val modeField = type.getDeclaredField("replaceExisting").apply { isAccessible = true }
-        val choose = type.getDeclaredMethod("chooseRestoreMode", Int::class.javaPrimitiveType).apply { isAccessible = true }
-        fun callback(): (Boolean) -> Unit {
-            val host = hostField.get(activity)
-            expect(host is com.fairuniversal.offlineotp.ui.host.RestoreModeComposeView, { "shared restore mode host" })
-            @Suppress("UNCHECKED_CAST")
-            return host.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(host) as (Boolean) -> Unit
+        fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
+        val choose = type.getDeclaredMethod("chooseRestoreSource", Int::class.javaPrimitiveType).apply { isAccessible = true }
+        val preview = type.getDeclaredMethod("previewRestore", String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+        fun callback(name: String): Any {
+            val host = field("activePasswordDialog").get(activity) ?: throw AssertionError("confirmation missing")
+            expect(host is com.fairuniversal.offlineotp.ui.host.CheckboxConfirmationComposeView, { "validated count confirmation" })
+            return host.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(host)
         }
         val key = SecretKeySpec(ByteArray(32) { 17 }, "AES")
-        val unlock = VaultSession.beginUnlock()
-        VaultSession.activate(key, unlock.generation)
-        keyField.set(activity, key)
+        val unlock = VaultSession.beginUnlock(); VaultSession.activate(key, unlock.generation)
+        field("encryptionKey").set(activity, key)
+        val text = """[{"type":"TOTP","secret":"JBSWY3DPEHPK3PXP","label":"synthetic","digits":6,"algorithm":"SHA1","period":30}]"""
         try {
             choose.invoke(activity, Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT)
-            expect(hostField.get(activity) == null, { "only restore requests can choose mode" })
+            expect(pickers == 0, { "not a restore source" })
             choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
-            val merge = callback()
-            merge(false)
-            expect(pickers == 1 && !modeField.getBoolean(activity) && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
-                { "merge must be captured before opening encrypted picker" })
-            merge(true)
-            expect(pickers == 1 && !modeField.getBoolean(activity), { "double confirmation must not change mode or relaunch picker" })
-            choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
-            callback()(true)
-            expect(pickers == 2 && modeField.getBoolean(activity) && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP,
-                { "explicit replace must reach OpenPGP picker state" })
-            val saved = android.os.Bundle()
-            type.getDeclaredMethod("onSaveInstanceState", android.os.Bundle::class.java).apply { isAccessible = true }.invoke(activity, saved)
-            expect(saved.getBoolean("replaceExisting", false), { "explicit restore mode must survive recreation without a hidden Switch" })
-            choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
-            val stale = callback()
-            VaultSession.lock()
-            stale(false)
-            expect(pickers == 2 && modeField.getBoolean(activity), { "lock must revoke pending restore-mode confirmation" })
+            expect(pickers == 1 && !field("replaceExisting").getBoolean(activity), { "read-only picker defaults to merge" })
+            preview.invoke(activity, text, false)
+            expect(field("pendingRestoreDocument").get(activity) == text, { "preview owns validated document without writing" })
+            @Suppress("UNCHECKED_CAST") val replaced = callback("onConfirm") as (Boolean) -> Unit
+            preview.invoke(activity, text, false)
+            replaced(true)
+            expect(field("pendingRestoreDocument").get(activity) == text && !field("replaceExisting").getBoolean(activity), { "replaced callback must not consume new preview" })
+            @Suppress("UNCHECKED_CAST") val stale = callback("onConfirm") as (Boolean) -> Unit
+            VaultSession.lock(); stale(true)
+            expect(field("pendingRestoreDocument").get(activity) == null && field("pendingRestoreWorkflow").get(activity) == null,
+                { "stale confirmation must release its payload and never install" })
+            val next = VaultSession.beginUnlock(); VaultSession.activate(key, next.generation); field("encryptionKey").set(activity, key)
+            preview.invoke(activity, text, false)
+            @Suppress("UNCHECKED_CAST") val dismiss = callback("onDismiss") as () -> Unit
+            dismiss()
+            expect(field("pendingRestoreDocument").get(activity) == null, { "dismiss must release staged secrets" })
         } finally { VaultSession.lock(); PreferenceManager.reset() }
     }
 
@@ -9503,13 +9498,9 @@ fun main() {
             expect(!rendered.flatMap { it.items }.single { it.key == "backup" }.enabled,
                 { "native provider availability must reach shared frame" })
             dispatch.invoke(activity, "backup")
-            expect(pickers == 0 && field("activeRestoreModeDialog").get(activity) == null, { "disabled backup dispatched" })
+            expect(pickers == 0, { "disabled backup dispatched" })
             dispatch.invoke(activity, "restore")
-            val restorePrompt = field("activeRestoreModeDialog").get(activity) ?: throw AssertionError("restore mode dialog missing")
-            @Suppress("UNCHECKED_CAST")
-            val confirmRestore = restorePrompt.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(restorePrompt) as (Boolean) -> Unit
-            confirmRestore(false)
-            expect(pickers == 1, { "enabled restore did not open picker after consent" })
+            expect(pickers == 1, { "enabled restore must open a read-only picker before preview" })
             field("pendingPickerRequestCode").set(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
             dispatch.invoke(activity, "restore")
             expect(pickers == 1, { "pending picker must block duplicate actions" })

@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import OfflineOTPKit
+import OfflineOTPPresentation
 
 /// The app's view of one vault: locked or unlocked, what the list shows, and the mutations a person
 /// can perform — all fail-closed and all persisted before they are published.
@@ -14,6 +15,20 @@ import OfflineOTPKit
 public final class VaultStore: ObservableObject {
     /// Where the vault, its `.bck` copy and the settings live: a `data` folder inside the app's
     /// Documents directory, mirroring the desktop client's portable folder and Android's files.
+    private let entryDocuments: EntryDocumentAdapter
+    private let interchange: InterchangeAdapter = SharedInterchangeAdapter()
+    private let protocolPolicy: VaultProtocolAdapter
+    private let restoreWorkflow = RestoreWorkflow()
+    private struct PendingRestore {
+        let source: Data
+        let format: String?
+        let variant: String
+        let ticket: Int64
+        let entries: [Entry]
+    }
+    private var pendingRestore: PendingRestore?
+    public func cancelPendingRestore() { restoreWorkflow.cancel(); pendingRestore = nil }
+
     public static func defaultDirectory(fileManager: FileManager = .default) -> URL {
         let base = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
@@ -80,6 +95,8 @@ public final class VaultStore: ObservableObject {
     /// This client moves sort order and inactivity delay, not backup passwords or OpenPGP key grants.
     /// The `auth_*` entries live in the same file but belong to the
     /// vault and are never readable through this port.
+    public var interchangePolicy: InterchangeAdapter { interchange }
+
     public var preferencesPort: PreferencesExport.SettingsPort { PreferencesPort(settings: settings) }
 
     private final class PreferencesPort: PreferencesExport.AtomicSettingsPort {
@@ -197,7 +214,6 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var backupAppendDateTime = true
     @Published public private(set) var tokenGroupSize = 3
     @Published public private(set) var usedTokensDialogShown = false
-    private var lastActivityDate = Date()
 
     private let vault: PasswordVault
     private let settings: PropertyListSettings
@@ -205,6 +221,40 @@ public final class VaultStore: ObservableObject {
     private let biometrics: BiometricKeyStore
     private let openPgp: OpenPgpPort
     private var key: [UInt8] = []
+    private let sessionAuthority = SessionAuthority()
+    private let biometricAttempt = UnlockAttemptPolicy()
+    private var biometricTicket: Int64?
+    private let inactivity = InactivityPolicy()
+    private let clockWallAnchor = Date()
+    private let clockOrigin = ContinuousClock().now
+
+    private func elapsedMillis(_ date: Date? = nil) -> Int64 {
+        let elapsed = clockOrigin.duration(to: ContinuousClock().now).components
+        let seconds = date.map { $0.timeIntervalSince(clockWallAnchor) }
+            ?? (Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1_000_000_000_000_000_000)
+        return Int64((max(0, min(Double(Int64.max / 1000 - 1), seconds)) * 1000).rounded())
+    }
+    private func armInactivity(_ date: Date? = nil) {
+        inactivity.arm(nowMillis: elapsedMillis(date), timeoutMillis: min(Int64(inactivityLockSeconds), Int64.max / 1000) * 1000)
+    }
+    /// Invalidates local result delivery without affecting an already-unlocked vault.
+    func cancelPendingUnlock() {
+        biometricAttempt.cancel(); biometricTicket = nil
+        if !isUnlocked { _ = sessionAuthority.lock(reason: .authentication); generation = Int(sessionAuthority.generation) }
+    }
+    private func beginUnlockAuthority() -> Int64 {
+        biometricAttempt.cancel(); biometricTicket = nil
+        cancelPendingRestore()
+        let expected = sessionAuthority.beginUnlock()
+        generation = Int(expected)
+        return expected
+    }
+    private func adoptUnlocked(_ unlocked: PasswordVault.Unlocked, expected: Int64) -> Bool {
+        guard sessionAuthority.activate(expected: expected, keyChanged: true) == nil else { return false }
+        key = unlocked.key; entries = unlocked.entries; isUnlocked = true
+        didBeginSession()
+        return true
+    }
 
     /// How many times this store has been unlocked. A Google Authenticator export can span several QR
     /// codes, and the codes are only allowed to complete an export if they all arrive inside one
@@ -213,6 +263,8 @@ public final class VaultStore: ObservableObject {
 
     /// The export being collected, if one is open.
     private var migration: MigrationBatchCollector?
+    private var migrationConfirmation: InterchangeWorkflow?
+    private var pendingMigrationEntries: [Entry]?
 
     /// `directory` is injectable so the app tests can use a temporary folder instead of Documents,
     /// and `biometrics` / `openPgp` so they can drive quick unlock and OpenPGP without external hardware.
@@ -228,7 +280,10 @@ public final class VaultStore: ObservableObject {
         let settings = PropertyListSettings(
             url: directory.appendingPathComponent(VaultStore.settingsFilename))
         self.settings = settings
-        self.vault = PasswordVault(vaultFile: vaultFile, backupFile: backupFile, settings: settings)
+        let documents = SharedEntryDocumentAdapter()
+        self.entryDocuments = documents
+        self.protocolPolicy = SharedVaultProtocolAdapter()
+        self.vault = PasswordVault(vaultFile: vaultFile, backupFile: backupFile, settings: settings, documents: documents, protocolPolicy: protocolPolicy, persistence: SharedPersistenceAdapter())
         self.hasVault = vault.isInitialized
         // A client preference, not vault data: it is written beside the vault, under the same key the
         // desktop client uses, and an unreadable value falls back to the vault order.
@@ -279,17 +334,16 @@ public final class VaultStore: ObservableObject {
 
     /// Opens the existing vault, or provisions a new one when `creating` is set.
     public func unlock(password: String, confirmation: String = "", creating: Bool = false) {
+        guard !isUnlocked else { return }
         message = nil
+        let expected = beginUnlockAuthority()
         if creating {
-            create(password: password, confirmation: confirmation)
+            create(password: password, confirmation: confirmation, expected: expected)
             return
         }
         do {
             let unlocked = try vault.open(password: password)
-            key = unlocked.key
-            entries = unlocked.entries
-            isUnlocked = true
-            beginSession()
+            guard adoptUnlocked(unlocked, expected: expected) else { return }
         } catch VaultOpenError.authenticationFailed {
             message = "That password does not open this vault."
         } catch VaultOpenError.missing {
@@ -306,7 +360,7 @@ public final class VaultStore: ObservableObject {
     /// The backup password is intentionally independent of the new vault password; entries replace
     /// nothing because this path is only available before a vault exists.
     public func restoreNewVault(encrypted data: Data, backupPassword: String,
-                                newPassword: String, confirmation: String) -> Bool {
+                                newPassword: String, confirmation: String, format: String? = nil, andOtpVariant: String = "encrypted") -> Bool {
         message = nil
         guard !hasVault, !isUnlocked else { message = "A vault already exists here."; return false }
         guard newPassword.count >= InputPolicy.minVaultPasswordChars,
@@ -314,16 +368,24 @@ public final class VaultStore: ObservableObject {
             message = "Use a new vault password between 6 and 1024 characters."; return false
         }
         guard newPassword == confirmation else { message = "The new vault passwords do not match."; return false }
+        let expected = beginUnlockAuthority()
+        let workflow = RestoreWorkflow()
+        let ticket = workflow.start(authority: expected, firstRun: true)
+        defer { workflow.cancel() }
         do {
-            let document = try EncryptedBackup.open(password: backupPassword, data: data)
-            let restored = try VaultDocument.decode(document)
+            let document = try format.map { try EncryptedBackup.openSelected(password: backupPassword, data: data, format: $0, andOtpVariant: andOtpVariant, documents: entryDocuments, protocolPolicy: protocolPolicy, interchange: interchange) }
+                ?? EncryptedBackup.open(password: backupPassword, data: data, protocolPolicy: protocolPolicy, interchange: interchange)
+            let restored = try entryDocuments.decode(document)
+            guard workflow.decoded(ticket: ticket, authority: Int64(generation), permitted: !hasVault && !isUnlocked,
+                    count: Int32(restored.count), unique: Set(restored).count == restored.count),
+                  workflow.confirm(ticket: ticket, authority: Int64(generation), permitted: !hasVault && !isUnlocked, replace: true),
+                  workflow.beginInstall(ticket: ticket, authority: Int64(generation), permitted: !hasVault && !isUnlocked,
+                    resultCount: Int32(restored.count)) else { throw VaultDocumentError.invalidEntry }
             try vault.create(password: newPassword, entries: restored)
+            _ = workflow.installed(ticket: ticket, success: true)
             let unlocked = try vault.open(password: newPassword)
-            key = unlocked.key
-            entries = unlocked.entries
+            guard adoptUnlocked(unlocked, expected: expected) else { return false }
             hasVault = true
-            isUnlocked = true
-            beginSession()
             return true
         } catch VaultCryptoError.authenticationFailed {
             message = BackupWording.wrongPassword
@@ -335,7 +397,7 @@ public final class VaultStore: ObservableObject {
         return false
     }
 
-    private func create(password: String, confirmation: String) {
+    private func create(password: String, confirmation: String, expected: Int64) {
         // The same rules the other two clients apply when a vault is created: a minimum length and a
         // matching confirmation. Enforcing them here means the failure is explained, not a silent
         // refusal by the engine.
@@ -354,11 +416,8 @@ public final class VaultStore: ObservableObject {
         do {
             try vault.create(password: password)
             let unlocked = try vault.open(password: password)
-            key = unlocked.key
-            entries = unlocked.entries
+            guard adoptUnlocked(unlocked, expected: expected) else { return }
             hasVault = true
-            isUnlocked = true
-            beginSession()
         } catch VaultWriteError.alreadyExists {
             hasVault = true
             message = "A vault already exists in this folder."
@@ -381,9 +440,12 @@ public final class VaultStore: ObservableObject {
         isUnlocked = false
         message = nil
         // The export, if one was open, belonged to the session that just ended.
-        migration?.cancel()
-        migration = nil
-        generation += 1
+        cancelMigrationImport()
+        cancelPendingRestore()
+        biometricAttempt.cancel(); biometricTicket = nil
+        inactivity.cancel()
+        _ = sessionAuthority.lock(reason: .explicit)
+        generation = Int(sessionAuthority.generation)
         // The lock screen is about to ask whether it can offer the quick unlock; the answer can have
         // changed while the vault was open (a face enrolled in Settings, for instance).
         refreshBiometry()
@@ -423,7 +485,7 @@ public final class VaultStore: ObservableObject {
     /// vault was re-created, or the item was dropped when the enrolled face changed — is removed
     /// rather than left to fail again, and the person is told to use the password.
     public func unlockWithBiometrics() {
-        guard !isUnlocked, biometricUnlockEnabled else { return }
+        guard !isUnlocked, biometricUnlockEnabled, biometricTicket == nil else { return }
         refreshBiometry()
         guard biometry.isAvailable else {
             message = biometry.refusal.isEmpty ? BiometricWording.unavailable : biometry.refusal
@@ -435,30 +497,37 @@ public final class VaultStore: ObservableObject {
             return
         }
         message = nil
+        let expected = beginUnlockAuthority()
+        let ticket = biometricAttempt.start(generation: expected, permitted: true)
+        guard ticket != 0 else { return }
+        biometricTicket = ticket
         biometrics.load(account: account, reason: BiometricWording.reason) { [weak self] result in
             guard let self else { return }
+            guard self.biometricAttempt.current(ticket: ticket, generation: Int64(self.generation),
+                    permitted: !self.isUnlocked && self.biometricUnlockEnabled && self.vault.vaultIdentifier == account) else {
+                if self.biometricTicket == ticket { self.biometricAttempt.cancel(); self.biometricTicket = nil }
+                return
+            }
+            self.biometricTicket = nil
             switch result {
-            case .success(let sessionKey):
-                self.finishBiometricUnlock(sessionKey)
+            case .success(var sessionKey):
+                defer { for i in sessionKey.indices { sessionKey[i] = 0 } }
+                do {
+                    let unlocked = try self.vault.openWithKey(sessionKey)
+                    guard self.biometricAttempt.complete(ticket: ticket, generation: Int64(self.generation),
+                        permitted: !self.isUnlocked && self.biometricUnlockEnabled && self.vault.vaultIdentifier == account, authenticated: true),
+                          self.adoptUnlocked(unlocked, expected: expected) else { return }
+                    self.message = nil
+                } catch {
+                    _ = self.biometricAttempt.complete(ticket: ticket, generation: Int64(self.generation), permitted: true, authenticated: false)
+                    self.disableBiometricUnlock(announcing: false)
+                    self.message = BiometricWording.stale
+                }
             case .failure(let error):
+                _ = self.biometricAttempt.complete(ticket: ticket, generation: Int64(self.generation), permitted: true, authenticated: false)
                 if error == .missing { self.disableBiometricUnlock(announcing: false) }
                 self.message = error.message
             }
-        }
-    }
-
-    private func finishBiometricUnlock(_ sessionKey: [UInt8]) {
-        guard !isUnlocked else { return }
-        do {
-            let unlocked = try vault.openWithKey(sessionKey)
-            key = unlocked.key
-            entries = unlocked.entries
-            isUnlocked = true
-            beginSession()
-            message = nil
-        } catch {
-            disableBiometricUnlock(announcing: false)
-            message = BiometricWording.stale
         }
     }
 
@@ -503,6 +572,7 @@ public final class VaultStore: ObservableObject {
     }
 
     private func disableBiometricUnlock(announcing: Bool) {
+        biometricAttempt.cancel(); biometricTicket = nil
         if let account = vault.vaultIdentifier { biometrics.remove(account: account) }
         settings.setString(VaultStore.biometricSettingKey, VaultStore.biometricDisabled)
         biometricUnlockEnabled = false
@@ -511,11 +581,16 @@ public final class VaultStore: ObservableObject {
 
     /// Starts a session: everything that was true of the previous unlock stops being true.
     private func beginSession() {
-        generation += 1
-        migration?.cancel()
-        migration = nil
+        guard sessionAuthority.activate(expected: sessionAuthority.generation, keyChanged: true) == nil else { lock(); return }
+        didBeginSession()
+    }
+    private func didBeginSession() {
+        cancelPendingRestore()
+        biometricAttempt.cancel(); biometricTicket = nil
+        generation = Int(sessionAuthority.generation)
+        cancelMigrationImport()
         reconcileStoredTagSelection()
-        lastActivityDate = Date()
+        armInactivity()
     }
 
     private func reconcileStoredTagSelection() {
@@ -592,7 +667,7 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.searchIncludesSettingKey))
         reconcileStoredTagSelection()
         usedTokensDialogShown = settings.string(VaultStore.usedTokensShownSettingKey) == "true"
-        lastActivityDate = Date()
+        armInactivity()
     }
 
     private static func storedCardLayout(_ raw: String?) -> String {
@@ -878,21 +953,24 @@ public final class VaultStore: ObservableObject {
 
     /// Persists the idle auto-lock timeout (defaults to 10 minutes; `0` disables auto-lock).
     public func setInactivityLockSeconds(_ seconds: Int) {
+        if isUnlocked && inactivity.expired(nowMillis: elapsedMillis()) { lock(); return }
         let clamped = max(0, seconds)
         inactivityLockSeconds = clamped
         settings.setInteger(VaultStore.inactivitySettingKey, clamped)
-        lastActivityDate = Date()
+        armInactivity()
     }
 
     /// Resets the inactivity clock when the person interacts with the app.
-    public func noteUserActivity(now: Date = Date()) {
-        lastActivityDate = now
+    public func noteUserActivity(now: Date? = nil) {
+        guard isUnlocked else { return }
+        if inactivity.expired(nowMillis: elapsedMillis(now)) { lock(); return }
+        armInactivity(now)
     }
 
     /// Locks the vault if an inactivity timeout is configured and has elapsed.
-    public func checkInactivityAutoLock(now: Date = Date()) {
+    public func checkInactivityAutoLock(now: Date? = nil) {
         guard isUnlocked, inactivityLockSeconds > 0 else { return }
-        if now.timeIntervalSince(lastActivityDate) >= TimeInterval(inactivityLockSeconds) {
+        if inactivity.expired(nowMillis: elapsedMillis(now)) {
             lock()
         }
     }
@@ -939,6 +1017,12 @@ public final class VaultStore: ObservableObject {
             return true
         } catch VaultOpenError.authenticationFailed {
             message = "The current password is incorrect."
+            return false
+        } catch VaultWriteError.ioFailure {
+            // Promotion can have succeeded even if acknowledgment/settings publication failed.
+            // Never retain old-key write authority or claim the password stayed unchanged.
+            lock()
+            message = "Password change did not report success. Try your current password, then the new password if necessary. Preserve the vault and backup files if neither works; do not create a replacement vault."
             return false
         } catch {
             message = "The vault password could not be updated."
@@ -1289,9 +1373,9 @@ public final class VaultStore: ObservableObject {
             return nil
         }
         do {
-            let document = try VaultDocument.encode(entries)
+            let document = try entryDocuments.encode(entries)
             let data = try EncryptedBackup.sealWithFreshParameters(password: password,
-                                                                  plain: document)
+                                                                  plain: document, protocolPolicy: protocolPolicy)
             return ExportedBackup(
                 name: BackupFileNames.encrypted(now, appendTimestamp: backupAppendDateTime),
                 data: data)
@@ -1325,15 +1409,21 @@ public final class VaultStore: ObservableObject {
     }
 
     /// Previews the entry count of a password-encrypted backup without mutating the vault.
-    public func previewEncryptedBackupCount(encrypted data: Data, password: String) -> Int? {
+    public func previewEncryptedBackupCount(encrypted data: Data, password: String, format: String? = nil, andOtpVariant: String = "encrypted") -> Int? {
+        cancelPendingRestore()
         guard isUnlocked else { return nil }
+        let ticket = restoreWorkflow.start(authority: Int64(generation), firstRun: false)
+        defer { if pendingRestore == nil { restoreWorkflow.cancel() } }
         do {
-            let document = try EncryptedBackup.open(password: password, data: data)
-            let decoded = try VaultDocument.decode(document)
-            guard !decoded.isEmpty else {
-                message = BackupWording.emptyBackup
+            let document = try format.map { try EncryptedBackup.openSelected(password: password, data: data, format: $0, andOtpVariant: andOtpVariant, documents: entryDocuments, protocolPolicy: protocolPolicy, interchange: interchange) }
+                ?? EncryptedBackup.open(password: password, data: data, protocolPolicy: protocolPolicy, interchange: interchange)
+            let decoded = try entryDocuments.decode(document)
+            guard restoreWorkflow.decoded(ticket: ticket, authority: Int64(generation), permitted: isUnlocked,
+                    count: Int32(decoded.count), unique: Set(decoded).count == decoded.count) else {
+                message = decoded.isEmpty ? BackupWording.emptyBackup : BackupWording.duplicateBackup
                 return nil
             }
+            pendingRestore = PendingRestore(source: data, format: format, variant: andOtpVariant, ticket: ticket, entries: decoded)
             return decoded.count
         } catch VaultCryptoError.authenticationFailed {
             message = BackupWording.wrongPassword
@@ -1348,19 +1438,28 @@ public final class VaultStore: ObservableObject {
     }
 
     /// Restores a password-encrypted backup, merging or replacing. Returns the plan, or nil with a
-    /// sentence in `message`.
-    public func restore(encrypted data: Data, password: String, replace: Bool) -> RestorePlan? {
+    /// sentence in `message`. Requires the matching validated preview. The password parameter is
+    /// retained for source compatibility only; confirmation never decrypts or retains it.
+    public func restore(encrypted data: Data, password: String, replace: Bool, format: String? = nil, andOtpVariant: String = "encrypted") -> RestorePlan? {
+        guard let pending = pendingRestore, pending.source == data, pending.format == format,
+              pending.variant == andOtpVariant,
+              restoreWorkflow.confirm(ticket: pending.ticket, authority: Int64(generation), permitted: isUnlocked, replace: replace) else {
+            cancelPendingRestore(); message = "Open and preview this backup again before restoring."; return nil
+        }
+        pendingRestore = nil // Single-use ownership transfer; never decrypt another file at confirmation.
+        defer { restoreWorkflow.cancel() }
         do {
-            let document = try EncryptedBackup.open(password: password, data: data)
-            return install(document: document, replace: replace)
-        } catch VaultCryptoError.authenticationFailed {
-            message = BackupWording.wrongPassword
-            return nil
-        } catch EncryptedBackupError.invalidPassword {
-            message = "The backup password is empty or too long."
+            let plan = try portableRestorePlan(imported: pending.entries, replace: restoreWorkflow.replace)
+            guard restoreWorkflow.beginInstall(ticket: pending.ticket, authority: Int64(generation), permitted: isUnlocked,
+                    resultCount: Int32(plan.entries.count)) else { message = BackupWording.unreadableBackup; return nil }
+            guard commit(plan.entries) else { _ = restoreWorkflow.installed(ticket: pending.ticket, success: false); return nil }
+            _ = restoreWorkflow.installed(ticket: pending.ticket, success: true)
+            return plan
+        } catch VaultWriteError.invalidInput {
+            message = "The backup would grow this vault past \(InputPolicy.maxEntries) entries."
             return nil
         } catch {
-            message = BackupWording.unreadableBackup
+            message = BackupWording.duplicateBackup
             return nil
         }
     }
@@ -1384,10 +1483,10 @@ public final class VaultStore: ObservableObject {
         }
         do {
             let chosen = selected ?? entries
-            guard selected == nil || chosen.allSatisfy({ candidate in entries.contains { $0.fields == candidate.fields } }) else { return nil }
+            guard selected == nil || chosen.allSatisfy({ candidate in entries.contains { $0.compact() == candidate.compact() } }) else { return nil }
             let data: Data
-            if plainText { data = try LinScpVault.exportPlain(entries: chosen) }
-            else { data = try LinScpVault.sealWithFreshParameters(entries: chosen, password: password) }
+            if plainText { data = try LinScpVault.exportPlain(entries: chosen, interchange: interchange) }
+            else { data = try LinScpVault.sealWithFreshParameters(entries: chosen, password: password, interchange: interchange) }
             return ExportedBackup(name: LinScpVault.exportFilename(now, plainText: plainText), data: data)
         } catch LinScpVaultError.emptyCredentials {
             message = "There are no keys or login sessions to export."
@@ -1401,7 +1500,7 @@ public final class VaultStore: ObservableObject {
     /// Selection is staged read-only in the sheet; merge persists before adoption.
     public func importLinScpSelection(_ selected: [Entry]) -> RestorePlan? {
         guard isUnlocked, !selected.isEmpty, selected.allSatisfy({ $0.kind == .sshKey || $0.kind == .password }) else { return nil }
-        do { return install(document: try VaultDocument.encode(selected), replace: false) }
+        do { return install(document: try entryDocuments.encode(selected), replace: false) }
         catch { message = "Invalid LinSCP selection."; return nil }
     }
 
@@ -1419,9 +1518,10 @@ public final class VaultStore: ObservableObject {
             let imported = try LinScpVault.importData(
                 data,
                 password: password,
-                masterKeyData: (keyData?.isEmpty == false) ? keyData : nil
+                masterKeyData: (keyData?.isEmpty == false) ? keyData : nil,
+                interchange: interchange
             )
-            let document = try VaultDocument.encode(imported)
+            let document = try entryDocuments.encode(imported)
             return install(document: document, replace: replace)
         } catch VaultCryptoError.authenticationFailed {
             message = BackupWording.wrongPassword
@@ -1468,7 +1568,7 @@ public final class VaultStore: ObservableObject {
     public func exportOpenPgpBackup(recipientKeyBlocks: [Data], now: Date = Date()) -> ExportedBackup? {
         guard isUnlocked else { return nil }
         do {
-            let document = try VaultDocument.encode(entries)
+            let document = try entryDocuments.encode(entries)
             let data = try OpenPgpBackupCodec.seal(port: openPgp, plain: document, recipientKeyBlocks: recipientKeyBlocks)
             return ExportedBackup(
                 name: BackupFileNames.openPgp(now, appendTimestamp: backupAppendDateTime),
@@ -1496,7 +1596,7 @@ public final class VaultStore: ObservableObject {
                 secretKeyBlock: secretKeyBlock,
                 passphrase: passphrase?.isEmpty == true ? nil : passphrase
             )
-            let decoded = try VaultDocument.decode(document)
+            let decoded = try entryDocuments.decode(document)
             guard !decoded.isEmpty else {
                 message = BackupWording.emptyBackup
                 return nil
@@ -1543,7 +1643,7 @@ public final class VaultStore: ObservableObject {
     ) -> Int? {
         guard isUnlocked else { return nil }
         do {
-            let parsed = try PasswordImport.entries(filename: filename, data: data, mode: mode)
+            let parsed = try PasswordImport.entries(filename: filename, data: data, mode: mode, interchange: interchange)
             guard !parsed.isEmpty else {
                 message = BackupWording.emptyBackup
                 return nil
@@ -1566,12 +1666,12 @@ public final class VaultStore: ObservableObject {
         now: Date = Date()
     ) -> RestorePlan? {
         do {
-            var imported = try PasswordImport.entries(filename: filename, data: data, mode: mode)
+            var imported = try PasswordImport.entries(filename: filename, data: data, mode: mode, interchange: interchange)
             let stamp = EntryUsage.nowMillis(now)
             for idx in imported.indices {
                 EntryUsage.markImported(&imported[idx], now: stamp)
             }
-            let document = try VaultDocument.encode(imported)
+            let document = try entryDocuments.encode(imported)
             let plan = install(document: document, replace: replace)
             if plan != nil { category = .passwords }
             return plan
@@ -1607,7 +1707,7 @@ public final class VaultStore: ObservableObject {
             if entry.kind == .passwordArchive {
                 archives += 1
             } else if entry.kind == .password {
-                switch PasswordCsvExport.support(entry) {
+                switch PasswordCsvExport.support(entry, interchange: interchange) {
                 case .exportable(let dialect):
                     buckets[dialect, default: []].append(idx)
                 case .foreign:
@@ -1636,7 +1736,7 @@ public final class VaultStore: ObservableObject {
             return nil
         }
         do {
-            let data = try PasswordCsvExport.exportCsv(entries: selected, dialect: dialect)
+            let data = try PasswordCsvExport.exportCsv(entries: selected, dialect: dialect, interchange: interchange)
             return ExportedBackup(name: "\(dialect.browserName.lowercased())-passwords.csv", data: data)
         } catch {
             message = "The browser password CSV could not be written."
@@ -1650,7 +1750,7 @@ public final class VaultStore: ObservableObject {
         guard isUnlocked else { return nil }
         let revealed = entries.filter { isRevealed($0) }
         let exportable = revealed.compactMap { entry -> (Entry, PasswordCsvExport.Dialect)? in
-            if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
+            if case .exportable(let dialect) = PasswordCsvExport.support(entry, interchange: interchange) {
                 return (entry, dialect)
             }
             return nil
@@ -1659,9 +1759,9 @@ public final class VaultStore: ObservableObject {
             message = "Reveal at least one browser-imported password entry to export."
             return nil
         }
-        let chosen = PasswordCsvExport.agreedDialect(exportable.map(\.0))
+        let chosen = PasswordCsvExport.agreedDialect(exportable.map(\.0), interchange: interchange)
         do {
-            let data = try PasswordCsvExport.exportCsv(entries: exportable.map(\.0), dialect: chosen)
+            let data = try PasswordCsvExport.exportCsv(entries: exportable.map(\.0), dialect: chosen, interchange: interchange)
             return ExportedBackup(name: "passwords.csv", data: data)
         } catch {
             message = "The browser password CSV could not be written."
@@ -1750,7 +1850,7 @@ public final class VaultStore: ObservableObject {
             let accounts = try EmailMaterial.importBackup(data, password: password)
             let stamp = EntryUsage.nowMillis(now)
             let imported = try accounts.map { try Entry.email(account: $0, now: stamp) }
-            let document = try VaultDocument.encode(imported)
+            let document = try entryDocuments.encode(imported)
             let plan = install(document: document, replace: replace)
             if plan != nil { category = .emails }
             return plan
@@ -1810,7 +1910,7 @@ public final class VaultStore: ObservableObject {
     public func previewThunderbirdBackupCount(data: Data) -> Int? {
         guard isUnlocked else { return nil }
         do {
-            let parsed = try ThunderbirdImport.entries(from: data)
+            let parsed = try ThunderbirdImport.entries(from: data, interchange: interchange)
             guard !parsed.isEmpty else {
                 message = BackupWording.emptyBackup
                 return nil
@@ -1829,12 +1929,12 @@ public final class VaultStore: ObservableObject {
         now: Date = Date()
     ) -> RestorePlan? {
         do {
-            var imported = try ThunderbirdImport.entries(from: data)
+            var imported = try ThunderbirdImport.entries(from: data, interchange: interchange)
             let stamp = EntryUsage.nowMillis(now)
             for idx in imported.indices {
                 EntryUsage.markImported(&imported[idx], now: stamp)
             }
-            let document = try VaultDocument.encode(imported)
+            let document = try entryDocuments.encode(imported)
             let plan = install(document: document, replace: replace)
             if plan != nil { category = .emails }
             return plan
@@ -1848,7 +1948,7 @@ public final class VaultStore: ObservableObject {
     public func exportThunderbirdBackup(now: Date = Date(), selected: [Entry]? = nil) -> ExportedBackup? {
         guard isUnlocked else { return nil }
         do {
-            let data = try ThunderbirdImport.exportCsv(entries: selected ?? entries)
+            let data = try ThunderbirdImport.exportCsv(entries: selected ?? entries, interchange: interchange)
             return ExportedBackup(name: BackupFileNames.thunderbird(now), data: data)
         } catch EmailCredentialError.noExportableAccounts {
             message = "There are no email credentials in this vault to export."
@@ -1859,39 +1959,55 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    private func portableRestorePlan(imported: [Entry], replace: Bool) throws -> RestorePlan {
+        let retained = Set(entries)
+        let decision = RestoreMergePolicy().plan(matchesCurrent: imported.map { KotlinBoolean(bool: retained.contains($0)) },
+            currentCount: Int32(entries.count), importedUnique: Set(imported).count == imported.count,
+            currentUnique: retained.count == entries.count, replace: replace)
+        if let failure = decision.failure {
+            if failure == .limit { throw VaultWriteError.invalidInput }
+            throw VaultRestoreMergeError.duplicateEntries
+        }
+        let fresh = decision.importedIndices.map { imported[Int($0.intValue)] }
+        return RestorePlan(entries: fresh + (decision.retainCurrent ? entries : []), added: fresh.count)
+    }
+
     private func install(document: String, replace: Bool) -> RestorePlan? {
-        let imported: [Entry]
+        let workflow = RestoreWorkflow()
+        let ticket = workflow.start(authority: Int64(generation), firstRun: false)
+        defer { workflow.cancel() }
         do {
-            imported = try VaultDocument.decode(document)
+            let imported = try entryDocuments.decode(document)
+            guard workflow.decoded(ticket: ticket, authority: Int64(generation), permitted: isUnlocked,
+                    count: Int32(imported.count), unique: Set(imported).count == imported.count) else {
+                message = imported.isEmpty ? BackupWording.emptyBackup : BackupWording.duplicateBackup; return nil
+            }
+            // Callers reach this transaction only from their explicit import/restore intent.
+            guard workflow.confirm(ticket: ticket, authority: Int64(generation), permitted: isUnlocked, replace: replace) else { return nil }
+            let plan = try portableRestorePlan(imported: imported, replace: workflow.replace)
+            guard workflow.beginInstall(ticket: ticket, authority: Int64(generation), permitted: isUnlocked,
+                    resultCount: Int32(plan.entries.count)) else { return nil }
+            // Write first, publish second: failed storage must leave the current live entries alone.
+            guard commit(plan.entries) else { _ = workflow.installed(ticket: ticket, success: false); return nil }
+            _ = workflow.installed(ticket: ticket, success: true)
+            return plan
+        } catch VaultWriteError.invalidInput {
+            message = "The backup would grow this vault past \(InputPolicy.maxEntries) entries."
+            return nil
+        } catch VaultRestoreMergeError.duplicateEntries {
+            message = BackupWording.duplicateBackup
+            return nil
         } catch {
             message = "The backup does not contain a readable entry list."
             return nil
         }
-        let plan: RestorePlan
-        do {
-            plan = try VaultRestoreMerge.plan(imported: imported, current: entries,
-                                              replace: replace)
-        } catch VaultRestoreMergeError.emptyImport {
-            message = BackupWording.emptyBackup
-            return nil
-        } catch {
-            message = BackupWording.duplicateBackup
-            return nil
-        }
-        guard plan.entries.count <= InputPolicy.maxEntries else {
-            message = "The backup would grow this vault past \(InputPolicy.maxEntries) entries."
-            return nil
-        }
-        // Write first, publish second: a failed restore must not discard the current entries.
-        guard commit(plan.entries) else { return nil }
-        return plan
     }
 
     /// The `otpauth://` link for an entry, or nil when it has none. This is also the QR payload, so
     /// **Show QR code** and **Copy link** can never disagree.
     public func otpUri(for index: Int) -> String? {
         guard entries.indices.contains(index) else { return nil }
-        return OtpUri.uri(for: entries[index])
+        return OtpUri.uri(for: entries[index], interchange: interchange)
     }
 
     /// What an import did. The duplicate-issuer case is a question, not a failure: the other two
@@ -1936,7 +2052,7 @@ public final class VaultStore: ObservableObject {
         // byte-exact, as it is for a scanned payload.
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            return insert(try OtpUri.parse(trimmed).entry(now: EntryUsage.nowMillis(now)),
+            return insert(try OtpUri.parse(trimmed, interchange: interchange).entry(now: EntryUsage.nowMillis(now)),
                           allowDuplicateIssuer: allowDuplicateIssuer)
         } catch let error as OtpParseError {
             message = error.message
@@ -2022,9 +2138,10 @@ public final class VaultStore: ObservableObject {
             migration = nil
             return MigrationImportStep(received: 0, expected: 0, entries: nil, message: nil)
         }
+        migrationConfirmation?.cancel(); migrationConfirmation = nil; pendingMigrationEntries = nil
         let payload: MigrationPayload
         do {
-            payload = try MigrationPayload.parse(text)
+            payload = try MigrationPayload.parse(text, interchange: interchange)
         } catch let error as MigrationError {
             // The open export survives a code that could not be read, as it does on the phone: the
             // person can scan the right code next.
@@ -2035,7 +2152,7 @@ public final class VaultStore: ObservableObject {
             return step(message: MigrationWording.invalid)
         }
 
-        var collector = migration ?? MigrationBatchCollector(generation: generation)
+        var collector = migration ?? MigrationBatchCollector(generation: generation, authority: interchange.migrationBatch(generation: generation))
         let status = collector.add(payload, generation: generation, sessionReady: isUnlocked)
         switch status {
         case .added:
@@ -2060,6 +2177,11 @@ public final class VaultStore: ObservableObject {
             }
             do {
                 let entries = try accounts.map { try $0.entry(now: EntryUsage.nowMillis(now)) }
+                let confirmation = InterchangeWorkflow(generation: Int64(generation))
+                guard confirmation.preview(count: Int32(entries.count)) else { return step(message: MigrationWording.invalid) }
+                migrationConfirmation?.cancel()
+                migrationConfirmation = confirmation
+                pendingMigrationEntries = entries
                 message = nil
                 return MigrationImportStep(received: received, expected: expected,
                                            entries: entries, message: nil)
@@ -2090,6 +2212,7 @@ public final class VaultStore: ObservableObject {
 
     /// Discards an export in progress; nothing was written, so nothing has to be undone.
     public func cancelMigrationImport() {
+        migrationConfirmation?.cancel(); migrationConfirmation = nil; pendingMigrationEntries = nil
         migration?.cancel()
         migration = nil
     }
@@ -2099,7 +2222,13 @@ public final class VaultStore: ObservableObject {
     /// and the whole batch is committed once or not at all.
     public func confirmMigrationImport(_ entries: [Entry], now: Date = Date())
         -> MigrationImportResult {
-        guard isUnlocked, !key.isEmpty else { return .locked }
+        guard isUnlocked, !key.isEmpty else { cancelMigrationImport(); return .locked }
+        guard let pending = pendingMigrationEntries, pending == entries,
+              migrationConfirmation?.consume(currentGeneration: Int64(generation), sessionReady: isUnlocked) == true else {
+            cancelMigrationImport(); return .saveFailed
+        }
+        pendingMigrationEntries = nil; migrationConfirmation = nil
+        let entries = pending
         let stamp = EntryUsage.nowMillis(now)
         var proposed = self.entries
         var distinct = Set(proposed)
@@ -2193,11 +2322,12 @@ public final class VaultStore: ObservableObject {
         guard isUnlocked else { throw VaultCryptoError.invalidKey }
         if hasHardwareUnlockRecord { try FileManager.default.removeItem(at: hardwareRecordURL) }
     }
-    func unlockWithHardwareKey(_ candidate: Data) -> Bool {
-        guard !isUnlocked, hasVault else { return false }
+    func unlockWithHardwareKey(_ candidate: Data, expectedGeneration: Int) -> Bool {
+        guard !isUnlocked, hasVault, generation == expectedGeneration else { return false }
         do {
             let unlocked = try vault.openWithKey(Array(candidate))
-            key = unlocked.key; entries = unlocked.entries; isUnlocked = true; beginSession(); message = nil
+            guard adoptUnlocked(unlocked, expected: Int64(expectedGeneration)) else { return false }
+            message = nil
             return true
         } catch { message = "The hardware key did not open this vault. Use the vault password and re-enroll if its key changed."; return false }
     }

@@ -9,7 +9,7 @@ published jars.
 measured, drawn, laid out or recomposed, and the Android target's `androidx` artifacts are not
 involved at all. A green gate means:
 
-- `ui/src/commonMain` compiles under `-jvm-target 1.8` against `:core` and no Android/desktop API;
+- `ui/src/jvmHostMain` compiles under `-jvm-target 1.8` against `:core` and no Android/desktop API;
 - a file that reaches for `android.*`, `java.awt`, storage, crypto or session types fails loudly;
 - the Compose-free projection layer compiles and its JUnit tests pass on a host JVM.
 
@@ -19,7 +19,7 @@ record. Anything these stubs accept that the real API rejects (for example an ar
 default that differs) is a gap to fix here, not evidence the code is correct.
 
 Files are grouped by the package they stand in for, under the real package names, so the imports in
-`ui/src/commonMain` are unchanged between this gate and Gradle. Two subdirectories are compiled only
+`ui/src/jvmHostMain` are unchanged between this gate and Gradle. Two subdirectories are compiled only
 by the phases that need them: `desktop/` (the Compose Desktop window APIs the `:desktop-compose` host
 calls) and `android/` (the Compose Android platform types the `ComposeView` seam calls, which need the
 app's own Android stubs on the classpath).

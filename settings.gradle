@@ -8,3 +8,5 @@ include ":ui-model"
 
 include ":ui-foundation"
 include ":ui-contract"
+
+include ":shared-domain"

@@ -12,6 +12,7 @@ import platform.UIKit.UIViewController
 interface NewVaultRestoreActions {
     /** Null means the full restore completed; otherwise show a safe explanatory message. */
     fun restore(backupPassword: String, newPassword: String, confirmation: String): String?
+    fun restoreSelected(backupPassword: String, newPassword: String, confirmation: String, format: String, andOtpVariant: String): String?
     fun dismiss()
 }
 
@@ -28,6 +29,12 @@ class NewVaultRestorePresentation(private val backupName: String) {
                 onRestore = { backupPassword, newPassword, confirmation ->
                     if (active) try {
                         val failure = actions.restore(backupPassword, newPassword, confirmation)
+                        if (failure == null) { close(); actions.dismiss() } else error = failure
+                    } catch (_: Exception) { error = "The backup could not be restored." }
+                },
+                onRestoreSelected = { password, newPassword, confirmation, format, variant ->
+                    if (active) try {
+                        val failure = actions.restoreSelected(password, newPassword, confirmation, format, variant)
                         if (failure == null) { close(); actions.dismiss() } else error = failure
                     } catch (_: Exception) { error = "The backup could not be restored." }
                 },

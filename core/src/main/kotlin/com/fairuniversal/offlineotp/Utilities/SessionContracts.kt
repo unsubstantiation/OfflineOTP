@@ -2,9 +2,9 @@ package com.fairuniversal.offlineotp.Utilities
 
 import javax.crypto.SecretKey
 
-enum class SessionLockReason { INITIAL, EXPLICIT, AUTHENTICATION, SCREEN_OFF, BACKGROUND, RESET }
-enum class SessionFailure { VAULT_UNAVAILABLE, RECOVERY_REQUIRED }
-enum class SessionRejection { STALE_GENERATION, FAILED_SESSION, INVALID_HANDOFF }
+typealias SessionLockReason = com.fairuniversal.offlineotp.domain.SessionLockReason
+typealias SessionFailure = com.fairuniversal.offlineotp.domain.SessionFailure
+typealias SessionRejection = com.fairuniversal.offlineotp.domain.SessionRejection
 
 /** Diagnostic state only: never a key, credential, Parcelable or saved-state payload. */
 sealed class SessionState(val generation: Long) {
@@ -57,7 +57,13 @@ class LoginBackupLease(
 /** Android-free process controller. Lock order: mutationLock -> monitor; callbacks outside monitor. */
 class SessionController(private val mutationLock: Any) {
     private val monitor = Any()
-    private var state: SessionState = SessionState.Locked(0, SessionLockReason.INITIAL)
+    private val authority = com.fairuniversal.offlineotp.domain.SessionAuthority()
+    private val state: SessionState get() = when (authority.phase) {
+        com.fairuniversal.offlineotp.domain.SessionPhase.LOCKED -> SessionState.Locked(authority.generation, authority.reason)
+        com.fairuniversal.offlineotp.domain.SessionPhase.UNLOCKING -> SessionState.Unlocking(authority.generation)
+        com.fairuniversal.offlineotp.domain.SessionPhase.UNLOCKED -> SessionState.Unlocked(authority.generation)
+        com.fairuniversal.offlineotp.domain.SessionPhase.FAILED -> SessionState.Failed(authority.generation, authority.failure ?: SessionFailure.VAULT_UNAVAILABLE)
+    }
     private var key: SecretKey? = null
     private var handoff: OwnedSecret? = null
     private var backupHandoff: LoginBackupKey? = null
@@ -69,32 +75,25 @@ class SessionController(private val mutationLock: Any) {
 
     fun snapshot(): SessionState = synchronized(monitor) { state }
     fun currentKey(): SecretKey? = synchronized(monitor) { if (state is SessionState.Unlocked) key else null }
-    fun isCurrent(expected: Long): Boolean = synchronized(monitor) { state.generation == expected }
+    fun isCurrent(expected: Long): Boolean = synchronized(monitor) { authority.isCurrent(expected) }
 
     fun activate(newKey: SecretKey, expected: Long): SessionCommandResult {
         var callbacks: List<Runnable> = emptyList()
         val result = synchronized(mutationLock) {
             synchronized(monitor) {
-                when {
-                    state.generation != expected -> SessionCommandResult.Rejected(SessionRejection.STALE_GENERATION)
-                    state is SessionState.Failed -> SessionCommandResult.Rejected(SessionRejection.FAILED_SESSION)
-                    else -> {
-                        val changed = key !== newKey
-                        val generation = state.generation + if (changed) 1 else 0
-                        clearHandoff()
-                        val incomingBackup = backupHandoff
-                        backupHandoff = null
-                        if (incomingBackup != null) {
-                            clearBackupKey()
-                            backupKey = incomingBackup
-                        } else if (state !is SessionState.Unlocked) {
-                            clearBackupKey()
-                        }
-                        key = newKey
-                        state = SessionState.Unlocked(generation)
-                        if (changed) callbacks = changes.toList()
-                        SessionCommandResult.Applied(state)
-                    }
+                val wasUnlocked = state is SessionState.Unlocked
+                val changed = key !== newKey
+                val rejection = authority.activate(expected, changed)
+                if (rejection != null) SessionCommandResult.Rejected(rejection)
+                else {
+                    clearHandoff()
+                    val incomingBackup = backupHandoff
+                    backupHandoff = null
+                    if (incomingBackup != null) { clearBackupKey(); backupKey = incomingBackup }
+                    else if (!wasUnlocked) clearBackupKey()
+                    key = newKey
+                    if (changed) callbacks = changes.toList()
+                    SessionCommandResult.Applied(state)
                 }
             }
         }
@@ -103,26 +102,26 @@ class SessionController(private val mutationLock: Any) {
     }
 
     fun beginUnlock(): SessionState.Unlocking {
-        val transition = revoke { SessionState.Unlocking(it) }
+        val transition = revoke { authority.beginUnlock() }
         notifyListeners(transition.second)
         return transition.first as SessionState.Unlocking
     }
     fun lock(reason: SessionLockReason) {
-        val transition = revoke { SessionState.Locked(it, reason) }
+        val transition = revoke { authority.lock(reason) }
         notifyListeners(transition.second)
     }
     fun fail(error: SessionFailure) {
-        val transition = revoke { SessionState.Failed(it, error) }
+        val transition = revoke { authority.fail(error) }
         notifyListeners(transition.second)
     }
-    private fun revoke(next: (Long) -> SessionState): Pair<SessionState, List<Runnable>> = synchronized(mutationLock) {
+    private fun revoke(next: () -> Long): Pair<SessionState, List<Runnable>> = synchronized(mutationLock) {
         synchronized(monitor) {
             key = null
             clearHandoff()
             backupHandoff?.close()
             backupHandoff = null
             clearBackupKey()
-            state = next(state.generation + 1)
+            next()
             state to (listeners + changes + backupChanges).toList()
         }
     }
@@ -134,7 +133,7 @@ class SessionController(private val mutationLock: Any) {
 
     /** Publishes a password-derived backup key only for the current pending unlock/setup. */
     internal fun offerBackupKey(candidate: LoginBackupKey, expected: Long): Boolean = synchronized(monitor) {
-        if (state.generation != expected || state is SessionState.Unlocked || state is SessionState.Failed)
+        if (!authority.canOfferBackup(expected))
             return@synchronized false
         val copy = candidate.copy() ?: return@synchronized false
         backupHandoff?.close()
@@ -146,7 +145,7 @@ class SessionController(private val mutationLock: Any) {
     internal fun replaceBackupKeyWithoutNotification(candidate: LoginBackupKey?, expected: Long): Boolean =
         synchronized(mutationLock) {
             synchronized(monitor) inner@{
-                if (state.generation != expected || state !is SessionState.Unlocked) return@inner false
+                if (!authority.isUnlocked(expected)) return@inner false
                 val copy = candidate?.copy()
                 if (candidate != null && copy == null) return@inner false
                 clearBackupKey()
@@ -172,19 +171,16 @@ class SessionController(private val mutationLock: Any) {
     }
 
     fun publishDerived(bytes: ByteArray, expected: Long): SessionCommandResult = synchronized(monitor) {
-        when {
-            state.generation != expected -> SessionCommandResult.Rejected(SessionRejection.STALE_GENERATION)
-            state is SessionState.Failed -> SessionCommandResult.Rejected(SessionRejection.FAILED_SESSION)
-            bytes.isEmpty() || bytes.size > 64 -> SessionCommandResult.Rejected(SessionRejection.INVALID_HANDOFF)
-            else -> {
-                clearHandoff()
-                handoff = OwnedSecret.copyOf(bytes)
-                SessionCommandResult.Applied(state)
-            }
+        val rejection = authority.handoffRejection(expected, bytes.size)
+        if (rejection != null) SessionCommandResult.Rejected(rejection)
+        else {
+            clearHandoff()
+            handoff = OwnedSecret.copyOf(bytes)
+            SessionCommandResult.Applied(state)
         }
     }
     fun consumeDerived(expected: Long): SessionHandoff = synchronized(monitor) {
-        if (state.generation != expected) return@synchronized SessionHandoff.Unavailable(SessionHandoff.Reason.STALE_GENERATION)
+        if (!authority.isCurrent(expected)) return@synchronized SessionHandoff.Unavailable(SessionHandoff.Reason.STALE_GENERATION)
         val value = handoff ?: return@synchronized SessionHandoff.Unavailable(SessionHandoff.Reason.MISSING)
         handoff = null
         SessionHandoff.Available(value)

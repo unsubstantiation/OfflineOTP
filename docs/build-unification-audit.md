@@ -1,5 +1,10 @@
 # Cross-build consolidation — 2026-11-07
 
+Historical audit. For the current module graph, requested x86-64/Apple/mobile target matrix,
+architecture boundaries and chunk-by-chunk hand-off, see the
+[shared-code migration plan](shared-code-migration.md) (2026-11-20). Older implementation and
+validation descriptions below are dated evidence, not the current platform support matrix.
+
 Scope: Android, Windows, macOS, Debian/Linux and iOS. This is an incremental audit,
 not a declaration of identical clients or native/device validation.
 
@@ -132,7 +137,7 @@ JVM dependency work needed before iOS can consume the same Compose screens.
 
 Relocated the engine-free transfer and chooser dialogs (`EntryCopyDialog`, `EncryptedExportDialog`,
 `EncryptedRestoreDialog`, `OpenPgpExportDialog`, `OpenPgpImportDialog`, `EmailImportDialog`,
-`LinScpExportDialog`, `LinScpImportDialog`, and `UriImportDialog`) from `:ui/src/commonMain` into
+`LinScpExportDialog`, `LinScpImportDialog`, and `UriImportDialog`) from `:ui/src/jvmHostMain` into
 native-compatible `:ui-foundation/src/commonMain`, backed by `PortableInputBounds` in `:ui-contract`
 (pinned to `InputPolicy` in `PortablePresentationTest`).
 

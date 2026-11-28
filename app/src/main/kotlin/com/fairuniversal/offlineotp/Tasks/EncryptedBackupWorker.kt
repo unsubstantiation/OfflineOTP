@@ -11,7 +11,6 @@ import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.DatabaseHelper
-import com.fairuniversal.offlineotp.Utilities.KeyStoreHelper
 import com.fairuniversal.offlineotp.Utilities.LoginBackupPolicy
 import com.fairuniversal.offlineotp.Utilities.PendingAutomaticBackup
 import com.fairuniversal.offlineotp.Utilities.NotificationHelper
@@ -72,7 +71,9 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
                 if (isStopped() || !settings.isEncryptedBackupBroadcastEnabled()) return Result.failure()
                 marker = PendingAutomaticBackup.read(context) ?: return Result.success()
                 generation = VaultSession.generation()
-                val encryptionKey: SecretKey? = KeyStoreHelper.loadEncryptionKeyFromKeyStore(context, false)
+                // Never bootstrap a session from the Keystore for detached automation.
+                val encryptionKey: SecretKey? = VaultSession.getKey()
+                if (encryptionKey == null || !VaultSession.isCurrent(generation)) return Result.failure()
                 val loaded = DatabaseHelper.readVault(context, encryptionKey)
                 if (loaded !is VaultReadResult.Loaded || encryptionKey == null)
                     return fail(context, R.string.backup_receiver_unexpected_error)
@@ -96,7 +97,7 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
             val result: BackupTaskResult
             try {
                 result = BroadcastBackupTask(context, entries, password,
-                        BooleanSupplier { !isStopped() && VaultSession.isCurrent(generation) }).run()
+                        BooleanSupplier { !isStopped() && VaultSession.isCurrent(generation) && VaultSession.getKey() != null }).run()
                 if (result.success) PendingAutomaticBackup.complete(context, marker.token)
             } finally {
                 for (entry in entries) entry.destroy()

@@ -21,6 +21,18 @@ class DesktopPasswordExportTest {
         for (extra in listOf("note", "provider")) state.add(Entry.passwordFields("alice", "site",
             listOf("name" to "site", "url" to "https://site", "username" to "alice", "password" to "secret", extra to "preserved")))
     }
+    @Test fun changedGenerationRejectsQueuedPlaintextEvenWithoutAnInterveningLock() {
+        val state = state(); val worker = Queue(); val ui = Queue(); var writes = 0
+        val export = DesktopPasswordExport(state, worker, ui::execute, {}, write = { _, _ -> writes++ })
+        try {
+            assertTrue(export.open { true }); val request = export.pending!!
+            assertTrue(export.choose(request, 0, File("unused")) { true })
+            assertTrue(export.confirm(request) { true })
+            state.updateKey(SecretKeySpec(ByteArray(32) { 9 }, "AES"))
+            worker.run()
+            assertEquals(0, writes); assertTrue(ui.tasks.isEmpty())
+        } finally { export.close(); state.lock() }
+    }
     @Test fun selectionNeedsCurrentExplicitConfirmationAndWritesOnlyChosenGroup() {
         val dir = Files.createTempDirectory("password-export-").toFile()
         val state = state(); val worker = Queue(); val ui = Queue()

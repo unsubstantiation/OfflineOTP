@@ -145,7 +145,11 @@ public enum BrowserPasswordCsv {
         public let rows: [Row]
     }
 
-    public static func parse(_ data: Data) throws -> Table {
+    public static func parse(_ data: Data, interchange: InterchangeAdapter? = nil) throws -> Table {
+        if let interchange {
+            let table = try interchange.csv(data, thunderbird: false)
+            return Table(columns: table.columns, rows: table.rows.map { Row(values: $0) })
+        }
         guard !data.isEmpty, data.count <= PasswordMaterial.maxBytes else {
             throw PasswordCredentialError.tooLarge
         }
@@ -256,10 +260,10 @@ public enum PasswordImport {
         case archive
     }
 
-    public static func entries(filename: String, data: Data, mode: Mode) throws -> [Entry] {
+    public static func entries(filename: String, data: Data, mode: Mode, interchange: InterchangeAdapter? = nil) throws -> [Entry] {
         switch mode {
         case .individual:
-            let table = try BrowserPasswordCsv.parse(data)
+            let table = try BrowserPasswordCsv.parse(data, interchange: interchange)
             return try table.rows.map { row in
                 try Entry.password(columns: table.columns, row: row)
             }

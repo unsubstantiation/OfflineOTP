@@ -87,7 +87,7 @@ class SecretWidgetCleanupTest(unittest.TestCase):
     def test_authentication_clears_input_on_task_handoff_and_teardown(self):
         text = self.app_source("Activities/AuthenticateActivity.kt")
         self.assertIn("startBackgroundTask(task)\n        } finally {\n            // The task owns its immutable copy; do not leave another copy in the UI widget.\n            clearPasswordInput()", text)
-        self.assertIn("override fun onDestroy() {\n        clearPasswordInput()", text)
+        self.assertIn("override fun onDestroy() {\n        biometricAttempt.close(); hardwareAttempt.close()\n        clearPasswordInput()", text)
 
     def test_manual_entry_dialog_clears_secret_on_dismissal(self):
         text = self.app_source("Dialogs/ManualEntryDialog.kt")

@@ -86,7 +86,12 @@ class IosPlanTest(unittest.TestCase):
                             ("MAX_SECRET_BYTES", 2048), ("MAX_TEXT_CHARS", 1024),
                             ("MAX_TAGS", 32), ("MAX_TAG_CHARS", 128),
                             ("MAX_PERIOD_SECONDS", 86400)):
-            self.assertIn(f"const val {name} = {value}", policy)
+            if name in ("MAX_TEXT_CHARS", "MAX_TAGS", "MAX_TAG_CHARS"):
+                self.assertIn(f"const val {name} = com.fairuniversal.offlineotp.domain.EntryMetadata.{name}", policy)
+                domain = ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/EntryMetadata.kt"
+                self.assertIn(f"const val {name} = {value}", domain.read_text(encoding="utf-8"))
+            else:
+                self.assertIn(f"const val {name} = {value}", policy)
         self.assertEqual(2000, constant("Utilities/InputPolicy.kt", "MAX_ENTRIES"))
         self.assertEqual(200, constant("Utilities/InputPolicy.kt", "MAX_NOTE_CHARACTERS"))
         # The table repeats the numbers a Swift validator has to enforce.

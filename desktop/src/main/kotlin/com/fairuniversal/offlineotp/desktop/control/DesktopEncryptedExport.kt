@@ -33,12 +33,16 @@ class DesktopEncryptedExport(
         override fun close() { key?.fill(0) }
         override fun toString() = "BackupInput(redacted)"
     }
-    private class Work(private var input: Input?) {
+    private class Work(private var input: Input?, generation: Long) {
+        private val delivery = com.fairuniversal.offlineotp.domain.InterchangeWorkflow(generation).also { check(it.preview(0)) }
         private var cancelled = false
-        @Synchronized fun take(): Input? = input.also { input = null }
-        @Synchronized fun cancel() { cancelled = true; input?.close(); input = null }
+        @Synchronized fun take(generation: Long, ready: Boolean): Input? {
+            if (!delivery.consume(generation, ready)) { cancel(); return null }
+            return input.also { input = null }
+        }
+        @Synchronized fun cancel() { delivery.cancel(); cancelled = true; input?.close(); input = null }
         // Cancellation before this point suppresses the write. Once writing starts it may finish.
-        @Synchronized fun claimWrite(): Boolean = !cancelled
+        @Synchronized fun claimWrite(generation: Long, ready: Boolean): Boolean = !cancelled && delivery.current(generation, ready)
     }
     var pending: Request? = null
         private set
@@ -92,22 +96,22 @@ class DesktopEncryptedExport(
     }
 
     private fun start(request: Request, input: Input): Boolean {
-        val task = Work(input)
+        val task = Work(input, state.generation)
         work = task; request.busy = true; request.failure = null; changed()
         try {
             worker.execute {
                 if (state.isLocked) { task.cancel(); return@execute }
-                val input = task.take() ?: return@execute
+                val input = task.take(state.generation, !state.isLocked) ?: return@execute
                 var encrypted: ByteArray? = null
                 val failure = try {
                     encrypted = if (input.key != null) {
                         val key = javax.crypto.spec.SecretKeySpec(input.key, "AES")
                         try {
                             if (input.password.isEmpty()) requireNotNull(rawSnapshot).invoke(key)
-                            else requireNotNull(migrateSnapshot).invoke(input.password, key) { !state.isLocked && task.claimWrite() }
+                            else requireNotNull(migrateSnapshot).invoke(input.password, key) { !state.isLocked && task.claimWrite(state.generation, !state.isLocked) }
                         } finally { runCatching { key.destroy() } }
                     } else if (input.plainText) requireNotNull(plainSeal).invoke(input.document) else seal(input.password, input.document)
-                    if (state.isLocked || !task.claimWrite()) return@execute
+                    if (state.isLocked || !task.claimWrite(state.generation, !state.isLocked)) return@execute
                     val target = if (input.plainText) File(request.target.parentFile,
                         request.target.name.removeSuffix(".aes").removeSuffix(".json") + ".json") else request.target
                     write(target, encrypted)

@@ -261,6 +261,7 @@ open class Settings(private val context: Context) {
     }
 
     open fun getAuthMethod(): Constants.AuthMethod {
+        if (DatabaseHelper.hasPortableVault(context)) return Constants.AuthMethod.PASSWORD
         val authString = getString(R.string.settings_key_auth, CredentialsPreference.DEFAULT_VALUE.name.lowercase(Locale.ENGLISH))
         return Constants.AuthMethod.fromStored(authString)
     }
@@ -454,6 +455,7 @@ open class Settings(private val context: Context) {
     }
 
     open fun getEncryption(): Constants.EncryptionType {
+        if (DatabaseHelper.hasPortableVault(context)) return Constants.EncryptionType.PASSWORD
         val encType = getString(R.string.settings_key_encryption, R.string.settings_default_encryption)
         return Constants.EncryptionType.valueOf(encType.uppercase(Locale.ROOT))
     }
@@ -533,6 +535,7 @@ open class Settings(private val context: Context) {
     }
 
     open fun getFirstTimeWarningShown(): Boolean {
+        if (DatabaseHelper.hasPortableVault(context)) return true
         return getBoolean(R.string.settings_key_security_backup_warning, false)
     }
 
@@ -584,16 +587,28 @@ open class Settings(private val context: Context) {
         return getString(R.string.settings_key_backup_password, "")
     }
 
-    /** Decrypts the stored backup password with the KeyStore key. */
+    /** New records are vault-key-bound. Legacy device records are readable only while unlocked;
+     * explicit reconfiguration replaces them, never an implicit migration on ordinary open.
+     */
     open fun getBackupPasswordEnc(): String {
         val base64Password = getString(R.string.settings_key_backup_password_enc, "")
         if (base64Password.isEmpty()) return ""
+        val vaultKey = VaultSession.getKey() ?: return ""
+        val generation = VaultSession.generation()
+        fun admitted(value: String): String = synchronized(VaultSession.MutationLock) {
+            if (VaultSession.isCurrent(generation) && VaultSession.getKey() === vaultKey) value else ""
+        }
         try {
+            if (base64Password.startsWith("vault-abp1:")) {
+                val encrypted = Base64.decode(base64Password.removePrefix("vault-abp1:"), Base64.URL_SAFE)
+                val plain = try { AutomaticBackupCredentialCodec.open(vaultKey, encrypted) } finally { encrypted.fill(0) }
+                try { return admitted(plain.decodeToString(throwOnInvalidSequence = true)) } finally { plain.fill(0) }
+            }
             val encPassword = Base64.decode(base64Password, Base64.URL_SAFE)
             val key: KeyPair = KeyStoreHelper.loadAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD) ?: return ""
             val plain = EncryptionHelper.decrypt(key.private, encPassword)
             try {
-                return String(plain, StandardCharsets.UTF_8)
+                return admitted(String(plain, StandardCharsets.UTF_8))
             } finally {
                 plain.fill(0)
             }
@@ -602,32 +617,25 @@ open class Settings(private val context: Context) {
         }
     }
 
-    /**
-     * Stores the backup password the way the settings screen does: wrapped by the device's Keystore
-     * key, then Base64. Returns false when there is no usable key or the store rejects the write, so
-     * a caller importing preferences can report that the password did not arrive instead of
-     * assuming it did.
+    /** Persists a domain-separated vault-encrypted record. Rekey/recovery requires visible
+     * reconfiguration if the old record cannot be opened; it is never silently forgotten.
      */
     open fun setBackupPassword(value: String): Boolean {
+        if (value.length > InputPolicy.MAX_TEXT_CHARS) return false
         return try {
-            val pair = KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD)
-                ?: return false
-            if (value.isEmpty()) {
-                setString(R.string.settings_key_backup_password_enc, "")
-                return true
-            }
+            if (value.isEmpty()) return settings.edit().putString(getResString(R.string.settings_key_backup_password_enc), "").commit()
+            val key = VaultSession.getKey() ?: return false
+            val generation = VaultSession.generation()
             val plain = value.toByteArray(StandardCharsets.UTF_8)
+            val encrypted = try { AutomaticBackupCredentialCodec.seal(key, plain) } finally { plain.fill(0) }
             try {
-                val encrypted = EncryptionHelper.encrypt(pair.public, plain)
-                setString(R.string.settings_key_backup_password_enc,
-                    Base64.encodeToString(encrypted, Base64.URL_SAFE))
-                true
-            } finally {
-                plain.fill(0)
-            }
-        } catch (_: Exception) {
-            false
-        }
+                synchronized(VaultSession.MutationLock) {
+                    if (!VaultSession.isCurrent(generation) || VaultSession.getKey() !== key) return false
+                    settings.edit().putString(getResString(R.string.settings_key_backup_password_enc),
+                        "vault-abp1:" + Base64.encodeToString(encrypted, Base64.URL_SAFE)).commit()
+                }
+            } finally { encrypted.fill(0) }
+        } catch (_: Exception) { false }
     }
 
     open fun tryAcquireBroadcastBackupSlot(): Boolean {

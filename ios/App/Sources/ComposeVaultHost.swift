@@ -52,6 +52,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     let onExport: (Data, String) -> Void
     let onImport: (String) -> Void
     let onOpenLink: (URL) -> Void
+    // Native identity snapshots never enter display state; cleared on session/background teardown.
+    private var cardIdentities: [Entry: Int64] = [:]
+    private var displayedEntries: [Int: Entry] = [:]
+    private var nextCardIdentity: Int64 = 0
     private var timer: Timer?
     private var sessionChanges: AnyCancellable?
     private var toast: String = ""
@@ -68,7 +72,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private let hardwareReader = HardwareOathReader()
     private let hardwareWriter = HardwareOathWriter()
     private var hardwareCopyIndex: Int?
-    private var hardwareCopyFields: [String: JSONValue]?
+    private var hardwareCopyFields: String?
     private let hardwareFido = HardwareFidoReader()
     private let automaticBackup = SessionAutomaticBackup()
     private var backupChanges: AnyCancellable?
@@ -88,7 +92,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var hardwareTransport: HardwareOathReader.Transport = .nfc
     private var hardwareMessage = ""
     private var passwordEditIndex: Int?
-    private var openedFields: [String: JSONValue]?
+    private var openedFields: String?
     private var openedGeneration: Int?
     private var emailSecretsVisible = false
     private var linScpCandidates: [Entry] = []
@@ -155,9 +159,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     @objc private func resumeSensitiveOperations() {
         foreground = true
         restoreAutomaticBackups()
+        refresh()
     }
 
     @objc private func suspendSensitiveOperations() {
+        closeSurface()
+        presentation.clearFrame()
+        cardIdentities = [:]; displayedEntries = [:]
         nativeRequestID = UUID()
         hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil
         draft["hardwareSeedConsent"] = "false"
@@ -173,7 +181,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func refresh() {
         guard active else { return }
-        guard store.isUnlocked else {
+        guard foreground, store.isUnlocked else {
+            presentation.clearFrame()
+            cardIdentities = [:]; displayedEntries = [:]
             hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil
             automaticBackup.disable(); automaticRecipientKeys = []; automaticRecipientNames = []; automaticSigningKey = nil; automaticSigningName = ""; draft = [:]
             return
@@ -190,9 +200,15 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     private func vaultState(at now: Date = Date()) -> PortableVaultState {
         let indices = store.visibleIndices
+        let previousIdentities = cardIdentities
+        cardIdentities = [:]; displayedEntries = [:]
         let cards: [PortableCard] = indices.compactMap { index in
             guard store.entries.indices.contains(index) else { return nil }
             let entry = store.entries[index]
+            let identity: Int64
+            if let previous = previousIdentities[entry] { identity = previous }
+            else { nextCardIdentity += 1; identity = nextCardIdentity }
+            cardIdentities[entry] = identity; displayedEntries[index] = entry
             let revealed = store.isRevealed(entry)
             let kind = entry.kind?.rawValue ?? "ENTRY"
             let pinRequired = entry.kind == .motp && entry.pin.isEmpty
@@ -262,7 +278,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 periodSeconds: Int32(entry.kind == .motp ? 10 : max(entry.period, 1)),
                 showCountdown: showCountdown,
                 counterLabel: counterLabel,
-                isEmail: entry.kind == .email)
+                isEmail: entry.kind == .email, stableId: identity)
         }
         let chips = store.tags(for: store.category).map { tag in
             PortableChip(label: tag, count: Int32(store.tagCounts(for: store.category)[tag] ?? 0),
@@ -424,9 +440,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     func card(index: Int32, action: String) {
-        guard active, store.isUnlocked else { return }
+        guard active, foreground, store.isUnlocked else { return }
         let position = Int(index)
-        guard store.entries.indices.contains(position) else { return }
+        guard store.entries.indices.contains(position), displayedEntries[position] == store.entries[position] else { return }
         let entry = store.entries[position]
         noteActivity()
         switch action {
@@ -441,7 +457,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "pin":
             if entry.kind == .motp {
                 editorIndex = position
-                openedFields = entry.fields
+                openedFields = entry.compact()
                 draft = ["pin": entry.pin]
                 openSurface("pinEdit", keepDraft: true)
             }
@@ -451,7 +467,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "counter":
             if entry.kind == .hotp, store.isRevealed(entry) {
                 editorIndex = position
-                openedFields = entry.fields
+                openedFields = entry.compact()
                 draft = ["counter": String(entry.counter)]
                 openSurface("counterEdit", keepDraft: true)
             }
@@ -463,7 +479,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if store.isRevealed(entry) { openEntryEdit(at: position) }
         case "delete":
             editorIndex = position
-            openedFields = entry.fields
+            openedFields = entry.compact()
             openSurface("delete", keepDraft: true)
         case "moveUp", "moveDown":
             guard let origin = store.visibleIndices.firstIndex(of: position) else { return }
@@ -572,6 +588,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     private func openSurface(_ key: String, keepDraft: Bool = false) {
+        if surfaceKey == "restore" && key != "restore" { store.cancelPendingRestore() }
         nativeRequestID = UUID()
         if surfaceKey == "automaticBackup" && key != surfaceKey { clearAutomaticBackupDraftSecrets() }
         if ["hardwareOath", "hardwareEnroll", "hardwareRemove", "hardwareSeedCopy"].contains(surfaceKey) && key != surfaceKey {
@@ -587,6 +604,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     func closeSurface() {
+        if surfaceKey == "restore" { store.cancelPendingRestore() }
         nativeRequestID = UUID()
         if surfaceKey == "automaticBackup" {
             // Retain public recipient snapshots for reopening/reloading a session signer.
@@ -646,7 +664,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
               store.isRevealed(store.entries[index]),
               let initial = try? EmailEditInput.fromEntry(store.entries[index]) else { return }
         editorIndex = index
-        openedFields = store.entries[index].fields
+        openedFields = store.entries[index].compact()
         openedGeneration = store.generation
         draft = [
             "issuer": initial.issuer,
@@ -671,7 +689,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
               store.isRevealed(store.entries[index]),
               let initial = try? EmailPasswordInput.fromEntry(store.entries[index]) else { return }
         editorIndex = index
-        openedFields = store.entries[index].fields
+        openedFields = store.entries[index].compact()
         openedGeneration = store.generation
         draft = ["identityCount": String(initial.outgoing.count)]
         openSurface("emailPasswordEdit", keepDraft: true)
@@ -682,7 +700,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
               store.isRevealed(store.entries[index]),
               let initial = try? EmailSettingsInput.fromEntry(store.entries[index]) else { return }
         editorIndex = index
-        openedFields = store.entries[index].fields
+        openedFields = store.entries[index].compact()
         openedGeneration = store.generation
         draft = [
             "accountName": initial.accountName ?? "",
@@ -716,10 +734,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let entry = store.entries[index]
         editorIndex = index
         passwordEditIndex = index
-        openedFields = entry.fields
+        openedFields = entry.compact()
         openedGeneration = store.generation
         let isArchive = entry.kind == .passwordArchive
-        let commonEdit = !isArchive && PasswordCsvExport.supportsCommonEdit(entry)
+        let commonEdit = !isArchive && PasswordCsvExport.supportsCommonEdit(entry, interchange: store.interchangePolicy)
         draft = [
             "issuer": entry.issuer,
             "label": entry.label,
@@ -770,7 +788,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if let index, store.entries.indices.contains(index),
            let account = try? store.entries[index].emailAccount() {
             let entry = store.entries[index]
-            openedFields = entry.fields
+            openedFields = entry.compact()
             let primary = account.identities.first ?? [:]
             draft["name"] = account.account["name"]?.stringValue ?? ""
             draft["address"] = account.address
@@ -816,7 +834,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         editorKind = kind
         draft = [:]
         let entry = index.flatMap { store.entries.indices.contains($0) ? store.entries[$0] : nil }
-        openedFields = entry?.fields
+        openedFields = entry?.compact()
         draft["type"] = kind.rawValue
         draft["issuer"] = entry?.issuer ?? ""
         draft["label"] = entry?.label ?? ""
@@ -1140,7 +1158,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             var rows = [row("info", "The vault, its password and its accounts are never included.", kind: "info")]
             var errorMessage = ""
             do {
-                let preview = try PreferencesExport.inspect(pendingImport)
+                let preview = try PreferencesExport.inspect(pendingImport, interchange: store.interchangePolicy)
                 rows.append(row("count", "Settings", value: String(preview.applied), kind: "info"))
                 rows.append(row("skipped", "Skipped", value: String(preview.unknownKeys.count + preview.refusedKeys.count), kind: "info"))
             } catch PreferencesExport.PreferencesError.wrongPlatform(let source, _) {
@@ -1367,7 +1385,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: "passwordEdit:\(index)", title: "Edit password",
                 sections: [], message: "This entry cannot be edited here.")
         }
-        let commonEdit = !isArchive && PasswordCsvExport.supportsCommonEdit(entry)
+        let commonEdit = !isArchive && PasswordCsvExport.supportsCommonEdit(entry, interchange: store.interchangePolicy)
         var rows: [PortableRow] = [
             row("issuer", "Issuer", value: draft["issuer"] ?? entry.issuer, kind: "text"),
             row("label", "Account", value: draft["label"] ?? entry.label, kind: "text"),
@@ -1810,7 +1828,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             rows.append(row("copySshPassword:\(index)", "Copy SSH password"))
         }
         if entry.kind == .password, revealed,
-           case .exportable(let dialect) = PasswordCsvExport.support(entry) {
+           case .exportable(let dialect) = PasswordCsvExport.support(entry, interchange: store.interchangePolicy) {
             rows.append(row("exportPasswordCsv:\(index)", "Export as \(dialect.browserName) CSV…"))
         }
         if entry.kind == .passwordArchive {
@@ -2037,7 +2055,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "emailSettingsEdit": return saveEmailSettingsEditor()
         case "delete":
             if let index = editorIndex, let expected = openedFields,
-               (!store.entries.indices.contains(index) || store.entries[index].fields != expected) {
+               (!store.entries.indices.contains(index) || store.entries[index].compact() != expected) {
                 closeSurface()
                 return "The entry changed. Close and reopen delete confirmation."
             }
@@ -2049,7 +2067,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "tagEdit":
             guard let index = editorIndex, store.entries.indices.contains(index),
-                  openedFields == nil || store.entries[index].fields == openedFields,
+                  openedFields == nil || store.entries[index].compact() == openedFields,
                   let tags = draft["tags"] else {
                 return "The entry changed or no tags were entered."
             }
@@ -2062,7 +2080,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "thumbnailEdit":
             guard let index = editorIndex, store.entries.indices.contains(index),
-                  openedFields == nil || store.entries[index].fields == openedFields else {
+                  openedFields == nil || store.entries[index].compact() == openedFields else {
                 closeSurface()
                 return "The entry changed. Close and reopen the artwork picker."
             }
@@ -2084,7 +2102,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "pinEdit":
             guard let index = editorIndex, store.entries.indices.contains(index),
-                  openedFields == nil || store.entries[index].fields == openedFields,
+                  openedFields == nil || store.entries[index].compact() == openedFields,
                   store.entries[index].kind == .motp else {
                 return "The entry changed. Close and reopen the PIN prompt."
             }
@@ -2117,7 +2135,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
         case "counterEdit":
             guard let index = editorIndex, store.entries.indices.contains(index),
-                  openedFields == nil || store.entries[index].fields == openedFields,
+                  openedFields == nil || store.entries[index].compact() == openedFields,
                   store.entries[index].kind == .hotp else {
                 return "The entry changed. Close and reopen the counter editor."
             }
@@ -2181,7 +2199,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "prefsExportConfirm":
             do {
-                let data = try PreferencesExport.export(store.preferencesPort).bytes
+                let data = try PreferencesExport.export(store.preferencesPort, interchange: store.interchangePolicy).bytes
                 onExport(data, "offlineotp-preferences.json")
                 closeSurface()
                 return nil
@@ -2190,7 +2208,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
         case "prefsConfirm":
             do {
-                let result = try PreferencesExport.apply(pendingImport, into: store.preferencesPort)
+                let result = try PreferencesExport.apply(pendingImport, into: store.preferencesPort, interchange: store.interchangePolicy)
                 store.reloadInactivityLock()
                 presentation.updateCardLayout(layout: store.cardLayout)
                 pendingImport = Data()
@@ -2288,7 +2306,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "restore":
             let replace = draft["replace"] == "true"
             guard let plan = store.restore(encrypted: pendingImport,
-                                           password: draft["password"] ?? "", replace: replace) else {
+                                           password: draft["password"] ?? "", replace: replace,
+                                           format: draft["restoreFormat"] ?? "vault-copy", andOtpVariant: draft["andOtpVariant"] ?? "encrypted") else {
                 return store.message ?? "The backup could not be read."
             }
             pendingImport = Data()
@@ -2360,7 +2379,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return "The selection changed. Close and reopen the export."
         }
         let chosen = linScpSelected.sorted().map { store.entries[$0] }
-        guard chosen.allSatisfy({ candidate in store.entries.contains { $0.fields == candidate.fields } }) else {
+        guard chosen.allSatisfy({ candidate in store.entries.contains { $0.compact() == candidate.compact() } }) else {
             return "The selection changed. Close and reopen the export."
         }
         let plain = draft["linScpPlain"] == "true"
@@ -2430,7 +2449,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         guard let index = passwordEditIndex, store.isUnlocked,
               openedGeneration.map { store.generation == $0 } == true,
               store.entries.indices.contains(index),
-              store.entries[index].fields == openedFields,
+              store.entries[index].compact() == openedFields,
               store.isRevealed(store.entries[index]) else {
             draft["password"] = ""
             return "The entry or session changed. Close and reopen the editor."
@@ -2451,7 +2470,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 updated["tags"] = .array(parsedTags.map { .string($0) })
                 replacement = try Entry.parse(.object(updated))
                 replacement.setThumbnail(chosenThumbnail.isEmpty ? entry.thumbnail : chosenThumbnail)
-            } else if PasswordCsvExport.supportsCommonEdit(entry) {
+            } else if PasswordCsvExport.supportsCommonEdit(entry, interchange: store.interchangePolicy) {
                 let url = draft["url"] ?? ""
                 let username = draft["username"] ?? ""
                 let password = draft["password"] ?? ""
@@ -2524,6 +2543,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 replacement = try Entry.parse(.object(updated))
                 replacement.setThumbnail(chosenThumbnail.isEmpty ? entry.thumbnail : chosenThumbnail)
             }
+            replacement.preserveExtensionFields(from: entry)
             guard store.update(at: index, with: replacement) else {
                 draft["password"] = ""
                 return store.message ?? "The password entry could not be saved to the vault."
@@ -2542,7 +2562,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         guard let index = editorIndex, store.isUnlocked,
               openedGeneration.map({ store.generation == $0 }) != false,
               store.entries.indices.contains(index),
-              store.entries[index].fields == openedFields,
+              store.entries[index].compact() == openedFields,
               store.isRevealed(store.entries[index]),
               var input = try? EmailEditInput.fromEntry(store.entries[index]) else {
             return "The email entry or session changed. Close and reopen the editor."
@@ -2595,7 +2615,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         guard let index = editorIndex, store.isUnlocked,
               openedGeneration.map({ store.generation == $0 }) != false,
               store.entries.indices.contains(index),
-              store.entries[index].fields == openedFields,
+              store.entries[index].compact() == openedFields,
               store.isRevealed(store.entries[index]),
               var input = try? EmailPasswordInput.fromEntry(store.entries[index]) else {
             clearSecrets()
@@ -2632,7 +2652,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         guard let index = editorIndex, store.isUnlocked,
               openedGeneration.map({ store.generation == $0 }) != false,
               store.entries.indices.contains(index),
-              store.entries[index].fields == openedFields,
+              store.entries[index].compact() == openedFields,
               store.isRevealed(store.entries[index]),
               var input = try? EmailSettingsInput.fromEntry(store.entries[index]) else {
             clearAddedPasswords()
@@ -2760,7 +2780,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     mergedIdentities[0] = primary
                 }
                 let account = EmailMaterial.Account(account: mergedAccount, identities: mergedIdentities)
-                guard openedFields == nil || store.entries[index].fields == openedFields else {
+                guard openedFields == nil || store.entries[index].compact() == openedFields else {
                     return "The email account changed. Close and reopen the editor."
                 }
                 var built = try Entry.email(account: account, tags: tags)
@@ -2880,7 +2900,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 thumbnailName: chosenThumbnail.isEmpty ? nil : chosenThumbnail,
                 newEntry: editorIndex == nil)
             if let index = editorIndex, store.entries.indices.contains(index) {
-                guard openedFields == nil || store.entries[index].fields == openedFields else {
+                guard openedFields == nil || store.entries[index].compact() == openedFields else {
                     return "The entry changed. Close and reopen the editor."
                 }
                 let explicitOverride: String? = (!chosenThumbnail.isEmpty && chosenThumbnail != store.entries[index].thumbnail)
@@ -2890,10 +2910,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     in: built,
                     overrideThumbnail: explicitOverride
                 )
+                built = try SharedEntryMetadataAdapter.roundTrip(built)
                 guard store.update(at: index, with: built) else {
                     return store.message ?? "The entry could not be saved."
                 }
             } else {
+                built = try SharedEntryMetadataAdapter.roundTrip(built)
                 guard store.add(built) else { return store.message ?? "The entry could not be saved." }
             }
             message("Entry saved.")
@@ -2986,7 +3008,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
         if command == "exportPasswordCsv", let index {
             guard store.entries.indices.contains(index),
-                  case .exportable(let dialect) = PasswordCsvExport.support(store.entries[index]),
+                  case .exportable(let dialect) = PasswordCsvExport.support(store.entries[index], interchange: store.interchangePolicy),
                   let exported = store.exportBrowserPasswordsCsvGroup(indices: [index], dialect: dialect) else {
                 return store.message ?? "The browser password CSV could not be written."
             }
@@ -3106,13 +3128,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard surfaceKey == "hardwareSeedCopy", !hardwareBusy, surfaceEpoch == store.generation,
                   let index = index, store.entries.indices.contains(index),
                   HardwareOathCopyPolicy.names(for: store.entries[index]) != nil else { return "Reopen account selection." }
-            hardwareCopyIndex = index; hardwareCopyFields = store.entries[index].fields
+            hardwareCopyIndex = index; hardwareCopyFields = store.entries[index].compact()
             draft["hardwareSeedConsent"] = "false"; draft["hardwareSeedTouch"] = "true"
             return nil
         case "hardwareSeedNFC", "hardwareSeedUSB":
             guard surfaceKey == "hardwareSeedCopy", !hardwareBusy, surfaceEpoch == store.generation,
                   let index = hardwareCopyIndex, store.entries.indices.contains(index),
-                  store.entries[index].fields == hardwareCopyFields else { return "The account changed. Reopen selection." }
+                  store.entries[index].compact() == hardwareCopyFields else { return "The account changed. Reopen selection." }
             guard draft["hardwareSeedConsent"] == "true" else { return "Explicit seed-export authorization is required." }
             draft["hardwareSeedConsent"] = "false"
             let password = draft.removeValue(forKey: "hardwareSeedPassword") ?? ""
@@ -3330,10 +3352,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "restorePreview":
             guard let count = store.previewEncryptedBackupCount(
-                encrypted: pendingImport, password: draft["password"] ?? "") else {
+                encrypted: pendingImport, password: draft["password"] ?? "",
+                format: draft["restoreFormat"] ?? "vault-copy", andOtpVariant: draft["andOtpVariant"] ?? "encrypted") else {
                 return store.message ?? "The backup could not be read."
             }
             draft["previewCount"] = String(count)
+            draft["password"] = "" // Confirmation consumes the staged payload, not another decryption.
             return nil
         case "fairEmailPreview":
             guard let count = store.previewFairEmailBackupCount(
@@ -3549,14 +3573,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
             passwordEditIndex = nil
             editorIndex = index
-            openedFields = store.entries[index].fields
+            openedFields = store.entries[index].compact()
             draft = ["tags": store.entries[index].tags.joined(separator: ", ")]
             openSurface("tagEdit", keepDraft: true)
             return nil
         case "thumbnail":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
             editorIndex = index
-            openedFields = store.entries[index].fields
+            openedFields = store.entries[index].compact()
             draft = ["thumbnail": store.entries[index].thumbnail]
             openSurface("thumbnailEdit", keepDraft: true)
             return nil
@@ -3564,7 +3588,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let index, store.entries.indices.contains(index),
                   store.entries[index].kind == .motp else { return "The entry changed." }
             editorIndex = index
-            openedFields = store.entries[index].fields
+            openedFields = store.entries[index].compact()
             draft = ["pin": store.entries[index].pin]
             openSurface("pinEdit", keepDraft: true)
             return nil
@@ -3572,7 +3596,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let index, store.entries.indices.contains(index),
                   store.entries[index].kind == .hotp else { return "The entry changed." }
             editorIndex = index
-            openedFields = store.entries[index].fields
+            openedFields = store.entries[index].compact()
             draft = ["counter": String(store.entries[index].counter)]
             openSurface("counterEdit", keepDraft: true)
             return nil
@@ -3595,7 +3619,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "delete":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
             editorIndex = index
-            openedFields = store.entries[index].fields
+            openedFields = store.entries[index].compact()
             openSurface("delete", keepDraft: true)
             return nil
         default: return nil
@@ -3796,7 +3820,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         do {
             if let config = try store.loadAutomaticBackupConfiguration() {
                 automaticVaultCopyMode = config.vaultCopy
-                if config.requiresSigning == true {
+                if BackupAutomationPolicy().resume(unlocked: store.isUnlocked, requiresSigning: config.requiresSigning == true, signingAvailable: false) != "READY" {
                     automaticRequiresSigning = true; automaticRecipientKeys = config.recipientKeys ?? []
                     automaticRecipientNames = automaticRecipientKeys.indices.map { "Saved recipient \($0 + 1)" }
                     automaticFolder = try config.destination(); automaticMinutes = config.minutes; automaticKeep = config.keep
@@ -3821,14 +3845,17 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let configured = automaticBackup.configure(directory: destination, password: password, confirmation: confirmation,
             minutes: minutes, keep: keep, snapshot: { [weak self] in
                 guard let self = self, self.active, self.foreground, self.store.isUnlocked, self.store.generation == generation else { return nil }
-                return try? VaultDocument.encode(self.store.entries)
+                return try? SharedEntryDocumentAdapter().encode(self.store.entries)
             }, changed: { [weak self] in self?.refresh() }, beforeEnable: {
                 if remember {
                     let config = try AutomaticBackupConfiguration(folder: destination, password: password, minutes: minutes, keep: keep, recipientKeys: recipientKeys, requiresSigning: signingKey != nil, vaultCopy: vaultCopy)
                     try self.store.saveAutomaticBackupConfiguration(config)
                 }
             }, recipientKeys: recipientKeys, sealRecipients: recipientKeys.isEmpty ? nil : store.automaticOpenPgpEncoder(),
-            admitted: { self.active && self.foreground && self.store.isUnlocked && self.store.generation == generation },
+            admitted: { [weak self] in
+                guard let self else { return false }
+                return self.active && self.foreground && self.store.isUnlocked && self.store.generation == generation
+            }, generation: { [weak self] in self?.store.generation ?? -1 },
             signingKey: signingKey, signingPassphrase: signingPassphrase,
             sealSigned: signingKey == nil ? nil : store.automaticOpenPgpSignedEncoder(),
             vaultSnapshot: vaultCopy ? { [weak self] in
@@ -3893,8 +3920,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     private func close() {
+        closeSurface()
         nativeRequestID = UUID()
         active = false
+        cardIdentities = [:]; displayedEntries = [:]
         automaticBackup.disable(); automaticFolder = nil; automaticRecipientKeys = []; automaticRecipientNames = []; automaticSigningKey = nil; automaticSigningName = ""
         hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil; hardwareMessage = ""
         backupChanges?.cancel(); backupChanges = nil

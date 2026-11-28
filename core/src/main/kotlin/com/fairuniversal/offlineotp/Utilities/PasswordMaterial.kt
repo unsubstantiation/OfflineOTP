@@ -1,8 +1,5 @@
 package com.fairuniversal.offlineotp.Utilities
 
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
-import java.util.Locale
 
 /** Bounded payload for one imported password, retaining every source CSV column. */
 object PasswordMaterial {
@@ -20,52 +17,12 @@ object PasswordMaterial {
     fun encode(columns: List<String>, row: BrowserPasswordCsv.Row): ByteArray =
         encodeFields(columns.indices.map { columns[it] to row.valueAt(it) })
 
-    fun encodeFields(pairs: List<Pair<String, String>>): ByteArray {
-        require(pairs.size in 1..BrowserPasswordCsv.MAX_COLUMNS)
-        val fields = ArrayList<ByteArray>(pairs.size * 2)
-        try {
-            var size = 8L
-            fun field(value: String) {
-                require(value.length <= BrowserPasswordCsv.MAX_FIELD_CHARS)
-                val bytes = value.toByteArray(Charsets.UTF_8)
-                fields.add(bytes)
-                size += 4L + bytes.size
-                require(size <= MAX_BYTES)
-            }
-            for ((name, value) in pairs) { field(name); field(value) }
-            val result = ByteBuffer.allocate(size.toInt()).putInt(MAGIC).putInt(pairs.size)
-            for (bytes in fields) result.putInt(bytes.size).put(bytes)
-            return result.array().also { decode(it) }
-        } finally { fields.forEach { it.fill(0) } }
-    }
+    fun encodeFields(pairs: List<Pair<String, String>>): ByteArray =
+        requireNotNull(com.fairuniversal.offlineotp.domain.CredentialMaterialCodec().passwordEncode(
+            pairs.map { it.first }, pairs.map { it.second })) { "Invalid password data" }
 
     fun decode(bytes: ByteArray): Fields {
-        require(bytes.size in 8..MAX_BYTES)
-        val input = ByteBuffer.wrap(bytes)
-        require(input.int == MAGIC)
-        val count = input.int
-        require(count in 1..BrowserPasswordCsv.MAX_COLUMNS)
-        fun field(): String {
-            require(input.remaining() >= 4)
-            val length = input.int
-            require(length in 0..input.remaining() && length <= MAX_BYTES)
-            val slice = input.slice()
-            slice.limit(length)
-            val value = try {
-                Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(slice).toString()
-            } catch (_: Exception) { throw IllegalArgumentException("Invalid password data") }
-            require(value.length <= BrowserPasswordCsv.MAX_FIELD_CHARS)
-            input.position(input.position() + length)
-            return value
-        }
-        val names = ArrayList<String>(count)
-        val values = ArrayList<String>(count)
-        repeat(count) { names.add(field()); values.add(field()) }
-        require(!input.hasRemaining())
-        val normalized = names.map { it.trim().lowercase(Locale.ROOT) }
-        require(normalized.none { it.isEmpty() } && normalized.toSet().size == count)
-        require(normalized.containsAll(listOf("url", "username", "password")))
-        return Fields(names, values)
+        val fields = requireNotNull(com.fairuniversal.offlineotp.domain.CredentialMaterialCodec().passwordDecode(bytes)) { "Invalid password data" }
+        return Fields(fields.names, fields.values)
     }
 }

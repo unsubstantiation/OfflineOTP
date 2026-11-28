@@ -209,7 +209,7 @@ class AndroidSharedDialogTest(unittest.TestCase):
     def test_shared_ui_module_comment_matches_the_current_platform_boundary(self):
         gradle = UI_GRADLE.read_text(encoding="utf-8")
         self.assertNotRegex(gradle, re.compile(r"iOS currently uses SwiftUI", re.IGNORECASE))
-        self.assertIn("iOS uses the native-compatible :ui-foundation", gradle)
+        self.assertIn("All production rendering lives in :ui-foundation", gradle)
 
 
 if __name__ == "__main__":

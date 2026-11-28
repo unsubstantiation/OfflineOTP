@@ -143,6 +143,12 @@ open class IntroScreenActivity : IntroActivity() {
                     readFirstRunBackup(uri, password)
                 }
             },
+            onDecodeSelected = { password, format, variant ->
+                if (firstRunPasswordDialog === view && !isFinishing() && VaultSession.isCurrent(setupGeneration)) {
+                    firstRunPasswordDialog = null; view.dismiss()
+                    readFirstRunBackup(uri, password, format, variant)
+                }
+            },
             onDismiss = {
                 if (firstRunPasswordDialog === view) {
                     firstRunPasswordDialog = null
@@ -155,8 +161,8 @@ open class IntroScreenActivity : IntroActivity() {
         view.show()
     }
 
-    private fun readFirstRunBackup(uri: Uri, backupPassword: String) {
-        val task = FirstRunBackupRestoreTask(this, uri, backupPassword)
+    private fun readFirstRunBackup(uri: Uri, backupPassword: String, format: String? = null, variant: String = "encrypted") {
+        val task = FirstRunBackupRestoreTask(this, uri, backupPassword, format, variant)
         firstRunRestoreTask = task
         introFinishedFragment?.showRestoreProgress()
         task.setOutcomeCallback { outcome ->

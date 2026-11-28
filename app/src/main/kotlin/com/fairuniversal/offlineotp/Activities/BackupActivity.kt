@@ -52,8 +52,9 @@ import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
 import com.fairuniversal.offlineotp.ui.host.BackupOverviewComposeView
 import com.fairuniversal.offlineotp.ui.portable.PortableToolGroup
 import com.fairuniversal.offlineotp.ui.portable.PortableToolItem
-import com.fairuniversal.offlineotp.ui.host.RestoreModeComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.CheckboxConfirmationComposeView
+import com.fairuniversal.offlineotp.domain.RestoreWorkflow
 import com.fairuniversal.offlineotp.ui.host.EncryptedExportComposeView
 import com.fairuniversal.offlineotp.ui.host.EncryptedRestorePasswordComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
@@ -91,8 +92,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var backupDescription = ""
     private var backupWarning: String? = null
     private var replaceExisting = false
-    private var activeRestoreModeDialog: ComposeDialogHost? = null
     private var activePasswordDialog: ComposeDialogHost? = null
+    private var pendingRestoreDocument: String? = null
+    private var pendingRestoreWorkflow: RestoreWorkflow? = null
     private var activeKeyFileDialog: ComposeDialogHost? = null
     internal fun currentKeyFileDialog(): ComposeDialogHost? = activeKeyFileDialog
     private val openPgpPort by lazy { RpgpOpenPgpPort() }
@@ -201,7 +203,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             // the existing result path. OpenPGP provider setup may still require the Backup screen.
             when (requestedTool) {
                 Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
-                Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP -> chooseRestoreMode(requestedTool)
+                Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP -> chooseRestoreSource(requestedTool)
                 Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT -> showSaveFileSelector(
                     Constants.BACKUP_MIMETYPE_CRYPT, Constants.BackupType.ENCRYPTED, requestedTool)
                 Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP -> showSaveFileSelector(
@@ -255,8 +257,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 Constants.BackupType.UNAVAILABLE -> Unit
             }
             "restore" -> if (restoreEnabled) when (backupType) {
-                Constants.BackupType.ENCRYPTED -> chooseRestoreMode(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
-                Constants.BackupType.OPEN_PGP -> chooseRestoreMode(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
+                Constants.BackupType.ENCRYPTED -> chooseRestoreSource(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
+                Constants.BackupType.OPEN_PGP -> chooseRestoreSource(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
                 Constants.BackupType.UNAVAILABLE -> Unit
             }
         }
@@ -486,6 +488,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     private fun clearActiveAction() {
+        pendingRestoreDocument = null
+        pendingRestoreWorkflow?.cancel(); pendingRestoreWorkflow = null
         activeActionRequestCode = null
         activeActionUri = null
         activeActionReplace = false
@@ -648,11 +652,11 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     public override fun onDestroy() {
+        pendingRestoreDocument = null
+        pendingRestoreWorkflow?.cancel(); pendingRestoreWorkflow = null
         clearBackupFeedback()
         backupOverview?.clear()
         backupOverview = null
-        activeRestoreModeDialog?.dismiss()
-        activeRestoreModeDialog = null
         activeKeyFileDialog?.dismiss()
         activeKeyFileDialog = null
         activePasswordDialog?.dismiss()
@@ -666,13 +670,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         !(lockedWhilePicker && pendingPickerRequestCode != null)
 
     override fun onVaultLocked() {
+        pendingRestoreDocument = null
+        pendingRestoreWorkflow?.cancel(); pendingRestoreWorkflow = null
         completedBackupNotice = null
         clearBackupFeedback()
         backupOverview?.clear(getString(R.string.backup_desc_vault_locked_picker))
         encryptionKey = null
         waitingForPassword = false
-        activeRestoreModeDialog?.dismiss()
-        activeRestoreModeDialog = null
         activeKeyFileDialog?.dismiss()
         activeKeyFileDialog = null
         activePasswordDialog?.dismiss()
@@ -785,8 +789,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 }
                 handleOpenPGPResult(resultIntent, os, result.uri, Constants.INTENT_BACKUP_DECRYPT_PGP)
             } else {
-                if (restoreEntries(result.payload!!, false)) finishWithResult()
-                else clearActiveAction()
+                previewRestore(result.payload!!, true)
             }
         } else {
             clearActiveAction()
@@ -882,31 +885,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     /* Generic functions for all backup/restore options */
 
-    /** Snapshot mode before the external picker; never let a stale prompt start an operation. */
-    private fun chooseRestoreMode(requestCode: Int) {
+    /** Source selection is read-only. Merge/replace consent belongs to the validated preview. */
+    private fun chooseRestoreSource(requestCode: Int) {
         if (!canOperate() || !allowExit) return
         if (requestCode != Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT &&
             requestCode != Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP) return
-        val generation = VaultSession.generation()
-        activeRestoreModeDialog?.dismiss()
-        var host: RestoreModeComposeView? = null
-        val closeHost = {
-            val h = host
-            if (activeRestoreModeDialog === h) activeRestoreModeDialog = null
-            h?.dismiss()
-            Unit
-        }
-        host = RestoreModeComposeView(this,
-            onConfirm = { replace ->
-                val ownsPrompt = activeRestoreModeDialog === host
-                closeHost()
-                if (ownsPrompt && VaultSession.isCurrent(generation) && canOperate() && allowExit) {
-                    replaceExisting = replace
-                    showOpenFileSelector(requestCode)
-                }
-            }, onDismiss = closeHost)
-        activeRestoreModeDialog = host
-        host.show()
+        replaceExisting = false
+        showOpenFileSelector(requestCode)
     }
 
     private fun showOpenFileSelector(intentId: Int) {
@@ -981,6 +966,41 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         } finally { publishBackupOverview() }
     }
 
+    /** A decrypted result is read-only until the shared preview is explicitly confirmed. */
+    private fun previewRestore(text: String, finish: Boolean) {
+        if (!canOperate()) return
+        pendingRestoreWorkflow?.cancel()
+        val workflow = RestoreWorkflow()
+        val generation = VaultSession.generation()
+        val ticket = workflow.start(generation, false)
+        val decoded = try { DatabaseHelper.stringToEntries(text) } catch (_: Exception) { null }
+        val accepted = try { decoded != null && workflow.decoded(ticket, VaultSession.generation(), canOperate(),
+            decoded.size, decoded.toHashSet().size == decoded.size) }
+            finally { decoded?.forEach { it.destroy() }; decoded?.clear() }
+        if (!accepted) { clearActiveAction(); showBackupFeedback(R.string.backup_toast_import_failed); return }
+        pendingRestoreDocument = text; pendingRestoreWorkflow = workflow
+        var dialog: CheckboxConfirmationComposeView? = null
+        dialog = CheckboxConfirmationComposeView(this, "Restore full backup", "Backup contains ${workflow.count} entries. Nothing changes until you confirm.",
+            "Replace existing entries", "Restore", "Cancel", onConfirm = { replace ->
+                if (pendingRestoreWorkflow === workflow && workflow.confirm(ticket, VaultSession.generation(), canOperate(), replace)) {
+                    val document = pendingRestoreDocument
+                    pendingRestoreDocument = null; pendingRestoreWorkflow = null
+                    dialog?.dismiss(); if (activePasswordDialog === dialog) activePasswordDialog = null
+                    replaceExisting = workflow.replace
+                    if (document != null && workflow.beginInstall(ticket, VaultSession.generation(), canOperate(), workflow.count) && restoreEntries(document, finish)) workflow.installed(ticket, true)
+                    else { workflow.cancel(); clearActiveAction() }
+                } else if (pendingRestoreWorkflow === workflow) {
+                    clearActiveAction()
+                    dialog?.dismiss(); if (activePasswordDialog === dialog) activePasswordDialog = null
+                }
+            }, onDismiss = {
+                if (pendingRestoreWorkflow === workflow) clearActiveAction()
+                dialog?.dismiss(); if (activePasswordDialog === dialog) activePasswordDialog = null
+            })
+        activePasswordDialog?.dismiss(); activePasswordDialog = dialog
+        dialog.show()
+    }
+
     /** Adds the restored entries (replacing the current ones if selected) and saves the database. */
     private fun restoreEntries(text: String, finish: Boolean): Boolean {
         if (!canOperate()) return false
@@ -1037,7 +1057,14 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 closeDialog()
                 doRestoreCryptWithPassword(uri, newPassword)
             },
-            onDismiss = closeDialog
+            onDismiss = closeDialog,
+            onDecodeSelected = { password, format, variant ->
+                if (activePasswordDialog === pwDialog && canOperate()) {
+                    passwordSubmitted = true; waitingForPassword = false
+                    closeDialog()
+                    doRestoreCryptWithPassword(uri, password, format, variant)
+                }
+            }
         )
         pwDialog.setOnDismissListener {
             if (!passwordSubmitted) {
@@ -1050,11 +1077,11 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         pwDialog.show()
     }
 
-    private fun doRestoreCryptWithPassword(uri: Uri?, password: String) {
+    private fun doRestoreCryptWithPassword(uri: Uri?, password: String, format: String? = null, variant: String = "encrypted") {
         if (!canOperate()) return
         // ACTION_OPEN_DOCUMENT returns a SAF content URI. It remains usable for cloud and work
         // profile providers even when legacy shared external storage is not mounted.
-        val task = EncryptedRestoreTask(this, uri, password)
+        val task = EncryptedRestoreTask(this, uri, password, format, variant)
         startBackgroundTask(task, BackupTaskResult.ResultType.RESTORE)
     }
 
@@ -1434,13 +1461,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                     if (settings!!.getOpenPGPVerify()) {
                         val sigResult = result.getParcelableExtra<OpenPgpSignatureResult>(OpenPgpApi.RESULT_SIGNATURE)
                         if (sigResult != null && sigResult.getResult() == OpenPgpSignatureResult.RESULT_VALID_KEY_CONFIRMED) {
-                            if (!restoreEntries(restoredJSON, true)) clearActiveAction()
+                            previewRestore(restoredJSON, true)
                         } else {
                             clearActiveAction()
                             showBackupFeedback(R.string.backup_toast_openpgp_not_verified)
                         }
                     } else {
-                        if (!restoreEntries(restoredJSON, true)) clearActiveAction()
+                        previewRestore(restoredJSON, true)
                     }
                 } else {
                     notifyOpenPgpFailure(requestCode)

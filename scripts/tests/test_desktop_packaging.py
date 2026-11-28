@@ -78,6 +78,14 @@ class DesktopPackagingTest(unittest.TestCase):
         self.assertTrue(os.access(PACKAGING_DIR / "verify-desktop-build.sh", os.X_OK),
                         "reproducibility script must be executable")
 
+    def test_release_gate_requires_shared_runtime_and_can_forbid_native_skip(self):
+        for module in ("shared-domain", "ui-contract", "ui-model", "ui-foundation", "ui-desktop"):
+            self.assertIn(module, self.script)
+        self.assertIn('${REQUIRE_NATIVE_PACKAGE:-0}', self.script)
+        self.assertIn('Release validation requires jpackage', self.script)
+        for gate in ("scripts/kotlin-sandbox/compile-ui.sh", "scripts/check_shared_boundaries.py"):
+            self.assertIn(gate, self.ci)
+
     def test_packaging_readme_documents_the_jdk_requirement(self):
         readme = (PACKAGING_DIR / "README.md").read_text(encoding="utf-8")
         self.assertIn("JDK 17", readme)

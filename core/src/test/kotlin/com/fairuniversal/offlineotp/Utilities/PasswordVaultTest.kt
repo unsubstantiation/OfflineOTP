@@ -312,9 +312,58 @@ class PasswordVaultTest {
         assertEquals("[]", EncryptedBackupCodec.open(password, file.bytes!!))
     }
 
+    @Test fun failedCreatePublishesNoCredentialSettings() {
+        val file = InMemoryByteStore(); file.failWrites = true
+        val settings = InMemorySettings()
+        val vault = PasswordVault(file, InMemoryByteStore(), settings)
+        assertTrue(vault.create(password) is VaultWriteResult.Rejected)
+        assertTrue(settings.strings.isEmpty()); assertTrue(settings.ints.isEmpty())
+        assertFalse(file.exists())
+    }
+
+    @Test fun failedRekeyDoesNotChangeCredentialsOrOverwriteRollback() {
+        val file = InMemoryByteStore(); val backup = InMemoryByteStore(); val settings = InMemorySettings()
+        val vault = PasswordVault(file, backup, settings)
+        assertEquals(VaultWriteResult.Saved, vault.create(password))
+        val key = (vault.open(password) as PasswordVault.Open.Unlocked).key
+        // Model a legacy Argon2 raw vault: these bytes still depend on adjacent settings.
+        file.bytes = CryptoPrimitives.encrypt(key, "[]".toByteArray(StandardCharsets.UTF_8))
+        val prior = file.read(); val strings = HashMap(settings.strings); val ints = HashMap(settings.ints)
+        file.failWrites = true
+        assertTrue(vault.changePassword(password, "replacement-password") is PasswordVault.ReKey.Failed)
+        assertEquals(strings, settings.strings); assertEquals(ints, settings.ints)
+        assertTrue(prior.contentEquals(file.read())); assertTrue(prior.contentEquals(backup.read()))
+        assertTrue(vault.open(password) is PasswordVault.Open.Unlocked)
+    }
+
+    @Test fun rekeyCrashAfterPromotionBeforeSettingsLeavesSelfContainedRecoveryAndOldBackup() {
+        val file = InMemoryByteStore(); val backup = InMemoryByteStore(); val settings = InMemorySettings()
+        val vault = PasswordVault(file, backup, settings)
+        assertEquals(VaultWriteResult.Saved, vault.create(password))
+        val prior = file.read(); val strings = HashMap(settings.strings); val ints = HashMap(settings.ints)
+        file.afterWrite = { throw IOException("crash after promotion before acknowledgment") }
+        assertTrue(vault.changePassword(password, "replacement-password") is PasswordVault.ReKey.Failed)
+        assertEquals(strings, settings.strings); assertEquals(ints, settings.ints)
+        assertTrue(prior.contentEquals(backup.read()))
+        val recovered = PasswordVault(file, InMemoryByteStore(), InMemorySettings())
+        assertTrue(recovered.open("replacement-password") is PasswordVault.Open.Unlocked)
+        assertTrue(PasswordVault(backup, InMemoryByteStore(), InMemorySettings()).open(password) is PasswordVault.Open.Unlocked)
+    }
+
+    @Test fun rekeySettingsFailureCannotRollBackAnAlreadyPromotedPortableFile() {
+        val file = InMemoryByteStore(); val backup = InMemoryByteStore(); val settings = InMemorySettings()
+        val vault = PasswordVault(file, backup, settings)
+        assertEquals(VaultWriteResult.Saved, vault.create(password))
+        val prior = file.read(); settings.failWrites = true
+        assertTrue(vault.changePassword(password, "replacement-password") is PasswordVault.ReKey.Failed)
+        assertTrue(prior.contentEquals(backup.read()))
+        assertTrue(PasswordVault(file, InMemoryByteStore(), InMemorySettings()).open("replacement-password") is PasswordVault.Open.Unlocked)
+    }
+
     private class InMemoryByteStore : AtomicByteStore {
         var bytes: ByteArray? = null
         var failWrites = false
+        var afterWrite: (() -> Unit)? = null
 
         override fun exists(): Boolean = bytes != null
 
@@ -325,6 +374,7 @@ class PasswordVaultTest {
             if (failWrites) throw IOException("injected write failure")
             // Model the adapter contract: a promoted file always reads back exactly what was written.
             bytes = data.clone()
+            afterWrite?.invoke()
         }
 
         override fun delete() {
@@ -333,11 +383,13 @@ class PasswordVaultTest {
     }
 
     private class InMemorySettings : KeyValueSettings {
+        var failWrites = false
         val strings = HashMap<String, String>()
         val ints = HashMap<String, Int>()
 
         override fun getString(key: String, default: String): String = strings[key] ?: default
         override fun putString(key: String, value: String) {
+            if (failWrites) throw IOException("settings write failed")
             strings[key] = value
         }
 

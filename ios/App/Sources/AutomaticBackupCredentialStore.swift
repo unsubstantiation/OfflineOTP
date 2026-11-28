@@ -1,5 +1,6 @@
 import Foundation
 import OfflineOTPKit
+import OfflineOTPPresentation
 
 /// Local record only: folder grants and backup password are encrypted together under the vault key.
 struct AutomaticBackupConfiguration: Codable, CustomStringConvertible {
@@ -23,29 +24,23 @@ struct AutomaticBackupConfiguration: Codable, CustomStringConvertible {
         bookmark = access ? try folder.bookmarkData(options: [.minimalBookmark], includingResourceValuesForKeys: nil, relativeTo: nil) : nil
     }
     static func validRecipients(_ keys: [Data]) -> Bool {
-        (1...64).contains(keys.count) && keys.allSatisfy { !$0.isEmpty && $0.count <= 32768 }
-            && keys.reduce(0, { $0 + $1.count }) <= 32768 && Set(keys).count == keys.count
+        guard keys.count <= 64, keys.allSatisfy({ $0.count <= 32768 }) else { return false }
+        let arrays = keys.map { data -> KotlinByteArray in
+            let bytes = KotlinByteArray(size: Int32(data.count))
+            for (i, byte) in data.enumerated() { bytes.set(index: Int32(i), value: Int8(bitPattern: byte)) }
+            return bytes
+        }
+        defer { for bytes in arrays { for i in 0..<bytes.size { bytes.set(index: i, value: 0) } } }
+        return BackupAutomationPolicy().validRecipients(keys: arrays)
     }
     var vaultCopy: Bool { version == 3 && mode == "vault-copy" }
     var description: String { "AutomaticBackupConfiguration(redacted)" }
     func destination() throws -> URL {
-        let validMode: Bool
-        switch version {
-        case 1:
-            validMode = AutomaticBackupPolicy.valid(minutes: minutes, retention: keep,
-                passwordUTF16Units: password.utf16.count, passwordsMatch: true)
-        case 2:
-            validMode = mode == "openpgp" && password.isEmpty && Self.validRecipients(recipientKeys ?? [])
-                && (1...1440).contains(minutes) && (1...100).contains(keep)
-        case 3:
-            validMode = vaultCopy && password.isEmpty && recipientKeys == nil
-                && (1...1440).contains(minutes) && (1...100).contains(keep)
-        default:
-            validMode = false
-        }
-        guard validMode, requiresSigning != true || version == 2, folder.hasPrefix("/"), folder.utf8.count <= 4096 else {
-            throw VaultCryptoError.invalidParameters
-        }
+        var encoded = try JSONEncoder().encode(self)
+        defer { encoded.resetBytes(in: 0..<encoded.count) }
+        guard let text = String(data: encoded, encoding: .utf8),
+              AutomaticBackupConfigurationCodec().canonical(text: text) != nil,
+              folder.hasPrefix("/"), folder.utf8.count <= 4096 else { throw VaultCryptoError.invalidParameters }
         guard let bookmark = bookmark else { return URL(fileURLWithPath: folder, isDirectory: true) }
         guard bookmark.count <= 32768 else { throw VaultCryptoError.invalidParameters }
         var stale = false
@@ -77,7 +72,9 @@ struct AutomaticBackupCredentialStore {
         defer { encrypted.resetBytes(in: 0..<encrypted.count) }
         var document = try AutomaticBackupCredentialCodec.open(key: key, encrypted: encrypted)
         defer { document.resetBytes(in: 0..<document.count) }
-        let config = try JSONDecoder().decode(AutomaticBackupConfiguration.self, from: document)
+        guard let text = String(data: document, encoding: .utf8),
+              let canonical = AutomaticBackupConfigurationCodec().canonical(text: text) else { throw VaultCryptoError.invalidParameters }
+        let config = try JSONDecoder().decode(AutomaticBackupConfiguration.self, from: Data(canonical.utf8))
         _ = try config.destination()
         return config
     }

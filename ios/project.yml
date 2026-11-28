@@ -124,6 +124,14 @@ targets:
     platform: iOS
     sources:
       - path: App/Tests
+      - path: ../desktop/src/test/resources/golden/portable-entry-metadata.json
+        buildPhase: resources
+      - path: ../desktop/src/test/resources/golden/portable-entry-documents.json
+        buildPhase: resources
+      - path: ../desktop/src/test/resources/golden/portable-vault-protocol.json
+        buildPhase: resources
+      - path: ../desktop/src/test/resources/golden/vault-container.json
+        buildPhase: resources
     dependencies:
       - target: OfflineOTP
       - package: YubiKit

@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.Activities
 
 import android.content.Context
+import com.fairuniversal.offlineotp.domain.UnlockAttemptPolicy
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
@@ -68,6 +69,10 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     private var biometricPending = false
     private var biometricGeneration = -1L
     private var biometricAutoShown = false
+    private val biometricAttempt = UnlockAttemptPolicy()
+    private var biometricTicket = 0L
+    private val hardwareAttempt = UnlockAttemptPolicy()
+    private var hardwareTicket = 0L
     private var unlockProgress: ProgressBar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,13 +82,14 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         authMethod = settings!!.getAuthMethod()
         newEncryption = getIntent()?.getStringExtra(Constants.EXTRA_AUTH_NEW_ENCRYPTION)
         existingAuthCredentials = settings!!.getAuthCredentials()
-        if (existingAuthCredentials.isEmpty()) {
+        val portableVault = com.fairuniversal.offlineotp.Utilities.DatabaseHelper.hasPortableVault(this)
+        if (existingAuthCredentials.isEmpty() && !portableVault) {
             existingAuthCredentials = settings!!.getOldCredentials(authMethod)
             isAuthUpgrade = true
         }
 
         // Abort if no current or legacy credentials are stored.
-        if (existingAuthCredentials.isEmpty()) {
+        if (existingAuthCredentials.isEmpty() && !portableVault) {
             Toast.makeText(this, R.string.auth_toast_password_missing, Toast.LENGTH_LONG).show()
             finishWithResult(false, null)
             return
@@ -200,6 +206,8 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
                 clearPasswordInput()
                 hardwarePending = true
                 hardwareGeneration = VaultSession.generation()
+                hardwareTicket = hardwareAttempt.start(hardwareGeneration, authForeground && !isFinishing())
+                if (hardwareTicket == 0L) { hardwarePending = false; return@setOnClickListener }
                 startActivityForResult(Intent(this, HardwareUnlockActivity::class.java), Constants.INTENT_AUTH_HARDWARE)
             }
         }
@@ -229,20 +237,25 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         sharedAuthentication?.clearFeedback()
         biometricPending = true
         biometricGeneration = VaultSession.generation()
+        val expected = biometricGeneration
+        val ticket = biometricAttempt.start(expected, authForeground && !isFinishing())
+        if (ticket == 0L) { biometricPending = false; return }
+        biometricTicket = ticket
         BiometricKeyStore.load(this) { result ->
-            if (!VaultSession.isCurrent(biometricGeneration) || !authForeground || isFinishing()) {
+            if (!biometricAttempt.current(ticket, VaultSession.generation(), authForeground && !isFinishing())) {
                 result.getOrNull()?.fill(0)
-                biometricPending = false
+                if (biometricTicket == ticket) { biometricAttempt.cancel(); biometricPending = false }
                 publishAuthentication()
                 return@load
             }
+            biometricAttempt.complete(ticket, VaultSession.generation(), authForeground && !isFinishing(), result.isSuccess)
             if (result.isSuccess) {
                 val vaultKey = result.getOrNull()
                 if (vaultKey != null && vaultKey.isNotEmpty()) {
                     // Hand the vault key to the session; the GCM tag is the real gate, not the
                     // biometric — a key that was re-encrypted after a password change will fail
                     // to open the file and the load path will have already cleared the stale item.
-                    finishWithResult(true, vaultKey, biometricGeneration)
+                    finishWithResult(true, vaultKey, expected)
                     try { vaultKey.fill(0) } catch (_: Exception) { }
                 } else {
                     try { vaultKey?.fill(0) } catch (_: Exception) { }
@@ -303,7 +316,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == Constants.INTENT_AUTH_HARDWARE) {
-            val accepted = hardwarePending && resultCode == RESULT_OK && VaultSession.isCurrent(hardwareGeneration)
+            val accepted = hardwareAttempt.complete(hardwareTicket, VaultSession.generation(), hardwarePending && !isFinishing(), resultCode == RESULT_OK)
             hardwarePending = false
             if (accepted) finishWithResult(true, null, hardwareGeneration)
             publishAuthentication()
@@ -393,12 +406,14 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     override fun onStop() {
         authForeground = false
+        biometricAttempt.cancel(); biometricPending = false
         publishAuthentication()
         passwordInput?.setAutoFillTextListener(null)
         super.onStop()
     }
 
     override fun onDestroy() {
+        biometricAttempt.close(); hardwareAttempt.close()
         clearPasswordInput()
         sharedAuthentication?.close(); sharedAuthentication = null
         passwordInput?.setAutoFillTextListener(null)
@@ -406,6 +421,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     override fun onVaultLocked() {
+        biometricAttempt.cancel(); hardwareAttempt.cancel()
         sharedAuthentication?.close()
         hardwarePending = false
         biometricPending = false

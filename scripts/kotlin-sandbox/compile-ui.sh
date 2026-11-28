@@ -6,10 +6,10 @@
 # and no Compose artifacts:
 #
 #   phase 1  compiles :core with its portable third-party stubs, exactly like compile-desktop.sh;
-#   phase 2  compiles ui-model/src/commonMain with NO Compose artifact on the classpath at all. This
+#   phase 2  compiles ui-model/src/jvmHostMain with NO Compose artifact on the classpath at all. This
 #            is the strong boundary: the frame layer cannot import Compose, Android, Swing, storage
 #            or session types even if it wanted to, because nothing provides them;
-#   phase 3  compiles ui/src/commonMain (the Compose widgets) against phase 1+2 plus hand-written
+#   phase 3  compiles ui/src/jvmHostMain (the Compose widgets) against phase 1+2 plus hand-written
 #            Compose Multiplatform stubs (scripts/kotlin-sandbox/stubs-compose);
 #   phase 4  compiles the frame-layer tests in ui-model/src/desktopTest (JUnit 4 shim) and runs them;
 #   phase 5  compiles the :desktop-compose host against the compiled :desktop gate output and the
@@ -27,9 +27,9 @@ set -euo pipefail
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SANDBOX/../.." && pwd)"
 CORE_MAIN="$ROOT/core/src/main/kotlin"
-MODEL_MAIN="$ROOT/ui-model/src/commonMain/kotlin"
+MODEL_MAIN="$ROOT/ui-model/src/jvmHostMain/kotlin"
 MODEL_TEST="$ROOT/ui-model/src/desktopTest/kotlin"
-UI_MAIN="$ROOT/ui/src/commonMain/kotlin"
+UI_MAIN="$ROOT/ui/src/jvmHostMain/kotlin"
 COMPOSE_STUBS="$SANDBOX/stubs-compose"
 OUT="${KOTLIN_UI_OUT:-$ROOT/reports/kotlin-sandbox/ui}"
 
@@ -77,7 +77,7 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "${YUBIKIT_CORE_STUBS[@]}")
 
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
-mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" -name '*.kt' -print0 | sort -z)
+mapfile -d '' CORE_SOURCES < <(find "$ROOT/shared-domain/src/commonMain/kotlin" "$CORE_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' MODEL_SOURCES < <(find "$MODEL_MAIN" "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
 mapfile -d '' MODEL_ONLY_SOURCES < <(find "$MODEL_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' UI_SOURCES < <(find "$UI_MAIN" "$ROOT/ui-foundation/src/commonMain/kotlin" "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
@@ -108,6 +108,8 @@ rm -rf "$OUT"
 mkdir -p "$OUT/core" "$OUT/model" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android" "$OUT/ios"
 
 echo "kotlinc: $KOTLINC"
+mapfile -d '' DOMAIN_SOURCES < <(find "$ROOT/shared-domain/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
+"$KOTLINC" -jvm-target 1.8 -nowarn -module-name shared-domain "${DOMAIN_SOURCES[@]}" -d "$OUT/domain"
 # Contracts must remain toolkit-free; foundation must compile WITHOUT core/model classes.
 mapfile -d '' CONTRACT_SOURCES < <(find "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
 "$KOTLINC" -jvm-target 1.8 -nowarn -module-name ui-contract "${CONTRACT_SOURCES[@]}" -d "$OUT/contract"

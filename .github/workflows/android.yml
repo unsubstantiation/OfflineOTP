@@ -124,7 +124,7 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: bash -o pipefail -c './gradlew --no-daemon --stacktrace :app:connected${{ matrix.flavor }}DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fairuniversal.offlineotp.ComposeVaultDeviceTest,com.fairuniversal.offlineotp.IssuerArtworkDeviceTest 2>&1 | tee reports/compose-validation/device.log'
+          script: bash -o pipefail -c './gradlew --no-daemon --stacktrace :app:connected${{ matrix.flavor }}DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fairuniversal.offlineotp.ComposeVaultDeviceTest,com.fairuniversal.offlineotp.IssuerArtworkDeviceTest,com.fairuniversal.offlineotp.AuthenticationFlowDeviceTest,com.fairuniversal.offlineotp.AutomaticBackupDeviceTest,com.fairuniversal.offlineotp.BackupRestoreDeviceTest,com.fairuniversal.offlineotp.EntryDocumentDeviceTest,com.fairuniversal.offlineotp.InterchangeCodecDeviceTest,com.fairuniversal.offlineotp.GoogleMigrationDeviceTest 2>&1 | tee reports/compose-validation/device.log'
 
       - name: Require all selected device assertions to have run
         run: python3 scripts/check_compose_device_results.py app/build/outputs/androidTest-results/connected

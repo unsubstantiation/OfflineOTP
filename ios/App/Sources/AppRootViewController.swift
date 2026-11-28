@@ -215,6 +215,7 @@ final class AppRootViewController: UIViewController {
     }
 
     @objc private func sceneBackgrounded() {
+        store.cancelPendingUnlock()
         foreground = false; nativeEpoch = UUID(); filePicker.cancel(); fileReader.cancel()
         setCovered(true)
         if store.isUnlocked && store.relockOnBackground {
