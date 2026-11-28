@@ -12,10 +12,12 @@ The earlier characterization of the iOS migration as complete was incorrect.
 `OfflineOTPKit` and the Swift hosts remain production dependencies. Removing their
 names from CI or wrapping their APIs does not replace them.
 
-User verification: all other builds/platforms are verified. iOS build failure is
-confirmed by Actions run 46113060304. That run stopped compiling the standalone
-Swift test suite; it does not establish whether the subsequent Kotlin framework
-and Xcode app stages would pass.
+Non-iOS verification is user-reported. The earlier iOS run
+[46113060304](https://github.com/unsubstantiation/OfflineOTP/actions/runs/46113060304)
+failed in the retired standalone Swift tests. The later
+[CodeQL run 46123053850](https://github.com/unsubstantiation/OfflineOTP/actions/runs/46123053850)
+exposed Kotlin source errors in `:ui-foundation:compileIosMainKotlinMetadata`.
+Neither establishes a successful framework/Xcode app build.
 
 ## Implemented in this follow-up
 
@@ -68,3 +70,21 @@ are also included in the existing JVM stub seam, but those stubs cannot validate
 Apple SDK signatures, Swift export names or service behavior. A real framework
 build plus Xcode app build is required for those; device tests remain required for
 pasteboard expiry, image decoding, security, hardware and lifecycle behavior.
+
+## Metadata compilation follow-up
+
+CodeQL's unchanged Java/Kotlin autobuild reached the iOS metadata task and reported:
+
+- Missing `platform.Foundation.timeIntervalSince1970` import in `IosClipboard`.
+- Vision's `CIImage` constructor expects a forward-declared Objective-C type, not
+  `platform.CoreImage.CIImage`, in shared iOS metadata.
+
+The source now imports the date extension and renders CI-backed images through
+`CIContext.createCGImage` before calling Vision's CGImage constructor. The rendered
+image is released after decoding; UIImage-owned CGImages remain borrowed. QR-only
+filtering and bounded, local-only clipboard expiry are unchanged.
+
+The JVM stubs were corrected to stop masking these mistakes; source regression
+checks pass. Rerun the metadata task, CodeQL and the native iOS build to verify the
+fix. Duplicate-KLIB messages in that log are warnings, not resolved by these edits.
+No replacement CodeQL workflow, task exclusion or analysis suppression remains.

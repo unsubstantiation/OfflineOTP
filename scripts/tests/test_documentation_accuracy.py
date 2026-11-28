@@ -87,6 +87,17 @@ class DocumentationAccuracyTest(unittest.TestCase):
                              "simulator build is the only artifact", "working daily-use app"):
                 self.assertNotIn(obsolete, document, name)
 
+    def test_current_status_records_metadata_failure_without_replacing_codeql(self):
+        status = text("docs/shared-ui-migration-status.md")
+        detail = text("docs/ios-kotlin-cutover.md")
+        self.assertIn("CodeQL", status)
+        self.assertIn("await a successful rerun", status)
+        for evidence in ("46123053850", ":ui-foundation:compileIosMainKotlinMetadata",
+                         "platform.Foundation.timeIntervalSince1970", "CIContext.createCGImage"):
+            self.assertIn(evidence, detail)
+        self.assertIn("No replacement CodeQL workflow", detail)
+        self.assertFalse((ROOT / ".github/workflows/codeql.yml").exists())
+
     def test_documentation_index_covers_every_top_level_guide(self):
         index = text("docs/README.md")
         for path in sorted((ROOT / "docs").glob("*.md")):

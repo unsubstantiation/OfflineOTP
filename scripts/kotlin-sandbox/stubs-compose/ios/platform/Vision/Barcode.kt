@@ -2,7 +2,6 @@
 package platform.Vision
 
 import platform.UIKit.StubCGImage
-import platform.UIKit.StubCIImage
 
 const val VNBarcodeSymbologyQR = "QR"
 class VNBarcodeObservation {
@@ -14,7 +13,6 @@ class VNDetectBarcodesRequest {
 }
 class VNImageRequestHandler {
     constructor(image: StubCGImage, options: Map<Any?, *>)
-    constructor(image: StubCIImage, options: Map<Any?, *>)
     fun performRequests(requests: List<VNDetectBarcodesRequest>, error: Any?): Boolean =
         kotlin.error("Vision stub must not execute")
 }
