@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate (or check) the committed UniFFI bindings from the reviewed UDL contract.
 #
-# Requires uniffi-bindgen 0.28.3 on PATH (or UNIFFI_BINDGEN=/path/to/uniffi-bindgen).
+# Requires uniffi-bindgen 0.32.2 on PATH (or UNIFFI_BINDGEN=/path/to/uniffi-bindgen).
 # UDL mode does not need a compiled Rust library, so this runs on any host with the
 # bindgen CLI. Native compilation/tests still require cargo and the platform toolchains.
 set -euo pipefail
@@ -12,7 +12,16 @@ BINDGEN="${UNIFFI_BINDGEN:-uniffi-bindgen}"
 MODE="${1:-generate}"
 
 if ! command -v "$BINDGEN" >/dev/null 2>&1; then
-    echo "uniffi-bindgen 0.28.3 is required (cargo install uniffi-bindgen --version 0.28.3)" >&2
+    echo "uniffi-bindgen 0.32.2 is required (cargo install uniffi --features cli --bin uniffi-bindgen --version 0.32.2)" >&2
+    exit 2
+fi
+
+if [[ "$MODE" != generate && "$MODE" != --check ]]; then
+    echo "usage: $0 [generate|--check]" >&2
+    exit 2
+fi
+if [[ "$("$BINDGEN" --version)" != "uniffi-bindgen 0.32.2" ]]; then
+    echo "uniffi-bindgen must match the pinned runtime (0.32.2)" >&2
     exit 2
 fi
 
@@ -25,7 +34,7 @@ CONFIG="$ROOT/rust/offlineotp-openpgp/uniffi.toml"
 
 commit_file() {
     local src="$1" dst="$2"
-    # UniFFI 0.28 emits trailing blanks; normalize identically for generation and drift checks.
+    # Normalize whitespace identically for generation and drift checks.
     sed -i 's/[[:blank:]]*$//' "$src"
     mkdir -p "$(dirname "$dst")"
     if [[ "$MODE" == "--check" ]]; then

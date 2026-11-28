@@ -1,6 +1,6 @@
 # Unified OpenPGP backend packaging
 
-The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21.1 + UniFFI 0.28.3).
+The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21.1 + UniFFI 0.32.2).
 The foreign-language contract is `rust/offlineotp-openpgp/src/offlineotp_openpgp.udl`.
 `rust/offlineotp-openpgp/uniffi.toml` keeps the generated loaders pointed at the
 packaged `offlineotp_openpgp` library name.
@@ -14,7 +14,7 @@ Generated bindings are committed so a JVM/Swift build does not need to run bindg
 ## Regenerate bindings
 
 ```sh
-cargo install uniffi-bindgen --version 0.28.3 --locked
+cargo install uniffi --features cli --bin uniffi-bindgen --version 0.32.2 --locked
 scripts/openpgp/generate-bindings.sh          # write
 scripts/openpgp/generate-bindings.sh --check  # fail on drift
 ```
