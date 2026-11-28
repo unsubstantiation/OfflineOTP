@@ -1,5 +1,9 @@
 # Existing-feature audit — 2026-10-26
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 The audit traced the documented OTP, import, search, tag and settings paths through their UI and
 implementation. It focused on incomplete behavior in existing features, not a promise that every
 optional request or device-specific issue has been resolved.

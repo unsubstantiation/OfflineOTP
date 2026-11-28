@@ -1,5 +1,10 @@
 # Shared automatic-backup decisions — chunk 8
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 Implemented 2026-11-20. This is a code/contract handoff, not a native-runtime or requested-OS parity certificate.
 
 ## Common responsibility and adapters
@@ -48,4 +53,4 @@ Local gates:
 
 New tests cover strict configuration adoption, native secret ownership, coalescing/catch-up, stale/locked/failed/duplicate completions, no signing downgrade, unknown/duplicate/malformed retention identities, pending reversion, desktop queued/in-flight rekey suppression and rekey during configuration. Added Android vault-bound password/restart/wrong-key tests and Apple production scheduler/configuration tests still require native execution.
 
-Outstanding equipped-runner gates: real Gradle common/JVM and both Android variant builds/instrumentation; Kotlin iOS framework/SwiftPM/Xcode app and test builds; packaged desktop smoke tests. Specifically exercise Files/SAF revocation and grant persistence, unlock/relock/background/rekey during queued and active backup work, signing reload, failed record decrypt/reconfiguration, retention failures and exact snapshot bytes on requested systems. Stub/source gates do not prove ABI compatibility, secure erasure, hardware/provider behavior or OS parity. Chunks 9 (presentation/UI) and 10 (final cleanup/release) remain separate.
+Outstanding equipped-runner gates: real Gradle common/JVM and both Android variant builds/instrumentation; Kotlin iOS framework and Xcode app/test builds; packaged desktop smoke tests. Specifically exercise Files/SAF revocation and grant persistence, unlock/relock/background/rekey during queued and active backup work, signing reload, failed record decrypt/reconfiguration, retention failures and exact snapshot bytes on requested systems. Stub/source gates do not prove ABI compatibility, secure erasure, hardware/provider behavior or OS parity. Presentation and cleanup slices are implemented; the broader iOS cutover remains incomplete.

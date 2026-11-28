@@ -1,5 +1,10 @@
 # One portable UI renderer — chunk 9
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 Implemented 2026-11-20. Native Gradle/Xcode builds and visual/device verification remain outstanding.
 
 ## Production boundary
@@ -103,9 +108,9 @@ Additional evidence:
 
 Required equipped-runner gates: real Gradle metadata/Android/desktop builds (including the new
 intermediate source-set wiring), both Android variants' instrumentation, Kotlin iOS framework build,
-SwiftPM and Xcode app/test builds. Device/package smoke tests must cover all entry kinds and tools,
+Xcode app/test builds. The standalone legacy SwiftPM suite is no longer a workflow gate. Device/package smoke tests must cover all entry kinds and tools,
 translations/font scaling/accessibility, theme/layout settings, long-list drag/autoscroll, filter/sort
 changes mid-gesture, failed persistence, relock/rekey/background while forms are open, copy/reveal,
 Files/SAF/native picker callbacks, and Android navigation insets on requested systems. Stub compilation
 does not prove Gradle resolution, Kotlin/Native ABI, rendering, VoiceOver/TalkBack, native durability
-or requested-OS feature parity. Final release/removal work remains chunk 10.
+or requested-OS feature parity. Cleanup source work is recorded in the [release handoff](shared-migration-release.md); iOS cutover remains incomplete.

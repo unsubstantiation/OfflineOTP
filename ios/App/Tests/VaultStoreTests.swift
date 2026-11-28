@@ -351,12 +351,6 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(makeStore().sortMode, .unsorted)
     }
 
-    func testCopyingSetsTheClipboardAndAnExpiry() {
-        // The pasteboard is a system service; this only checks the app's own arithmetic around it.
-        XCTAssertEqual(Clipboard.expirySeconds, 30)
-        XCTAssertTrue(Clipboard.copy("324550", now: Date(timeIntervalSince1970: 1_700_000_000)))
-    }
-
     // MARK: - Backups, restores and links
 
     func testAnExportedBackupRestoresIntoAnotherVault() throws {

@@ -44,7 +44,7 @@ of 1–1440 minutes (default 15), and retention of 1–100 files (default 10). E
 a detached snapshot and schedules the next backup only after the preceding write succeeds. Successful
 vault saves additionally trigger a coalesced backup after one second. Changes during an in-flight
 backup request one catch-up run; repeated changes cannot postpone the first pending run indefinitely.
-Back up now and Disable are explicit actions. Both hosts now also expose an **unsigned OpenPGP**
+Back up now and Disable are explicit actions. Both hosts now also expose an **OpenPGP**
 mode with snapshotted public recipient certificates and optional session-only signing. No plaintext automation mode is exposed.
 
 ## Credential and scheduling policy

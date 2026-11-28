@@ -1,32 +1,31 @@
-# Compose Multiplatform stubs (compile-only)
+# Compose/platform stubs — compile only
 
-Hand-written stand-ins for the Compose artifacts `:ui` depends on, used by
-[`../compile-ui.sh`](../compile-ui.sh). The sandbox can reach the Kotlin compiler and a JDK but not
-Maven Central, so the shared UI sources are type-checked against these declarations instead of the
-published jars.
+Handwritten declarations let `../compile-ui.sh` check shared Compose and host seams
+without resolving the real artifacts. **They are not a runtime or an API guarantee.**
+Nothing is rendered, measured, recomposed or attached to a real window.
 
-**They are not a runtime and prove nothing about behaviour.** No composable is executed, nothing is
-measured, drawn, laid out or recomposed, and the Android target's `androidx` artifacts are not
-involved at all. A green gate means:
+The gate compiles portable contracts/foundation separately from JVM engine adapters,
+runs headless presentation tests, and type-checks host seams. Paths follow the real
+package names so production imports stay unchanged:
 
-- `ui/src/jvmHostMain` compiles under `-jvm-target 1.8` against `:core` and no Android/desktop API;
-- a file that reaches for `android.*`, `java.awt`, storage, crypto or session types fails loudly;
-- the Compose-free projection layer compiles and its JUnit tests pass on a host JVM.
+- Main directories: Compose signatures used by portable/JVM UI.
+- `desktop/`: desktop window APIs.
+- `android/`: Android Compose seam, alongside the app's Android substitutes.
+- `ios/`: Compose UIKit bridge plus narrow Foundation/UIKit/Vision service signatures.
 
-The declarations mirror the real signatures for the subset the screen uses (and only that subset),
-so a call site that compiles here should compile against the artifacts — but Gradle is the build of
-record. Anything these stubs accept that the real API rejects (for example an argument name or a
-default that differs) is a gap to fix here, not evidence the code is correct.
+A stub compile can pass while the published SDK rejects a signature. Real Gradle,
+Kotlin/Native and Xcode builds remain the build of record. Do not loosen a stub to
+hide a real API mismatch or describe an inert stub as platform behavior.
 
-Files are grouped by the package they stand in for, under the real package names, so the imports in
-`ui/src/jvmHostMain` are unchanged between this gate and Gradle. Two subdirectories are compiled only
-by the phases that need them: `desktop/` (the Compose Desktop window APIs the `:desktop-compose` host
-calls) and `android/` (the Compose Android platform types the `ComposeView` seam calls, which need the
-app's own Android stubs on the classpath).
+## Known boundaries
 
-### Android View inheritance
+The Android stub keeps `ComposeView` final and exposes `AbstractComposeView.Content()`
+as the custom-view extension point, matching
+[AndroidX source](https://github.com/androidx/androidx/blob/ca175c23e35c88a0a4517e7d1bc01764a60e3dbf/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/ComposeView.android.kt).
 
-The Android stub keeps `ComposeView` final and exposes `AbstractComposeView.Content()` as the
-custom-view extension point, matching [AndroidX source](https://github.com/androidx/androidx/blob/ca175c23e35c88a0a4517e7d1bc01764a60e3dbf/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/ComposeView.android.kt).
-The earlier `open ComposeView` stub hid an invalid subclass in the Android seam. Keep API
-restrictions as well as method signatures: permissive stubs can accept code real artifacts reject.
+The iOS date, clipboard and Vision stand-ins do not simulate OS expiry, local-only
+pasteboards or QR decoding. Service stubs throw if executed where applicable.
+Their presence does not validate Swift export names, native ownership or Apple ABI.
+
+See [sandbox limits](../README.md) and
+[native validation](../../../docs/shared-ui-native-validation.md).

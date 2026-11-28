@@ -2,6 +2,7 @@ import Combine
 import UIKit
 import UniformTypeIdentifiers
 import OfflineOTPKit
+import OfflineOTPPresentation
 
 /// The app shell. It owns the store, switches between the shared Compose unlock and vault screens,
 /// and provides only the services UIKit must supply: document pickers, scene lifecycle and the
@@ -20,7 +21,7 @@ final class AppRootViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = ForestPalette.background
+        view.backgroundColor = IosHostPalette.shared.background
         install(unlocked: store.isUnlocked)
         subscription = store.$isUnlocked.receive(on: DispatchQueue.main)
             .sink { [weak self] unlocked in self?.install(unlocked: unlocked) }
@@ -144,7 +145,7 @@ final class AppRootViewController: UIViewController {
                 coordinator.importedQrImagePayload(nil)
             }) { data in
                 guard coordinator.acceptsNativeResult(request) else { return }
-                let payload = UIImage(data: data).flatMap(QrImageReader.payload(in:))
+                let payload = UIImage(data: data).flatMap { IosQrImageReader.shared.payload(image: $0) }
                 coordinator.importedQrImagePayload(payload)
             }
         }
@@ -227,10 +228,10 @@ final class AppRootViewController: UIViewController {
     private func setCovered(_ covered: Bool) {
         if covered, privacyCover == nil {
             let cover = UIView(frame: view.bounds)
-            cover.backgroundColor = ForestPalette.background
+            cover.backgroundColor = IosHostPalette.shared.background
             cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             let lock = UIImageView(image: UIImage(systemName: "lock.fill"))
-            lock.tintColor = ForestPalette.textHint
+            lock.tintColor = IosHostPalette.shared.textHint
             lock.translatesAutoresizingMaskIntoConstraints = false
             cover.addSubview(lock)
             NSLayoutConstraint.activate([

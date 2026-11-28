@@ -1,5 +1,9 @@
 # Incomplete-feature audit — 2026-11-06 (fourth pass)
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 The third pass searched for code that existed but no user could reach. This pass takes the five
 gaps left open at the end of that summary and either closes them or says why they cannot be closed
 here. Three are closed. One is **declined** — a product decision recorded so it stops reading as an

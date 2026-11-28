@@ -306,9 +306,9 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         self.assertIn("OFFLINEOTP_OPENPGP_NATIVE", plan)
         self.assertIn("backendUnavailable", plan)
         self.assertIn("## Non-goals for v1", plan)
-        self.assertIn("Android via external OpenKeychain provider, desktop via embedded PGPainless, iOS with", plan)
-        self.assertIn("none). That gap is now closed", plan)
-        self.assertIn("one implementation for all five distributions", plan)
+        self.assertIn("common engine", plan)
+        self.assertIn("does not prove every platform's integration", plan)
+        self.assertIn("last reported iOS build failed", plan)
 
         parity = (ROOT / "docs/client-parity-2026-11-02.md").read_text(encoding="utf-8")
         self.assertIn("Two things are deliberately *not* the same", parity)
@@ -328,7 +328,7 @@ class OpenPgpRustCrateTest(unittest.TestCase):
 
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("rust/offlineotp-openpgp", readme)
-        self.assertIn("rpgp 0.21 + UniFFI, 5/5", readme)
+        self.assertIn("rpgp 0.21 + UniFFI", readme)
         self.assertIn("org.pgpainless:pgpainless-core:2.0.4", readme)
         self.assertIn("default desktop engine", readme)
         self.assertIn("fallback when the native library is absent", readme)

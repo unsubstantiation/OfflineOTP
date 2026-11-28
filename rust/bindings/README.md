@@ -11,3 +11,7 @@ JVM clients and exposes a stable reflective entry point.
 The Swift binding source is committed under `ios/Sources/offlineotp_openpgp/` so
 SwiftPM can compile it as a target when the XCFramework is present. The C header
 and module map in `swift/` are used by `scripts/openpgp/build-ios-xcframework.sh`.
+
+The Swift binding is still a production dependency during the iOS Kotlin cutover;
+its presence does not mean the legacy Swift engine is the intended architecture.
+See [the active inventory](../../docs/ios-kotlin-cutover.md).

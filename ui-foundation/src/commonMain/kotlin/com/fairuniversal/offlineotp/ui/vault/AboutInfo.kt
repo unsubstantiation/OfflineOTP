@@ -21,6 +21,6 @@ object AboutInfo {
         AboutLink("contributors", "Contributors", "https://github.com/unsubstantiation/OfflineOTP/graphs/contributors"),
         AboutLink("support", "Support development / Contributing", "https://github.com/unsubstantiation/OfflineOTP/blob/master/README.md#contributing")
     )
-    fun url(id: String): String = links.first { it.id == id }.url
+    fun url(id: String): String = links.firstOrNull { it.id == id }?.url ?: ""
     val thumbnailDisclaimer = listOf("All thumbnails are trademarks of their respective owners.", "The use of these trademarks does not indicate endorsement of the trademark holder by OfflineOTP, nor vice versa.", "Thumbnails should only be used to represent the company or product to which they refer.", "Please do not use thumbnails for any purpose except to represent that particular brand or service.")
 }

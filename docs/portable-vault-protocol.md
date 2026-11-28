@@ -1,5 +1,10 @@
 # Portable vault and backup wire policy — chunk 3
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 Status: **implemented; native release gates pending** (2026-11-20). This is protocol consolidation,
 not a vault-format redesign, crypto-provider replacement, session migration or restore state machine.
 See [migration plan](shared-code-migration.md) and [entry documents](portable-entry-documents.md).
@@ -117,7 +122,7 @@ compares deterministic native/shared backup writers, and rejects wrong passwords
 It is bundled in the Xcode test target along with its fixtures.
 
 **Native gates remain required:** actual Gradle/platform builds; both Android variants and device
-instrumentation; standalone `swift test`; Kotlin iOS framework export; Xcode app/XCTest build and
+instrumentation; Kotlin iOS framework export; Xcode app/XCTest build and
 execution. This Linux workspace has no Swift/Xcode/Android SDK. Stub/source checks are not proof
 of native ABI/export correctness or requested-OS runtime parity. Do not delete native oracles on
-the strength of these checks alone. Chunk 4 has not started.
+the strength of these checks alone. The restore slice is implemented; see [its handoff](portable-restore-workflow.md).

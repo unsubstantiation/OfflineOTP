@@ -1,5 +1,9 @@
 # Incomplete-feature audit — 2026-11-06 (third pass)
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 The first pass closed the unified OpenPGP backend and the second pass closed three unreachable
 scaffolds plus the desktop's at-rest permissions. This pass asked the same question once more,
 now with the toolchain bootstrapped locally so the JVM and sandbox gates could be run as the

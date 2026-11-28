@@ -1,5 +1,10 @@
 # Portable session/unlock authority (chunk 5)
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 ## Boundary
 
 `shared-domain/.../SessionAuthority.kt` owns secret-free generation/phase transitions,
@@ -54,4 +59,4 @@ background/sleep behavior remain native release gates. Existing native adapters/
 retained until those gates pass. Strings and Swift copy-on-write arrays carry no guaranteed
 zeroization claim.
 
-Chunk 6 (persistence) is not started by this work.
+The subsequent persistence slice is implemented; see [its handoff](portable-persistence-workflow.md).

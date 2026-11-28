@@ -1,7 +1,12 @@
 # Shared restore workflow — chunk 4
 
+> Implementation handoff; test counts and unexecuted gates below describe that slice.
+> See [current verification status](shared-ui-migration-status.md) for subsequent user verification and iOS failure.
+> Earlier Swift-oracle retention gates are superseded by the [active Kotlin cutover](ios-kotlin-cutover.md);
+> the standalone SwiftPM suite is no longer an iOS CI gate.
+
 Status: **implemented; native release validation outstanding** (2026-11-20).
-Chunk 5/session migration has not started. See [migration plan](shared-code-migration.md),
+Session migration is implemented as a shared slice. See [migration plan](shared-code-migration.md),
 [entry documents](portable-entry-documents.md) and [wire policy](portable-vault-protocol.md).
 
 ## Common application rules
@@ -146,5 +151,5 @@ exported enum/list/boxed-Boolean bridging remains a real native build gate, not 
 JVM/stub/source checks. Real Gradle builds, both Android variants/device instrumentation, requested
 OS runtime checks and native storage/provider failure checks remain required before release.
 
-Chunk 4 is implemented at the available-code/test level; chunk 5 has not started. Keep the native
+Chunk 4 is implemented at the available-code/test level; the session slice is implemented; see [its handoff](portable-session-authority.md). Keep the native
 oracles and compatibility adapters until the release gates pass.

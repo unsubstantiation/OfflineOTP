@@ -1,5 +1,9 @@
 # Incomplete-feature audit — 2026-11-01
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 This pass looked for features that are **half-present**: a type the engine stores but a client
 cannot show, a documented action that no code backs, a preference with no consumer, a dialog whose
 rows are built twice and drifted apart. It complements the bug hunts (behaviour that is wrong) and

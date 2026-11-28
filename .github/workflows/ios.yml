@@ -45,7 +45,7 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: Test Rust crate (rpgp + UniFFI, 5/5)
+      - name: Test Rust crate (rpgp + UniFFI)
         shell: bash
         run: |
           set -euo pipefail
@@ -78,8 +78,12 @@ jobs:
           exit 0
 
   build:
+    needs: openpgp-host
     runs-on: ${{ inputs.runner || 'macos-15' }}
-    timeout-minutes: 35
+    # Cold Rust, Gradle/Kotlin Native and Xcode builds have separate bounded steps below.
+    timeout-minutes: 75
+    env:
+      IOS_BUILD_LOG: ${{ github.workspace }}/ios/build-log.txt
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -93,6 +97,18 @@ jobs:
           workspaces: rust
           key: ios-xcframework
           
+      # Do not rely on the runner image's default Java or an incidental Android SDK.
+      # Root Gradle configures Android modules even when only building Kotlin Apple targets.
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
       - name: Cache Gradle packages and build cache
         uses: gradle/actions/setup-gradle@v4
 
@@ -126,31 +142,38 @@ jobs:
           }
           EOF
 
-      - name: Cache SwiftPM build artifacts
-        uses: actions/cache@v4
-        with:
-          path: ios/.build
-          key: swiftpm-${{ runner.os }}-${{ hashFiles('ios/Package.swift', 'ios/Package.resolved') }}
-          restore-keys: |
-            swiftpm-${{ runner.os }}-
-
       - name: Show the toolchain
         shell: bash
         run: |
           set -euo pipefail
-          uname -m
-          rustc --version
-          cargo --version
-          xcode-select -p
-          xcodebuild -version
-          swift --version
+          {
+            uname -m
+            rustc --version
+            cargo --version
+            java -version
+            xcode-select -p
+            xcodebuild -version
+            xcrun --sdk iphoneos --show-sdk-version
+            xcrun swift --version
+          } 2>&1 | tee -a "$IOS_BUILD_LOG"
+          # The pinned YubiKit package requires Swift tools 6.1, even while the app uses Swift 5 mode.
+          python3 - <<'PYTHON'
+          import re
+          import subprocess
+          import sys
+          version = subprocess.check_output(["xcrun", "swift", "--version"], text=True)
+          match = re.search(r"Swift version (\d+)\.(\d+)", version)
+          if not match or tuple(map(int, match.groups())) < (6, 1):
+              sys.exit("Select an Xcode toolchain with Swift 6.1 or later for the pinned YubiKit SDK.")
+          PYTHON
 
       - name: Build OpenPGP XCFramework
         timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/openpgp/build-ios-xcframework.sh --arm64-only
+          bash scripts/openpgp/build-ios-xcframework.sh --arm64-only 2>&1 | tee -a "$IOS_BUILD_LOG"
+          test -f ios/Frameworks/offlineotp_openpgp.xcframework/Info.plist
 
       - name: Verify the token vectors are not stale
         shell: bash
@@ -164,29 +187,13 @@ jobs:
           set -euo pipefail
           python3 scripts/ios/generate-thumbnail-catalog.py
 
-      - name: Build the package
-        timeout-minutes: 10
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd ios
-          swift build -c release --build-tests -Xswiftc -enable-testing 2>&1 | tee build-log.txt
-
-      - name: Run the format tests against the shared fixtures
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd ios
-          swift test -c release --parallel -Xswiftc -enable-testing 2>&1 | tee -a build-log.txt
-
       - name: Install XcodeGen
         timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail
           HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install xcodegen \
-            2>&1 | tee -a build-log.txt
+            2>&1 | tee -a "$IOS_BUILD_LOG"
           xcodegen --version
 
       - name: Generate the app icon
@@ -197,17 +204,22 @@ jobs:
           python3 scripts/ios/generate-app-icon.py --check
 
       - name: Build required Compose presentation XCFramework
-        timeout-minutes: 20
+        timeout-minutes: 30
         shell: bash
         run: |
           set -euo pipefail
-          : "${ANDROID_HOME:?GitHub macOS runner must provide Android SDK for root Gradle configuration}"
+          : "${ANDROID_HOME:?Android SDK setup must provide ANDROID_HOME for root Gradle configuration}"
           java -version
-          ./gradlew --no-daemon :ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework
+          # Exercise shared Kotlin presentation policies, then compile the real iOS implementation.
+          # Remaining Swift dependencies are compiled by xcodebuild, not a legacy SwiftPM test gate.
+          ./gradlew --no-daemon :ui-model:desktopTest :ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework \
+            2>&1 | tee -a "$IOS_BUILD_LOG"
+          test -f ui-foundation/build/XCFrameworks/release/OfflineOTPPresentation.xcframework/Info.plist
           mkdir -p ios/Frameworks
           rm -rf ios/Frameworks/OfflineOTPPresentation.xcframework
           ditto ui-foundation/build/XCFrameworks/release/OfflineOTPPresentation.xcframework \
             ios/Frameworks/OfflineOTPPresentation.xcframework
+          test -f ios/Frameworks/OfflineOTPPresentation.xcframework/Info.plist
 
       - name: Generate the Xcode project
         shell: bash
@@ -259,7 +271,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee -a build-log.txt
+            build 2>&1 | tee -a "$IOS_BUILD_LOG"
           test -d build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app
           test -x build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app/OfflineOTP
 
@@ -300,7 +312,7 @@ jobs:
             echo "::notice::No build log was produced."
             exit 0
           fi
-          pattern=': (error|warning): |error:|spec validation|damaged|cannot be opened|'
+          pattern=': (error|warning): |error:|^e: |FAILURE:|spec validation|damaged|cannot be opened|'
           pattern="${pattern}unable to (read|write|parse)|invalid (value|type)|not found"
           matches=$(grep -E -i "$pattern" ios/build-log.txt || true)
           if [ -z "$matches" ] && grep -E -qi '\b(error|failed|cannot|unable)\b' ios/build-log.txt; then

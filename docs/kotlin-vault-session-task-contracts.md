@@ -1,5 +1,9 @@
 # Kotlin vault, session and task contracts
 
+> **Historical extraction contract:** scope/toolchain/test notes describe the original slice.
+> See [current architecture and verification](shared-ui-migration-status.md) for later consolidation.
+> Behavioral rules remain relevant where their production callers still use them.
+
 ## Scope and acceptance status
 
 This migration introduced Kotlin contracts and Android-free session/task controllers. Later batches

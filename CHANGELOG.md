@@ -1,5 +1,8 @@
 # Changelog
 
+This is a chronological change record. Older entries describe their own revisions,
+not current build instructions or feature status. See [current documentation](docs/README.md).
+
 #### Unreleased
 
  * Shared multi-identity email editing, press-and-hold drag reordering & countdown timer parity: Move comprehensive multi-identity email editing (`SharedEmailEditDialog`), masked credential-only rotation (`SharedEmailPasswordDialog`), and connection/sender settings with staged secondary SMTP identity (`#2..#N`) removal (`SharedEmailSettingsDialog`) into `:ui-foundation` over pure KMP DTOs in `:ui-contract`, sharing one Compose Multiplatform implementation across Android, Windows/macOS/Linux desktop, and iOS. Wire dedicated `Edit settings` and `Change passwords` actions from `EmailDetailsDialog` on Compose desktop, Android (`EmailDetailsComposeView` starting masked by default plus inline revealed-card `Connection details`), and iOS (`ComposeVaultHost` + `OfflineOTPKit` `EmailEditInput`/`EmailPasswordInput`/`EmailSettingsInput` preserving custom issuer, label, hidden label, brand artwork, newline-separated tags, and FairEmail extensions). Share `portableEntryDragDirection` in `:ui-contract` so iOS `PortableVaultScreen` supports press-and-hold drag-and-drop card reordering with lifted previews and viewport edge auto-scrolling alongside masked OTP countdown rings, and expose persisted `Show individual countdown timers` (`ui_show_individual_timeouts`) in `SharedCardLayoutDialog` and portable preferences exports on both desktop and iOS.

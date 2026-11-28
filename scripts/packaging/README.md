@@ -1,103 +1,70 @@
-# Desktop packaging and release
+# Desktop packaging
 
-The default desktop client is Compose Multiplatform; Swing has been removed. Real runtime and release validation remain outstanding (see `docs/compose-desktop-cutover.md`). Two Gradle outputs matter for releases:
+Compose is the only desktop UI. `:desktop` supplies JVM engine/AWT services;
+`:desktop-compose` supplies the launcher, native-library staging and app image.
+The user reports non-iOS builds/platforms verified; see [current status](../../docs/shared-ui-migration-status.md).
 
-- `./gradlew :desktop-compose:distZip` (and `installDist`) from the standard `application` plugin — a
-  host-specific distribution (Compose/Skiko native artifacts follow the build OS) with launcher scripts and all dependency jars.
-- `./gradlew :desktop-compose:packageDesktop` — a native, installable app image produced by the JDK's
-  [`jpackage`](https://docs.oracle.com/en/java/javase/17/jpackage/packaging-tool-user-guide.pdf).
+## Outputs and requirements
 
-## Requirements
+Use a **full JDK 17+** with `jpackage`, Python 3 and the Android SDK required by root
+Gradle configuration. Dependencies resolve from configured repositories; native
+OpenPGP packaging also requires the Rust build output.
 
-- A **full JDK 17 or newer**. `jpackage` is not part of a JRE and is absent from stripped
-  runtimes; the `packageDesktop` task detects this and fails explicitly if jpackage is unavailable.
-- Platform installers are produced per operating system: run the task on Windows for `.msi`/`.exe`,
-  macOS for `.pkg`/`.app`, and Linux for `.deb`/`.rpm`. The default task builds an `app-image`
-  (no packager-specific toolchain required); pass `--type` through project properties when
-  extending it to native installers.
-- On macOS the result is `desktop-compose/build/release/OfflineOTP.app`. jpackage ad-hoc signs it, so it
-  starts locally but needs **right-click → Open** after a download until it is signed with an Apple
-  Developer ID. Pass `-PmacIconFile=/path/to/offlineotp.icns` to give the bundle an icon; the `.icns`
-  is deliberately not in the repository (`iconutil` builds it from `offlineotp.png`, which is what
-  the macOS workflow does). Archive it with `ditto -c -k --sequesterRsrc --keepParent`, never a
-  plain `zip`, which drops the symlinks and executable bits the bundle needs.
-- Dependencies resolve from Maven Central: `pgpainless-core` (with BouncyCastle), zxing-core and
-  the yubikit PC/SC module (with raw-HID `hid4java` excluded).
+```sh
+./gradlew --no-daemon :desktop-compose:distZip
+./gradlew --no-daemon :desktop-compose:packageDesktop
+```
 
-## Application icons
+- `distZip`/`installDist`: launcher scripts and dependency jars, with host-specific
+  Compose/Skiko native artifacts. Not a universal distribution.
+- `packageDesktop`: portable **app-image**, not a `.msi`, `.deb`, `.rpm` or `.pkg`
+  installer. Build on the target OS. The task has no generic `--type` override.
+- macOS output: `desktop-compose/build/release/OfflineOTP.app`. CI verifies/ad-hoc
+  signs it; it is not Developer ID signed or notarized. OS security policy may
+  require explicit user approval or proper distribution signing after download.
 
-Shared packaging artwork is stored at `desktop/src/main/resources/offlineotp.png`, which is also
-used by jpackage on Linux. Windows jpackage uses `desktop/packaging/offlineotp.ico`, containing
-multiple sizes for Explorer and the launcher. Both are generated from the same approved artwork
-as the Android icons; regenerate them with `python scripts/branding/generate_icons.py` (Pillow
-required). The app images are portable archives, not system-installed desktop entries; Linux
-menu or dock integration depends on the desktop environment and how the app is launched.
+The Windows/Debian workflows produce x86-64 images; macOS produces ARM64. They
+upload artifacts, not GitHub releases. Windows/macOS ZIPs are downloaded directly;
+Debian retains a checksum manifest and artifact wrapper. Only the separate manual
+validation workflow runs the broader desktop test matrix.
+
+## Icons and native dependencies
+
+`scripts/branding/generate_icons.py` maintains the shared PNG/Windows ICO from
+approved artwork. macOS uses `scripts/branding/generate-macos-icon.py` automatically
+when packaging; `-PmacIconFile=/path/to/icon.icns` overrides it. A missing override
+fails rather than silently using a Java icon. Archive macOS bundles with `ditto`
+to preserve required links/metadata.
+
+The distribution includes shared domain/UI jars and native dependencies, including
+the staged OpenPGP library. PGPainless/BouncyCastle remains an unavailable-native
+fallback; ZXing and YubiKit provide their respective platform integrations.
+See [OpenPGP packaging](../openpgp/README.md).
 
 ## Portable data folder
 
-Both clients' desktop builds keep their data beside the program: `data/secrets.dat`, `data/
-secrets.dat.bck`, `data/vault.properties` and the security-key unlock record live in a `data`
-folder inside the app image (or the `installDist`/`distZip` folder). Nothing is written to the
-user's home directory, so the whole folder can be copied to a USB stick or another machine and the
-vault comes with it. The folder is resolved from `-Dofflineotp.home`/`OFFLINEOTP_HOME` first, then
-from the jpackage launcher (`jpackage.app-path`), then from the running jar's location, and finally
-from the working directory. Because an installation under `/usr/lib`, `/opt` or `Program Files` is
-normally read-only, run the app image from a writable folder (which is what the CI artifacts are:
-unpacked archives) or point `-Dofflineotp.home` at one.
+Desktop data defaults to `data/secrets.dat`, `data/secrets.dat.bck`,
+`data/vault.properties` and local convenience-unlock records inside the program
+folder. Resolution order: `-Dofflineotp.home`/`OFFLINEOTP_HOME`, packaged launcher,
+running jar, then working directory. A read-only location fails explicitly instead
+of silently moving the vault to a home directory.
 
-## Reproducible builds
+Use a writable folder or an explicit data directory. Move/copy only while the app
+is closed. Never let two clients write one vault concurrently; keep a tested backup.
+Device-bound convenience grants are not a substitute for the recovery password.
 
-`verify-desktop-build.sh` builds `:desktop-compose:distZip` twice from independent source trees and
-Gradle homes with all caches disabled, then compares the archives byte-for-byte. The build
-configures `preserveFileTimestamps = false` and `reproducibleFileOrder = true` on every archive
-task, and the checked-in golden interop blobs under `desktop/src/test/resources/golden/` are
-themselves deterministic. Run it on a real CI host with network access:
+## Reproducibility and checks
 
-```
-scripts/packaging/verify-desktop-build.sh
+```sh
+REQUIRE_NATIVE_PACKAGE=1 scripts/packaging/verify-desktop-build.sh
 ```
 
-## Continuous integration
+Run this on the equipped Linux release host. It compares two independent `distZip`
+builds with separate Gradle homes and requires jpackage when the flag is set.
+Without the flag, a missing jpackage toolchain skips the native smoke check.
+This script does not launch the GUI or certify Windows/macOS package behavior.
 
-The Windows and Debian GitHub workflows build separate x64 jpackage app images and upload them
-as workflow artifacts with SHA-256 checksums. Debian builds inside a Debian 12 container. The Android
-workflow produces signed F-Droid and Play release APKs (only on `master` when signing secrets are
-configured) and no debug artifact — use a local Gradle build for debug. These workflows do not
-publish releases or perform device tests. The images are unsigned and are not `.msi` or `.deb`
-installers. `scripts/ci/desktop-ci.sh` remains available for the broader sandbox and desktop gates.
-
-## What the no-network sandbox verifies instead
-
-Gradle cannot run in the offline sandbox, so release packaging is structurally guarded there:
-
-- `scripts/kotlin-sandbox/compile-desktop.sh` compiles every desktop source (including the
-  jpackage/PGP/yubikit/zxing adapters) against narrow compile-only stubs and runs the headless
-  tests under `-Djava.awt.headless=true`.
-- `scripts/tests/test_desktop_packaging.py` pins the Gradle packaging configuration, the
-  reproducibility script and the CI script so the release wiring cannot silently disappear.
-
-No Swing fallback is built. Rollback requires a previously validated release and a backup; do not run two processes against one vault.
-
-### Shared application icon
-
-Android's forest-and-padlock artwork is the app identity on every platform.
-`scripts/branding/generate_icons.py` generates Android launcher assets, the shared desktop PNG,
-and Windows ICO from `design/forest-lock-no-circle.png`. Compose explicitly uses the shared
-PNG for its window icon. iOS and macOS use the full-resolution PNG embedded in the generated
-`assets/logo_legacy.svg`; their generators adapt sizes/formats, not the artwork.
-
-Local macOS `:desktop-compose:packageDesktop` now runs
-`scripts/branding/generate-macos-icon.py` automatically (requires Python 3 and macOS
-`sips`/`iconutil`). CI uses that same generator. An explicit `-PmacIconFile` remains supported,
-but a missing file fails packaging instead of substituting the Java/default icon.
-OS masks, corners and taskbar/launcher caching can still affect presentation.
-
-### Shared migration release gate
-
-Run `REQUIRE_NATIVE_PACKAGE=1 scripts/packaging/verify-desktop-build.sh` on the
-equipped Linux release host to reject a missing jpackage toolchain rather than
-accepting a skipped native smoke check. Shared domain/contract/model/foundation/UI
-jars are now required in the app image alongside the engine and crypto runtime.
-This shell check does not launch the GUI or certify Windows/macOS packaging;
-use the [migration release checklist](../../docs/shared-migration-release.md) for
-those remaining gates.
+`compile-desktop.sh` and Python packaging guards provide headless/stub and source
+coverage, not native package execution. `scripts/ci/desktop-ci.sh` combines broader
+local gates with a real Gradle distribution build. See the
+[release checklist](../../docs/shared-migration-release.md) for candidate evidence.

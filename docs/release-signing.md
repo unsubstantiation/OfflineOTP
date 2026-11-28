@@ -1,10 +1,10 @@
 # Signed release APKs
 
 Release signing is **opt-in**. The Android workflow only builds signed F-Droid and Play release
-APKs on `master` when the release keystore is configured; otherwise the workflow is skipped
-with a notice and stays green. No debug APK is built in CI — use a local
-`./gradlew :app:assembleFdroidDebug` build for development. This is why an unconfigured
-repository no longer shows a red Android build.
+APKs on `master` when the release keystore is configured; otherwise signed-release work is
+skipped with a notice. Other checks can still run/fail. No debug APK is uploaded as a release
+fallback. The manual emulator gate builds debug APKs for testing; use a local
+`./gradlew :app:assembleFdroidDebug` build for development.
 
 The credentials live in the **`android-release` environment** as repository/environment secrets:
 
@@ -18,8 +18,8 @@ The credentials live in the **`android-release` environment** as repository/envi
 `ANDROID_RELEASE_KEYSTORE`, `ANDROID_RELEASE_STORE_PASSWORD` and `ANDROID_RELEASE_KEY_PASSWORD` are
 still read as fallbacks, so a setup made with the older names keeps working. Two secrets are enough
 for the common case, because the key alias is not a secret: the job reads it out of the keystore
-with `keytool -list`. The workflow no longer creates GitHub Deployments — artifacts are downloaded
-from **Actions** (see below).
+with `keytool -list`. Download build artifacts from **Actions**; the workflow does not
+publish a GitHub release. Signing jobs use the `android-release` environment.
 
 There are two independent things to keep apart:
 
@@ -37,7 +37,7 @@ advisory is only a notice, so the run stays green.
 
 Check, in order:
 
-1. Both secrets are set as repository secrets (Settings → Secrets and variables → Actions).
+1. Both secrets are accessible to the `android-release` environment/signing jobs (environment or permitted repository secrets).
 2. The run is on `master` (or a `workflow_dispatch` of `master`).
 3. `ANDROID_KEYSTORE_BASE64` holds the base64 of the whole `.jks` file. A base64 of the `.b64` text
    or of a truncated file decodes to something `keytool` cannot open.

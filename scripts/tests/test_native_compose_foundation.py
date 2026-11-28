@@ -79,14 +79,15 @@ class NativeComposeFoundationTest(unittest.TestCase):
     def test_about_is_shared_production_content_not_a_swift_copy(self):
         self.assertFalse((ROOT / 'ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').exists())
         self.assertTrue((COMMON / 'com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').is_file())
-        generated = (ROOT / 'ios/App/Sources/AboutInfo.swift').read_text()
-        self.assertIn('enum AboutInfo {', generated)
-        self.assertIn('static func url(id: String) -> String', generated)
+        self.assertFalse((ROOT / 'ios/App/Sources/AboutInfo.swift').exists())
+        generated = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt').read_text()
+        self.assertIn('object AboutInfo {', generated)
+        self.assertIn('fun url(id: String): String', generated)
         ios = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         self.assertIn('case "about":', ios)
         self.assertIn('row("aboutLink:website"', ios)
         self.assertIn('row("aboutLink:issues"', ios)
-        self.assertIn('AboutInfo.url(id: parts[1])', ios)
+        self.assertIn('AboutInfo.shared.url(id: parts[1])', ios)
         self.assertIn('["http", "https"].contains(url.scheme ?? "")', ios)
         native = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutViewController.kt').read_text()
         self.assertIn('if (active) AboutDialog(', native)
@@ -97,7 +98,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         unlock_swift = (ROOT / 'ios/App/Sources/ComposeUnlockHost.swift').read_text()
         self.assertIn('AboutPresentation()', unlock_swift)
         self.assertIn('AboutComposeViewController(', unlock_swift)
-        self.assertIn('AboutInfo.url(id:', unlock_swift)
+        self.assertIn('AboutInfo.shared.url(id:', unlock_swift)
 
     def test_auto_lock_uses_one_dialog_and_contract_with_guarded_native_save(self):
         self.assertFalse((ROOT / 'ios/Sources/OfflineOTPKit/AutoLockOptions.swift').exists())
@@ -348,7 +349,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
             self.assertIn(shared_call, vc)
 
         root = (ROOT / 'ios/App/Sources/AppRootViewController.swift').read_text()
-        self.assertIn('QrImageReader.payload(in:)', root)
+        self.assertIn('IosQrImageReader.shared.payload(image:', root)
         self.assertIn('importedQrImagePayload(', root)
 
         screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text() + card_render_chain()
@@ -477,8 +478,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
         main_kt = (ROOT / 'app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt').read_text(encoding='utf-8')
         self.assertIn('.filter { current.isEntryRevealed(it) }', main_kt)
 
-        ios_clip = (ROOT / 'ios/App/Sources/Clipboard.swift').read_text(encoding='utf-8')
-        self.assertIn('.localOnly: true', ios_clip)
+        ios_clip = (ROOT / 'ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/platform/IosClipboard.kt').read_text(encoding='utf-8')
+        self.assertIn('UIPasteboardOptionLocalOnly to true', ios_clip)
 
         prefs_swift = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text(encoding='utf-8')
         self.assertIn('number.objCType', prefs_swift)

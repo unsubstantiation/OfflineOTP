@@ -1,7 +1,8 @@
 # Shared Compose device-verification checklist
 
 Use a disposable vault and backups. Do not test destructive key-store reset against your only copy.
-Source/JVM/stub checks pass; none of the following native scenarios is recorded as passed here.
+The user reports non-iOS builds/platform checks verified. This checklist has no per-scenario
+result log; iOS remains build-blocked. Use it for candidate-specific evidence, not to negate that report.
 Record OS/build/flavor, device, steps and observed result for failures.
 
 ## Build and presentation

@@ -148,7 +148,7 @@ final class UnlockComposeViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = ForestPalette.background
+        view.backgroundColor = IosHostPalette.shared.background
         coordinator.onAbout = { [weak self] in self?.presentAbout() }
         coordinator.refresh()
         let composed = coordinator.presentation.viewController(
@@ -219,7 +219,7 @@ final class AboutCoordinator: NSObject, AboutActions {
         guard active else { return false }
         let allowedIds = ["website", "releases", "changelog", "license", "source", "issues",
                           "author1", "author2", "originalAuthor", "originalApp", "contributors", "support"]
-        guard allowedIds.contains(where: { AboutInfo.url(id: $0) == url }),
+        guard allowedIds.contains(where: { AboutInfo.shared.url(id: $0) == url }),
               let target = URL(string: url),
               ["http", "https"].contains(target.scheme ?? "") else {
             return false
@@ -252,7 +252,7 @@ final class AboutComposeViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = ForestPalette.scrim
+        view.backgroundColor = IosHostPalette.shared.scrim
         coordinator.onDismiss = { [weak self] in
             self?.dismiss(animated: false)
         }
@@ -318,7 +318,7 @@ final class RestoreComposeViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = ForestPalette.scrim
+        view.backgroundColor = IosHostPalette.shared.scrim
         coordinator.onDismiss = { [weak self] in
             self?.dismiss(animated: false)
         }

@@ -77,6 +77,34 @@ class DocumentationAccuracyTest(unittest.TestCase):
             (ROOT / "fastlane/metadata/android/en-US/images/featureGraphic.png").read_bytes(),
         )
 
+    def test_current_guides_share_verification_and_cutover_status(self):
+        for name in ("README.md", "docs/README.md", "docs/shared-ui-migration-status.md", "ios/README.md"):
+            document = text(name)
+            self.assertIn("non-iOS", document, name)
+            self.assertIn("Swift", document, name)
+            self.assertRegex(document.lower(), r"ios[^\n]*(?:fail|cutover)|(?:fail|cutover)[^\n]*ios", name)
+            for obsolete in ("hard 10-minute budget", "no Face ID yet", "versionCode 39",
+                             "simulator build is the only artifact", "working daily-use app"):
+                self.assertNotIn(obsolete, document, name)
+
+    def test_documentation_index_covers_every_top_level_guide(self):
+        index = text("docs/README.md")
+        for path in sorted((ROOT / "docs").glob("*.md")):
+            if path.name != "README.md":
+                self.assertIn(f"]({path.name})", index, path.name)
+        for required in ("Historical reports", "Current status", "Contracts and focused guides"):
+            self.assertIn(required, index)
+
+    def test_packaging_guides_do_not_invent_installer_switches_or_ipa_size(self):
+        packaging = text("scripts/packaging/README.md")
+        self.assertIn("app-image", packaging)
+        self.assertIn("no generic `--type` override", packaging)
+        ios = text("ios/README.md")
+        self.assertIn("no fixed IPA size is promised", ios)
+        self.assertNotIn("about **2.5 MB**", ios)
+        self.assertIn("does **not** run standalone `swift test`", ios)
+
+
 
 if __name__ == "__main__":
     unittest.main()

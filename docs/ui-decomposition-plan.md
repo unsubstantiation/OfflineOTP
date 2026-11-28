@@ -1,5 +1,9 @@
 # UI decomposition plan
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 > **Status:** the Compose Multiplatform work is tracked separately in
 > [the unified UI plan](compose-unified-ui-plan.md); it adds a shared `:ui` module rather than
 > changing these boundaries. The five decomposition slices below are implemented and the large UI classes were

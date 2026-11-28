@@ -1,5 +1,9 @@
 # Scaffold audit — 2026-11-06 (second pass)
 
+> **Historical record:** findings, paths and test results below describe the reviewed revision,
+> not current implementation or verification. See [current status](shared-ui-migration-status.md)
+> and the [documentation index](README.md).
+
 The first pass ([incomplete-feature-audit](incomplete-feature-audit-2026-11-06.md)) closed the
 unified OpenPGP backend. This pass asked a narrower question: **what code exists, is packaged, and
 is never reached by any user-facing path?** Three genuine scaffolds turned up, plus one at-rest
