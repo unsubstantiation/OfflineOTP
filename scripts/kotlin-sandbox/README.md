@@ -13,9 +13,10 @@ bash scripts/kotlin-sandbox/bootstrap-toolchain.sh
 bash scripts/kotlin-sandbox/run.sh
 ```
 
-Bootstrap downloads a pinned Kotlin compiler/JDK from npm/PyPI, checks recorded
+Bootstrap downloads a pinned Kotlin compiler and Java runtime from npm/PyPI, checks recorded
 SHA-256 values and unpacks outside the repository. Those hashes are not independent
 provenance verification; prefer a trusted package manager/archive where available.
+The bootstrap runtime is not a full build JDK and does not supply `javac` or `jpackage`.
 
 With your own toolchain, set `JAVA_HOME`, `JAVA_BIN`, `KOTLINC` and, if necessary,
 `KOTLIN_STDLIB`. Outputs default to ignored `reports/kotlin-sandbox/` directories.

@@ -6,13 +6,15 @@ their Kotlin replacement is **in progress**, not complete. Only a narrow bridge 
 the official YubiKit SDK is intended to remain in Swift.
 
 **Status:** the last reported iOS build failed. Subsequent source/workflow fixes
-have local checks but no recorded successful native run. All non-iOS builds/platforms
-are user-reported verified. CodeQL also exposed iOS metadata compilation errors;
+have local checks but no recorded successful native run. Earlier non-iOS builds/platforms
+were user-reported verified; the latest dependency refresh still needs platform builds.
+CodeQL also exposed iOS metadata compilation errors;
 the [source fixes](../docs/ios-kotlin-cutover.md#metadata-compilation-follow-up) await a successful rerun.
 
 ## Requirements
 
-- macOS with full Xcode, an iPhoneOS SDK and Swift 6.2+ (required by pinned packages).
+- macOS with full Xcode and an iPhoneOS SDK; Swift 6.2+ is required by pinned packages.
+  CI defaults to `macos-26`/Xcode 26.6.
 - JDK 17; Android SDK platform 37/build-tools 37.0.0 for root Gradle configuration.
 - Rust/rustup, XcodeGen and Python 3; network access to resolve dependencies.
 - No signing identity for the unsigned CI device build. Device installation and
