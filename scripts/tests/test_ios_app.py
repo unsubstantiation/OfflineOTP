@@ -1003,8 +1003,8 @@ class IosAppTest(unittest.TestCase):
         """The simulator XCTest step consumed the old job after the app had already compiled.
 
         CI builds the required Compose presentation XCFramework and the iOS device app; it does not
-        publish a SwiftUI fallback. Host format tests and Rust host coverage remain separately
-        bounded across the macOS and parallel Linux jobs.
+        publish a SwiftUI fallback. Shared Kotlin presentation tests run on macOS;
+        Linux Rust host coverage must pass before the Apple build starts.
         """
         self.assertIn("timeout-minutes: 20", WORKFLOW)
         compose = WORKFLOW.split("- name: Build required Compose presentation XCFramework", 1)[1].split(

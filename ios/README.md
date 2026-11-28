@@ -32,6 +32,22 @@ is verified against the fixed vectors in `desktop/src/test/resources/golden/`, w
 desktop suites also use. See [docs/ios-client-plan.md](../docs/ios-client-plan.md) for the contract and
 the milestones.
 
+## CI build prerequisites and failure reporting
+
+The manual iOS workflow provisions Temurin JDK 17 and the Android 36 SDK explicitly
+because root Gradle configures Android modules even for Apple-target tasks. It
+requires a full Xcode installation with an iPhoneOS SDK and Swift 6.1 or later
+(the pinned YubiKit package's tools requirement). It does not rely on the runner's
+incidental default Java/Android setup.
+
+Linux OpenPGP host tests must pass before the macOS job starts. Rust and Compose
+XCFrameworks are built and their manifests checked before Xcode resolves package
+dependencies. The job permits 75 minutes for cold builds, with bounded Rust,
+framework and app-build steps; this is a limit, not an intended runtime.
+Rust framework, Gradle and Xcode build output shares `ios/build-log.txt` for failure
+diagnostics. Only the checked unsigned device IPA is uploaded on success. No
+standalone legacy SwiftPM tests, simulator tests, signing or publishing are added.
+
 ## Requirements
 
 - macOS with Xcode 15 or later (Swift 5.9).
