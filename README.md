@@ -8,13 +8,14 @@ logic and Compose Multiplatform UI. The iOS engine/host conversion is still in p
 
 ## Status and platforms
 
-- **Android:** Android 9/API 28 minimum; compile SDK 36, target SDK 35; F-Droid and Play flavors.
+- **Android:** Android 9/API 28 minimum; compile SDK 37, target SDK 35; F-Droid and Play flavors.
 - **Desktop:** Compose/JVM; Debian and Windows artifacts target x86-64, macOS targets ARM64.
 - **iOS:** iOS 17 deployment minimum; shared Compose UI with remaining Swift production
   dependencies. Only a thin YubiKit SDK bridge is intended to remain in Swift.
-- The user reports all non-iOS builds and platform checks verified. **The iOS build has
-  failed; fixes and the Kotlin cutover still require a successful native run.** This is
-  not a claim of an independent security audit or evidence for every future build.
+- Earlier non-iOS builds/platform checks were user-reported verified. **The iOS build
+  has failed; fixes and the Kotlin cutover still need a successful native run.**
+  The latest dependency refresh has local checks, not full platform-build validation.
+  See [dependency versions and validation limits](docs/dependency-refresh.md).
 
 See the [documentation index](docs/README.md), [current migration status](docs/shared-ui-migration-status.md)
 and [iOS cutover inventory](docs/ios-kotlin-cutover.md). Do not run two clients against
@@ -51,8 +52,8 @@ See [LinSCP interoperability](docs/linscp-key-session-interchange.md) and
 
 Use **+ → Add email account** on Android or **Add entry → Add email account…** on desktop;
 **Tools → Import FairEmail backup…** imports existing accounts. **Import Thunderbird**
-imports login credentials, not a complete mail profile. **View connection details** exposes
-stored account/connection fields; OfflineOTP is not a mail client.
+covers login credentials, not a complete mail profile. **View connection details**
+shows stored account fields; OfflineOTP is not a mail client.
 
 ## Vaults, backups and recovery
 
@@ -87,13 +88,15 @@ NFC and USB-C are separate transport capabilities; protocol/firmware support mus
 The Nitrokey Pro native OTP protocol is not implemented. Copying an app account to a key
 sends its seed to that key, and app/key HOTP counters then advance independently.
 
-Non-iOS verification is user-reported; iOS physical-key checks remain pending.
+Earlier non-iOS verification is user-reported; iOS physical-key checks remain pending.
 See [iOS hardware](docs/ios-hardware.md) for SDK and transport limitations.
 
 ## Build and run
 
-Use JDK 17 and Android SDK platform 36/build-tools 36.0.0. Gradle configures Android
+Use JDK 17 and Android SDK platform 37/build-tools 37.0.0. Gradle configures Android
 modules even for desktop/Apple tasks. Dependency resolution requires network access.
+Use Rust/rustup to build the native OpenPGP backend before packaging; Android also
+needs cargo-ndk and an NDK. See [native build commands](scripts/openpgp/README.md).
 
 ```sh
 ./gradlew --no-daemon :app:assembleFdroidDebug :app:assemblePlayDebug
@@ -115,7 +118,7 @@ The native backend in `rust/offlineotp-openpgp` uses rpgp 0.21 + UniFFI and is t
 fallback when the native library is absent, not a retry after native crypto rejection.
 See [backend packaging](scripts/openpgp/README.md).
 
-Build iOS on macOS with Xcode/Swift 6.1+, following [ios/README.md](ios/README.md).
+Build iOS on macOS with Xcode/Swift 6.2+, following [ios/README.md](ios/README.md).
 The [iOS contract](docs/ios-client-plan.md) distinguishes portable formats from legacy files.
 
 ## Tests and workflows

@@ -6,14 +6,16 @@ their Kotlin replacement is **in progress**, not complete. Only a narrow bridge 
 the official YubiKit SDK is intended to remain in Swift.
 
 **Status:** the last reported iOS build failed. Subsequent source/workflow fixes
-have local checks but no recorded successful native run. All non-iOS builds/platforms
-are user-reported verified. CodeQL also exposed iOS metadata compilation errors;
+have local checks but no recorded successful native run. Earlier non-iOS builds/platforms
+were user-reported verified; the latest dependency refresh still needs platform builds.
+CodeQL also exposed iOS metadata compilation errors;
 the [source fixes](../docs/ios-kotlin-cutover.md#metadata-compilation-follow-up) await a successful rerun.
 
 ## Requirements
 
-- macOS with full Xcode, an iPhoneOS SDK and Swift 6.1+ (required by pinned YubiKit).
-- JDK 17; Android SDK platform 36/build-tools 36.0.0 for root Gradle configuration.
+- macOS with full Xcode and an iPhoneOS SDK; Swift 6.2+ is required by pinned packages.
+  CI defaults to `macos-26`/Xcode 26.6.
+- JDK 17; Android SDK platform 37/build-tools 37.0.0 for root Gradle configuration.
 - Rust/rustup, XcodeGen and Python 3; network access to resolve dependencies.
 - No signing identity for the unsigned CI device build. Device installation and
   distribution require an appropriate signing/provisioning process.
@@ -53,7 +55,7 @@ Run **iOS build** (`.github/workflows/ios.yml`) manually on the branch being tes
 The runner input selects a supported macOS image; the workflow:
 
 1. Requires Linux OpenPGP tests/build to pass.
-2. Installs JDK 17 and Android SDK 36, and checks Xcode/Swift/iPhoneOS SDK availability.
+2. Installs JDK 17 and Android SDK 37, and checks Xcode/Swift/iPhoneOS SDK availability.
 3. Builds the Rust XCFramework, checks generated vectors/catalog, and generates the icon.
 4. Runs `:ui-model:desktopTest` and builds/stages the Compose XCFramework.
 5. Generates the Xcode project and builds an unsigned ARM64 Release device app.

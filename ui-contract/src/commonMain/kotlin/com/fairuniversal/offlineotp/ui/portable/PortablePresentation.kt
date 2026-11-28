@@ -1037,7 +1037,7 @@ object PortableLibraryCatalog {
             scope = "iOS (native NFC / USB-C OATH and WebAuthn PRF)"
         ),
         PortableLibraryNotice(
-            name = "Apple SwiftLog 1.6.4",
+            name = "Apple SwiftLog 1.17.2",
             license = "Apache License 2.0",
             scope = "iOS (YubiKit logging interface; SDK log output disabled)"
         ),

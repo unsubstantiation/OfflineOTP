@@ -1,6 +1,6 @@
 # Unified OpenPGP backend packaging
 
-The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21 + UniFFI 0.28).
+The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21.1 + UniFFI 0.31.0).
 The foreign-language contract is `rust/offlineotp-openpgp/src/offlineotp_openpgp.udl`.
 `rust/offlineotp-openpgp/uniffi.toml` keeps the generated loaders pointed at the
 packaged `offlineotp_openpgp` library name.
@@ -14,13 +14,13 @@ Generated bindings are committed so a JVM/Swift build does not need to run bindg
 ## Regenerate bindings
 
 ```sh
-cargo install uniffi-bindgen --version 0.28.3 --locked
+cargo install uniffi --features cli --bin uniffi-bindgen --version 0.31.0 --locked
 scripts/openpgp/generate-bindings.sh          # write
 scripts/openpgp/generate-bindings.sh --check  # fail on drift
 ```
 
-UDL mode generates bindings without compiling Rust. Native compilation and the
-crate's security tests still require a Rust toolchain:
+Generation requires Cargo workspace metadata (`--metadata-no-deps`), not a compiled
+library. Build and test the native implementation separately:
 
 ```sh
 cargo test --manifest-path rust/Cargo.toml
@@ -41,16 +41,11 @@ cargo install cargo-ndk --locked
 scripts/openpgp/build-android-jnilibs.sh
 ```
 
-`ANDROID_NDK_HOME` (or `ANDROID_NDK_ROOT`) is optional: without it the script takes the newest
-NDK under `$ANDROID_HOME/ndk`. It installs the three Android rustup targets itself — `cargo ndk`
-cross-compiles with the toolchain rustup already has and does **not** provide `std` for them, so
-skipping that step fails with `can't find crate for \`std\`` on a clean machine.
-It also runs `cargo ndk` from `rust/`, not from the repository root: cargo-ndk loads the
-manifest with `cargo metadata` in the **working directory** before it looks at its arguments, and a
-trailing `--manifest-path` is forwarded to the `cargo build` it invokes, so from the root it stops
-with `Failed to load Cargo.toml in current directory` / `could not find \`Cargo.toml\` in … or any
-parent directory`. The output directory is an absolute path, so the `.so` files still land in
-`app/src/main/jniLibs`.
+Install an Android NDK (CI uses r30). Set `ANDROID_NDK_HOME` or `ANDROID_NDK_ROOT`,
+or let the script select the newest NDK under `$ANDROID_HOME/ndk`. It installs the
+ARM64, ARMv7 and x86-64 Rust targets, runs cargo-ndk from `rust/`, and stages the
+libraries in `app/src/main/jniLibs`. Run it before assembling APKs that need native
+OpenPGP; a debug Gradle build alone does not build the Rust libraries.
 
 CI runs the same script before assembling release APKs. The OpenKeychain provider
 flow remains available for users who configured it; `RpgpOpenPgpPort` is the in-app

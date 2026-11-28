@@ -84,7 +84,13 @@ The source now imports the date extension and renders CI-backed images through
 image is released after decoding; UIImage-owned CGImages remain borrowed. QR-only
 filtering and bounded, local-only clipboard expiry are unchanged.
 
-The JVM stubs were corrected to stop masking these mistakes; source regression
-checks pass. Rerun the metadata task, CodeQL and the native iOS build to verify the
-fix. Duplicate-KLIB messages in that log are warnings, not resolved by these edits.
+The subsequent [iOS run 46130606010](https://github.com/unsubstantiation/OfflineOTP/actions/runs/46130606010)
+failed in `compileKotlinIosArm64`: `createCGImage` was unresolved. It is a Kotlin
+extension binding requiring `import platform.CoreImage.createCGImage`, not a
+`CIContext` member. The source now imports it, and the stub models an extension
+so a missing import no longer passes the seam check. AndroidX uses the same
+[explicit import](https://github.com/androidx/androidx/blob/eea249910d72f513977beffbe4b103aa942b20c5/ink/ink-storage/src/iosMain/kotlin/androidx/ink/storage/IosBrushFamilyExtensions.ios.kt).
+
+Source regression checks pass. Rerun the metadata task, CodeQL and the native iOS
+build to verify the fixes. Duplicate-KLIB messages in that log are warnings, not resolved by these edits.
 No replacement CodeQL workflow, task exclusion or analysis suppression remains.

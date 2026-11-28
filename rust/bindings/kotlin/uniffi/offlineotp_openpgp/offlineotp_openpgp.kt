@@ -58,7 +58,7 @@ open class RustBuffer : Structure() {
     companion object {
         internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
             // Note: need to convert the size to a `Long` value to make this work with JVM.
-            UniffiLib.INSTANCE.ffi_offlineotp_openpgp_rustbuffer_alloc(size.toLong(), status)
+            UniffiLib.ffi_offlineotp_openpgp_rustbuffer_alloc(size.toLong(), status)
         }.also {
             if(it.data == null) {
                throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
@@ -74,49 +74,15 @@ open class RustBuffer : Structure() {
         }
 
         internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.ffi_offlineotp_openpgp_rustbuffer_free(buf, status)
+            UniffiLib.ffi_offlineotp_openpgp_rustbuffer_free(buf, status)
         }
     }
 
     @Suppress("TooGenericExceptionThrown")
     fun asByteBuffer() =
-        this.data?.getByteBuffer(0, this.len.toLong())?.also {
+        this.data?.getByteBuffer(0, this.len)?.also {
             it.order(ByteOrder.BIG_ENDIAN)
         }
-}
-
-/**
- * The equivalent of the `*mut RustBuffer` type.
- * Required for callbacks taking in an out pointer.
- *
- * Size is the sum of all values in the struct.
- *
- * @suppress
- */
-class RustBufferByReference : ByReference(16) {
-    /**
-     * Set the pointed-to `RustBuffer` to the given value.
-     */
-    fun setValue(value: RustBuffer.ByValue) {
-        // NOTE: The offsets are as they are in the C-like struct.
-        val pointer = getPointer()
-        pointer.setLong(0, value.capacity)
-        pointer.setLong(8, value.len)
-        pointer.setPointer(16, value.data)
-    }
-
-    /**
-     * Get a `RustBuffer.ByValue` from this reference.
-     */
-    fun getValue(): RustBuffer.ByValue {
-        val pointer = getPointer()
-        val value = RustBuffer.ByValue()
-        value.writeField("capacity", pointer.getLong(0))
-        value.writeField("len", pointer.getLong(8))
-        value.writeField("data", pointer.getLong(16))
-
-        return value
-    }
 }
 
 // This is a helper for safely passing byte references into the rust code.
@@ -315,8 +281,9 @@ internal inline fun<T> uniffiTraitInterfaceCall(
     try {
         writeReturn(makeCall())
     } catch(e: kotlin.Exception) {
+        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
         callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-        callStatus.error_buf = FfiConverterString.lower(e.toString())
+        callStatus.error_buf = FfiConverterString.lower(err)
     }
 }
 
@@ -333,26 +300,39 @@ internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
             callStatus.code = UNIFFI_CALL_ERROR
             callStatus.error_buf = lowerError(e)
         } else {
+            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
             callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-            callStatus.error_buf = FfiConverterString.lower(e.toString())
+            callStatus.error_buf = FfiConverterString.lower(err)
         }
     }
 }
+// Initial value and increment amount for handles.
+// These ensure that Kotlin-generated handles always have the lowest bit set
+private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
+private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
+
 // Map handles to objects
 //
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
 internal class UniffiHandleMap<T: Any> {
     private val map = ConcurrentHashMap<Long, T>()
-    private val counter = java.util.concurrent.atomic.AtomicLong(0)
+    // Start
+    private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
         get() = map.size
 
     // Insert a new object into the handle map and get a handle for it
     fun insert(obj: T): Long {
-        val handle = counter.getAndAdd(1)
+        val handle = counter.getAndAdd(UNIFFI_HANDLEMAP_DELTA)
         map.put(handle, obj)
         return handle
+    }
+
+    // Clone a handle, creating a new one
+    fun clone(handle: Long): Long {
+        val obj = map.get(handle) ?: throw InternalException("UniffiHandleMap.clone: Invalid handle")
+        return insert(obj)
     }
 
     // Get an object from the handle map
@@ -377,514 +357,436 @@ private fun findLibraryName(componentName: String): String {
     return "offlineotp_openpgp"
 }
 
-private inline fun <reified Lib : Library> loadIndirect(
-    componentName: String
-): Lib {
-    return Native.load<Lib>(findLibraryName(componentName), Lib::class.java)
-}
-
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
     fun callback(`data`: Long,`pollResult`: Byte,)
 }
-internal interface UniffiForeignFutureFree : com.sun.jna.Callback {
+internal interface UniffiForeignFutureDroppedCallback : com.sun.jna.Callback {
     fun callback(`handle`: Long,)
 }
 internal interface UniffiCallbackInterfaceFree : com.sun.jna.Callback {
     fun callback(`handle`: Long,)
 }
+internal interface UniffiCallbackInterfaceClone : com.sun.jna.Callback {
+    fun callback(`handle`: Long,)
+    : Long
+}
 @Structure.FieldOrder("handle", "free")
-internal open class UniffiForeignFuture(
+internal open class UniffiForeignFutureDroppedCallbackStruct(
     @JvmField internal var `handle`: Long = 0.toLong(),
-    @JvmField internal var `free`: UniffiForeignFutureFree? = null,
+    @JvmField internal var `free`: UniffiForeignFutureDroppedCallback? = null,
 ) : Structure() {
     class UniffiByValue(
         `handle`: Long = 0.toLong(),
-        `free`: UniffiForeignFutureFree? = null,
-    ): UniffiForeignFuture(`handle`,`free`,), Structure.ByValue
+        `free`: UniffiForeignFutureDroppedCallback? = null,
+    ): UniffiForeignFutureDroppedCallbackStruct(`handle`,`free`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFuture) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
         `handle` = other.`handle`
         `free` = other.`free`
     }
 
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU8(
+internal open class UniffiForeignFutureResultU8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU8(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU8(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU8 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU8.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU8.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI8(
+internal open class UniffiForeignFutureResultI8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI8(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI8(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI8 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI8.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI8.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU16(
+internal open class UniffiForeignFutureResultU16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU16(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU16(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU16 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU16.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU16.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI16(
+internal open class UniffiForeignFutureResultI16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI16(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI16(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI16 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI16.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI16.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU32(
+internal open class UniffiForeignFutureResultU32(
     @JvmField internal var `returnValue`: Int = 0,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU32(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU32(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU32.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU32.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI32(
+internal open class UniffiForeignFutureResultI32(
     @JvmField internal var `returnValue`: Int = 0,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI32(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI32(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI32.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI32.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU64(
+internal open class UniffiForeignFutureResultU64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU64(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU64(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU64.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU64.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI64(
+internal open class UniffiForeignFutureResultI64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI64(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI64(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI64.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI64.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructF32(
+internal open class UniffiForeignFutureResultF32(
     @JvmField internal var `returnValue`: Float = 0.0f,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Float = 0.0f,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructF32(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultF32(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructF32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteF32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructF32.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF32.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructF64(
+internal open class UniffiForeignFutureResultF64(
     @JvmField internal var `returnValue`: Double = 0.0,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Double = 0.0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructF64(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultF64(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructF64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteF64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructF64.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF64.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructPointer(
-    @JvmField internal var `returnValue`: Pointer = Pointer.NULL,
-    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-) : Structure() {
-    class UniffiByValue(
-        `returnValue`: Pointer = Pointer.NULL,
-        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructPointer(`returnValue`,`callStatus`,), Structure.ByValue
-
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructPointer) {
-        `returnValue` = other.`returnValue`
-        `callStatus` = other.`callStatus`
-    }
-
-}
-internal interface UniffiForeignFutureCompletePointer : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructPointer.UniffiByValue,)
-}
-@Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructRustBuffer(
+internal open class UniffiForeignFutureResultRustBuffer(
     @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructRustBuffer) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteRustBuffer : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructRustBuffer.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,)
 }
 @Structure.FieldOrder("callStatus")
-internal open class UniffiForeignFutureStructVoid(
+internal open class UniffiForeignFutureResultVoid(
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructVoid(`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultVoid(`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructVoid) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructVoid.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultVoid.UniffiByValue,)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
-internal interface UniffiLib : Library {
-    companion object {
-        internal val INSTANCE: UniffiLib by lazy {
-            loadIndirect<UniffiLib>(componentName = "offlineotp_openpgp")
-            .also { lib: UniffiLib ->
-                uniffiCheckContractApiVersion(lib)
-                uniffiCheckApiChecksums(lib)
-                }
-        }
-
+// For large crates we prevent `MethodTooLargeException` (see #2340)
+// N.B. the name of the extension is very misleading, since it is
+// rather `InterfaceTooLargeException`, caused by too many methods
+// in the interface for large crates.
+//
+// By splitting the otherwise huge interface into two parts
+// * UniffiLib (this)
+// * IntegrityCheckingUniffiLib
+// And all checksum methods are put into `IntegrityCheckingUniffiLib`
+// we allow for ~2x as many methods in the UniffiLib interface.
+//
+// Note: above all written when we used JNA's `loadIndirect` etc.
+// We now use JNA's "direct mapping" - unclear if same considerations apply exactly.
+internal object IntegrityCheckingUniffiLib {
+    init {
+        Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "offlineotp_openpgp"))
+        uniffiCheckContractApiVersion(this)
+        uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_offlineotp_openpgp_checksum_func_crate_version(
+    ): Short
+    external fun uniffi_offlineotp_openpgp_checksum_func_decrypt(
+    ): Short
+    external fun uniffi_offlineotp_openpgp_checksum_func_encrypt(
+    ): Short
+    external fun uniffi_offlineotp_openpgp_checksum_func_encrypt_signed(
+    ): Short
+    external fun uniffi_offlineotp_openpgp_checksum_func_rpgp_version(
+    ): Short
+    external fun ffi_offlineotp_openpgp_uniffi_contract_version(
+    ): Int
 
-    fun uniffi_offlineotp_openpgp_fn_func_crate_version(uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_decrypt(`message`: RustBuffer.ByValue,`secretKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_encrypt(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_encrypt_signed(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,`signingKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_rpgp_version(uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_u8(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_u8(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Byte
-    fun ffi_offlineotp_openpgp_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_i8(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_i8(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Byte
-    fun ffi_offlineotp_openpgp_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_u16(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_u16(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Short
-    fun ffi_offlineotp_openpgp_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_i16(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_i16(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Short
-    fun ffi_offlineotp_openpgp_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_u32(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_u32(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Int
-    fun ffi_offlineotp_openpgp_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_i32(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_i32(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Int
-    fun ffi_offlineotp_openpgp_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_u64(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_u64(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Long
-    fun ffi_offlineotp_openpgp_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_i64(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_i64(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Long
-    fun ffi_offlineotp_openpgp_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_f32(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_f32(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Float
-    fun ffi_offlineotp_openpgp_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_f64(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_f64(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Double
-    fun ffi_offlineotp_openpgp_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Pointer
-    fun ffi_offlineotp_openpgp_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_cancel_void(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_free_void(`handle`: Long,
-    ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
-    ): Unit
-    fun uniffi_offlineotp_openpgp_checksum_func_crate_version(
-    ): Short
-    fun uniffi_offlineotp_openpgp_checksum_func_decrypt(
-    ): Short
-    fun uniffi_offlineotp_openpgp_checksum_func_encrypt(
-    ): Short
-    fun uniffi_offlineotp_openpgp_checksum_func_encrypt_signed(
-    ): Short
-    fun uniffi_offlineotp_openpgp_checksum_func_rpgp_version(
-    ): Short
-    fun ffi_offlineotp_openpgp_uniffi_contract_version(
-    ): Int
 
 }
 
-private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
+internal object UniffiLib {
+
+
+    init {
+        Native.register(UniffiLib::class.java, findLibraryName(componentName = "offlineotp_openpgp"))
+
+    }
+    external fun uniffi_offlineotp_openpgp_fn_func_crate_version(uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_offlineotp_openpgp_fn_func_decrypt(`message`: RustBuffer.ByValue,`secretKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_offlineotp_openpgp_fn_func_encrypt(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_offlineotp_openpgp_fn_func_encrypt_signed(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,`signingKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_offlineotp_openpgp_fn_func_rpgp_version(uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun ffi_offlineotp_openpgp_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun ffi_offlineotp_openpgp_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun ffi_offlineotp_openpgp_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun ffi_offlineotp_openpgp_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Byte
+    external fun ffi_offlineotp_openpgp_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Byte
+    external fun ffi_offlineotp_openpgp_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Short
+    external fun ffi_offlineotp_openpgp_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Short
+    external fun ffi_offlineotp_openpgp_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+    external fun ffi_offlineotp_openpgp_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+    external fun ffi_offlineotp_openpgp_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+    external fun ffi_offlineotp_openpgp_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+    external fun ffi_offlineotp_openpgp_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Float
+    external fun ffi_offlineotp_openpgp_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Double
+    external fun ffi_offlineotp_openpgp_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun ffi_offlineotp_openpgp_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_cancel_void(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_free_void(`handle`: Long,
+    ): Unit
+    external fun ffi_offlineotp_openpgp_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+
+
+}
+
+private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
     // Get the bindings contract version from our ComponentInterface
-    val bindings_contract_version = 26
+    val bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     val scaffolding_contract_version = lib.ffi_offlineotp_openpgp_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
-private fun uniffiCheckApiChecksums(lib: UniffiLib) {
+private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_offlineotp_openpgp_checksum_func_crate_version() != 9558.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -900,6 +802,16 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_offlineotp_openpgp_checksum_func_rpgp_version() != 52177.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+}
+
+/**
+ * @suppress
+ */
+public fun uniffiEnsureInitialized() {
+    IntegrityCheckingUniffiLib
+    // UniffiLib() initialized as objects are used, but we still need to explicitly
+    // reference it so initialization across crates works as expected.
+    UniffiLib
 }
 
 // Async support
@@ -919,8 +831,33 @@ interface Disposable {
     fun destroy()
     companion object {
         fun destroy(vararg args: Any?) {
-            args.filterIsInstance<Disposable>()
-                .forEach(Disposable::destroy)
+            for (arg in args) {
+                when (arg) {
+                    is Disposable -> arg.destroy()
+                    is ArrayList<*> -> {
+                        for (idx in arg.indices) {
+                            val element = arg[idx]
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                    is Map<*, *> -> {
+                        for (element in arg.values) {
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                    is Iterable<*> -> {
+                        for (element in arg) {
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -941,11 +878,22 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
     }
 
 /**
+ * Placeholder object used to signal that we're constructing an interface with a FFI handle.
+ *
+ * This is the first argument for interface constructors that input a raw handle. It exists is that
+ * so we can avoid signature conflicts when an interface has a regular constructor than inputs a
+ * Long.
+ *
+ * @suppress
+ * */
+object UniffiWithHandle
+
+/**
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
  * */
-object NoPointer
+object NoHandle
 
 /**
  * @suppress
@@ -1084,6 +1032,9 @@ sealed class OpenPgpException: kotlin.Exception() {
         override val message
             get() = "reason=${ `reason` }"
     }
+
+
+
 
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<OpenPgpException> {
@@ -1289,7 +1240,8 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
 } fun `crateVersion`(): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_offlineotp_openpgp_fn_func_crate_version(
+    UniffiLib.uniffi_offlineotp_openpgp_fn_func_crate_version(
+
         _status)
 }
     )
@@ -1299,7 +1251,8 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
     @Throws(OpenPgpException::class) fun `decrypt`(`message`: List<kotlin.UByte>, `secretKeyBlock`: List<kotlin.UByte>, `passphrase`: kotlin.String?): List<kotlin.UByte> {
             return FfiConverterSequenceUByte.lift(
     uniffiRustCallWithError(OpenPgpException) { _status ->
-    UniffiLib.INSTANCE.uniffi_offlineotp_openpgp_fn_func_decrypt(
+    UniffiLib.uniffi_offlineotp_openpgp_fn_func_decrypt(
+
         FfiConverterSequenceUByte.lower(`message`),FfiConverterSequenceUByte.lower(`secretKeyBlock`),FfiConverterOptionalString.lower(`passphrase`),_status)
 }
     )
@@ -1309,7 +1262,8 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
     @Throws(OpenPgpException::class) fun `encrypt`(`plaintext`: List<kotlin.UByte>, `recipientKeyBlocks`: List<List<kotlin.UByte>>): List<kotlin.UByte> {
             return FfiConverterSequenceUByte.lift(
     uniffiRustCallWithError(OpenPgpException) { _status ->
-    UniffiLib.INSTANCE.uniffi_offlineotp_openpgp_fn_func_encrypt(
+    UniffiLib.uniffi_offlineotp_openpgp_fn_func_encrypt(
+
         FfiConverterSequenceUByte.lower(`plaintext`),FfiConverterSequenceSequenceUByte.lower(`recipientKeyBlocks`),_status)
 }
     )
@@ -1319,7 +1273,8 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
     @Throws(OpenPgpException::class) fun `encryptSigned`(`plaintext`: List<kotlin.UByte>, `recipientKeyBlocks`: List<List<kotlin.UByte>>, `signingKeyBlock`: List<kotlin.UByte>, `passphrase`: kotlin.String?): List<kotlin.UByte> {
             return FfiConverterSequenceUByte.lift(
     uniffiRustCallWithError(OpenPgpException) { _status ->
-    UniffiLib.INSTANCE.uniffi_offlineotp_openpgp_fn_func_encrypt_signed(
+    UniffiLib.uniffi_offlineotp_openpgp_fn_func_encrypt_signed(
+
         FfiConverterSequenceUByte.lower(`plaintext`),FfiConverterSequenceSequenceUByte.lower(`recipientKeyBlocks`),FfiConverterSequenceUByte.lower(`signingKeyBlock`),FfiConverterOptionalString.lower(`passphrase`),_status)
 }
     )
@@ -1328,7 +1283,8 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
  fun `rpgpVersion`(): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_offlineotp_openpgp_fn_func_rpgp_version(
+    UniffiLib.uniffi_offlineotp_openpgp_fn_func_rpgp_version(
+
         _status)
 }
     )

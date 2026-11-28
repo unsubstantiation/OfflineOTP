@@ -115,7 +115,7 @@ class IosAppTest(unittest.TestCase):
             self.assertIn(f'row("{action}", "{label}", enabled: !hardwareBusy && HardwareNativeOperation.{capability})', vault)
         catalog = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt").read_text()
         self.assertIn("Yubico YubiKit Swift 1.5.0", catalog)
-        self.assertIn("Apple SwiftLog 1.6.4", catalog)
+        self.assertIn("Apple SwiftLog 1.17.2", catalog)
 
     def test_background_fences_queued_backup_restore_and_authentication_actions(self):
         host = app_sources()["ComposeVaultHost.swift"]
@@ -333,7 +333,7 @@ class IosAppTest(unittest.TestCase):
     def test_the_project_format_is_one_the_runner_can_open(self):
         """The project has to open on the runner's Xcode, and on older ones.
 
-        The image is `macos-15` (arm64, Xcode 16.4). `macos-14` was the first Apple silicon image, but
+        The image is `macos-26` (arm64, Xcode 26.6). `macos-14` was the first Apple silicon image, but
         its arm64 configuration stopped starting: jobs were cancelled before their first step with
         "The configuration 'macos-14-arm64-us-default' is not supported". The format pin is kept at
         `xcode15_3` on purpose — it is the oldest format XcodeGen can write that still carries
@@ -342,10 +342,10 @@ class IosAppTest(unittest.TestCase):
         project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
         options = project["options"]
         self.assertEqual("xcode15_3", options["projectFormat"])
-        self.assertEqual("16.4", options["xcodeVersion"])
+        self.assertEqual("26.6", options["xcodeVersion"])
         workflow = WORKFLOW
         # An arm64 image: the app target is built for the same architecture the artifacts ship.
-        self.assertIn("macos-15", workflow)
+        self.assertIn("macos-26", workflow)
         self.assertNotIn("runs-on: macos-14", workflow,
                          "the macos-14 arm64 configuration does not start; see the workflow comment")
         # The move, and the verified architecture, are written down where the pin is.

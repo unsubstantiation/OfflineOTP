@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Utilities.HardwareOathClient
+import com.yubico.yubikit.oath.credentialFixture
 import java.util.concurrent.Executor
 import java.util.concurrent.RejectedExecutionException
 import javax.crypto.spec.SecretKeySpec
@@ -19,7 +20,7 @@ class DesktopHardwareOathTest {
     @Test fun deletionUsesSelectedIdentityClearsListAndNeverRetriesFailure() {
         for (succeeds in listOf(true, false)) {
             val state = state(); val worker = Queue(); val ui = Queue(); var deletes = 0
-            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential(byteArrayOf(1)), null, 0)
+            val account = HardwareOathClient.Account(credentialFixture("account"), null, 0)
             val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
                 HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("selected-device", listOf(account)))
             }, { _, _, _, _ -> error("Deletion must not calculate") }, { pin, device, selected, _ ->
@@ -61,7 +62,7 @@ class DesktopHardwareOathTest {
 
     @Test fun keyLabelsCannotSpoofDestructiveConfirmationWithDirectionalControls() {
         val state = state(); val worker = Queue(); val ui = Queue()
-        val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(1), issuer = "issuer\u202e", accountName = "account\u0000\u2028")
+        val credential = credentialFixture("issuer\u202e:account\u0000\u2028")
         val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
             HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("device", listOf(HardwareOathClient.Account(credential, null, 0))))
         }, { _, _, _, _ -> error("unexpected") })
@@ -77,7 +78,7 @@ class DesktopHardwareOathTest {
     @Test fun renameClearsSelectionNeverCalculatesAndDoesNotRetryUncertainOutcomes() {
         for (outcome in listOf(HardwareKeyManager.Result.Ok(Unit), HardwareKeyManager.Result.Failed, HardwareKeyManager.Result.Canceled)) {
             val state = state(); val worker = Queue(); val ui = Queue(); var renames = 0
-            val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential("old".toByteArray()), null, 0)
+            val account = HardwareOathClient.Account(credentialFixture("old"), null, 0)
             val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
                 HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("chosen-key", listOf(account)))
             }, { _, _, _, _ -> error("Rename must not calculate") }, rename = { pin, device, selected, issuer, name, _ ->
@@ -103,7 +104,7 @@ class DesktopHardwareOathTest {
 
     @Test fun queuedRenameIsRevocableAndLateResultsCannotReplaceANewRequest() {
         val state = state(); val worker = Queue(); val ui = Queue(); var calls = 0
-        val account = HardwareOathClient.Account(com.yubico.yubikit.oath.Credential("old".toByteArray()), null, 0)
+        val account = HardwareOathClient.Account(credentialFixture("old"), null, 0)
         val owner = DesktopHardwareOath(state, worker, ui::execute, {}, { _, _ ->
             HardwareKeyManager.Result.Ok(HardwareOathClient.Accounts("key", listOf(account)))
         }, { _, _, _, _ -> error("unexpected") }, rename = { _, _, _, _, _, _ -> calls++; HardwareKeyManager.Result.Ok(Unit) })

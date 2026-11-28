@@ -6,14 +6,9 @@ options:
   deploymentTarget:
     iOS: "17.0"
   developmentLanguage: en
-  # The runner's Xcode is 16.4 (`macos-15`), so this is the version the project says it was made
-  # with: bump it only together with the runner image. It is metadata; the format pin below, not
-  # this, is what keeps older machines able to open the project.
-  xcodeVersion: "16.4"
-  # The *format*, unlike the toolchain, deliberately lags: XcodeGen defaults to the newest format it
-  # knows (objectVersion 77), which no Xcode 15 can open at all. Pinning xcode15_3 keeps the project
-  # openable by every Xcode from 15.3 upwards — including the 15.4 image this used to run on — while
-  # Xcode 16.4 on `macos-15` reads it unchanged.
+  # Xcode 26.6 on macos-26; bump it only together with the runner image.
+  xcodeVersion: "26.6"
+  # Keep the serialized project readable by Xcode 15.3+; this is not the compiler pin.
   projectFormat: xcode15_3
 
 packages:
@@ -22,9 +17,10 @@ packages:
   YubiKit:
     url: https://github.com/Yubico/yubikit-swift.git
     revision: 03fe66d15b6e863e87a44c7a263b7bffedda9d79
+  # SwiftLog 1.17.2 requires Swift tools 6.2 or later.
   SwiftLog:
     url: https://github.com/apple/swift-log.git
-    revision: ce592ae52f982c847a4efc0dd881cc9eb32d29f2
+    revision: c7413d967b97aae67c46452bf7645bdb7b200e8e
   OfflineOTPKit:
     path: .
 

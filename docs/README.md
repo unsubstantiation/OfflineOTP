@@ -2,10 +2,11 @@
 
 ## Current status
 
-The user reports all non-iOS builds/workflows and platform checks verified. The iOS
-build is confirmed failing; subsequent fixes await a successful native run. Shared
-Compose UI is in place, but the iOS Kotlin engine/host cutover is not complete.
-Only a minimal Swift YubiKit SDK bridge is approved to remain after that cutover.
+Earlier non-iOS builds/platform checks were user-reported verified. The iOS build
+failed; fixes and the latest dependency refresh still need full platform validation.
+Shared Compose UI is in place, but the iOS Kotlin engine/host cutover is incomplete.
+Only a minimal Swift YubiKit SDK bridge is intended to remain. See
+[dependency versions and validation limits](dependency-refresh.md).
 
 This index and the status/ownership pages describe current intent and evidence.
 Per-chunk handoffs retain implementation-time test snapshots. Historical audits
@@ -27,11 +28,13 @@ history for removed batch journals rather than treating them as active instructi
 - [Shared-code consolidation plan](shared-code-migration.md)
 - [iOS Kotlin cutover — in progress](ios-kotlin-cutover.md)
 - [Native validation handoff](shared-ui-native-validation.md)
+- [Dependency refresh and validation limits](dependency-refresh.md)
 - [Shared Compose device-verification checklist](shared-ui-device-checklist.md)
 - [Migration cleanup and release handoff](shared-migration-release.md)
 
 ## Contracts and focused guides
 
+- [Feature access in the UI](ui-feature-access.md)
 - [About content and navigation](about-parity.md)
 - [Automatic vault backups and encrypted exports](automatic-backups.md)
 - [Compose desktop cutover](compose-desktop-cutover.md)

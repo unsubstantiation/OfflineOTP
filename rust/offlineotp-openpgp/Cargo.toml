@@ -12,14 +12,14 @@ name = "offlineotp_openpgp"
 crate-type = ["cdylib", "staticlib", "lib"]
 
 [dependencies]
-pgp = { version = "=0.21.0", default-features = false, features = ["bzip2"] }
+pgp = { version = "=0.21.1", default-features = false, features = ["bzip2"] }
 rand = "=0.8.6"
-uniffi = "=0.28.3"
-thiserror = "=2.0.17"
-zeroize = "=1.8.2"
+uniffi = "=0.31.0"
+thiserror = "=2.0.21"
+zeroize = "=1.9.2"
 
 [build-dependencies]
-uniffi = { version = "=0.28.3", features = ["build"] }
+uniffi = { version = "=0.31.0", features = ["build"] }
 
 [dev-dependencies]
 tempfile = "=3.27.0"

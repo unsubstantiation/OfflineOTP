@@ -16,6 +16,26 @@ The desktop validation workflow runs real Gradle tests and assembles distributio
 it does not launch every UI route or prove hardware behavior. Local JVM/stub tests
 are not substitutes for that workflow or the user's platform checks.
 
+## Validation workflow follow-up
+
+[Run 46130600564](https://github.com/unsubstantiation/OfflineOTP/actions/runs/46130600564)
+at `e79cb2929299d8cd5e5dc932c494259c5eec5897` failed after that user report:
+macOS 14's runner configuration was unsupported, and Linux/Windows compilation
+reported an incompatible YubiKit `Credential` constructor. Later source/workflow
+fixes still require a successful real Gradle matrix run.
+
+The matrix now uses Ubuntu 24.04, Windows 2022 and macOS 15. Ordinary desktop tests
+create OATH credentials through a test-only factory in the SDK's package using
+YubiKit 3.2.1's package-private constructor; the SDK parses issuer/account/period
+from the identifier. No invented public constructor is needed.
+
+`HardwareKeyManagerTest` uses scripted OATH/FIDO SDK substitutes, not real SDK
+transports. It lives under `scripts/kotlin-sandbox/desktop-tests/` and is still
+compiled/executed by `compile-desktop.sh`. A separate, non-optional workflow job
+runs that gate and uploads its log. The real Gradle matrix retains all existing
+test/distribution tasks and does not load those substitutes. Neither job proves
+physical-key behavior.
+
 ## Commands and rollback
 
 ```sh

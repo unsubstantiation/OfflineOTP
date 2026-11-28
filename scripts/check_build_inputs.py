@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify checked-in Gradle wrapper provenance and distribution settings.
 
-Wrapper script/jar hashes are from Gradle's v8.13.0 release and the distribution
-URL/hash match the pinned Gradle v9.6.0 distribution in gradle-wrapper.properties.
+Wrapper script/jar hashes are from Gradle's v9.7.0 release and the distribution
+URL/hash match the pinned Gradle v9.7.0 distribution in gradle-wrapper.properties.
 No downloads are executed by this check.
 """
 import hashlib
@@ -11,12 +11,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 HASHES = {
-    "gradle/wrapper/gradle-wrapper.jar": "81a82aaea5abcc8ff68b3dfcb58b3c3c429378efd98e7433460610fecd7ae45f",
-    "gradlew": "c76f16038b4e70b84ed0b3b9e08e82a8ecaf66ec0efdfdecdece92520fa3cecb",
-    "gradlew.bat": "0f3ed8f03b50934cb8c48b15a470d5c20a30a5385825e48b55bcc8ea3d8f8e18",
+    "gradle/wrapper/gradle-wrapper.jar": "7a9ce74cff467ca1bf60a4fcd9f05185acceda4d0f382434d393e17864262c5d",
+    "gradlew": "e01b5c97892572c82405c02b96a3382379100e7d825ce7c48883d95c26928750",
+    "gradlew.bat": "4e193538b4ddccbee0c05d6383731b647945c146d16d8fe243b4ff716867896f",
 }
-DISTRIBUTION_URL = r"https\://services.gradle.org/distributions/gradle-9.6.0-all.zip"
-DISTRIBUTION_HASH = "87a2216cc1f9122192d4e0fe905ffdf1b4c72cff797e9f733b174e157cadd396"
+DISTRIBUTION_URL = r"https\://services.gradle.org/distributions/gradle-9.7.0-all.zip"
+DISTRIBUTION_HASH = "a9ecb5ac5c2ca40691e6527724d11d0b43b8c0a52825b77c09899f2a72d2d2bf"
 
 
 def _read_wrapper_properties(root: Path, errors: list[str]) -> dict[str, str]:

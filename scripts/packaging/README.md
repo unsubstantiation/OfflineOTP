@@ -2,11 +2,12 @@
 
 Compose is the only desktop UI. `:desktop` supplies JVM engine/AWT services;
 `:desktop-compose` supplies the launcher, native-library staging and app image.
-The user reports non-iOS builds/platforms verified; see [current status](../../docs/shared-ui-migration-status.md).
+Earlier non-iOS builds were user-reported verified; the latest dependency refresh
+still needs platform validation. See [validation limits](../../docs/dependency-refresh.md).
 
 ## Outputs and requirements
 
-Use a **full JDK 17+** with `jpackage`, Python 3 and the Android SDK required by root
+Use a **full JDK 17** with `jpackage`, Python 3 and the Android SDK required by root
 Gradle configuration. Dependencies resolve from configured repositories; native
 OpenPGP packaging also requires the Rust build output.
 

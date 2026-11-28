@@ -13,9 +13,10 @@ bash scripts/kotlin-sandbox/bootstrap-toolchain.sh
 bash scripts/kotlin-sandbox/run.sh
 ```
 
-Bootstrap downloads a pinned Kotlin compiler/JDK from npm/PyPI, checks recorded
+Bootstrap downloads a pinned Kotlin compiler and Java runtime from npm/PyPI, checks recorded
 SHA-256 values and unpacks outside the repository. Those hashes are not independent
 provenance verification; prefer a trusted package manager/archive where available.
+The bootstrap runtime is not a full build JDK and does not supply `javac` or `jpackage`.
 
 With your own toolchain, set `JAVA_HOME`, `JAVA_BIN`, `KOTLINC` and, if necessary,
 `KOTLIN_STDLIB`. Outputs default to ignored `reports/kotlin-sandbox/` directories.
@@ -39,6 +40,13 @@ JVM model/core classes, and JVM engine-to-presentation adapters without Compose.
 It runs shared presentation tests and headless scheduler tests, then checks host
 seams with [compile-only Compose/platform stubs](stubs-compose/README.md).
 No Swing UI fallback or obsolete table/display test suite is built.
+
+`compile-desktop.sh` also runs `desktop-tests/HardwareKeyManagerTest` (nested in
+its package directories), which requires scripted `OathSandbox`/`FidoSandbox`
+substitutes. It is not part of Gradle's real-SDK test source set. The Compose
+desktop validation workflow runs both the real Gradle matrix and this separate
+scripted suite; moving it does not drop its cases from CI. Ordinary desktop tests
+use an SDK-shaped credential fixture shared with the sandbox.
 
 ## What passing means
 

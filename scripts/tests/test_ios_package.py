@@ -378,7 +378,7 @@ class IosPackageTest(unittest.TestCase):
 
     def test_the_ios_workflow_builds_tests_and_signs_nothing(self):
         workflow = (ROOT / ".github/workflows/ios.yml").read_text(encoding="utf-8")
-        self.assertIn("macos-15", workflow)
+        self.assertIn("macos-26", workflow)
         self.assertNotIn("swift test", workflow)
         self.assertNotIn("swift build -c release --build-tests", workflow)
         self.assertIn(":ui-model:desktopTest", workflow)

@@ -122,6 +122,9 @@ fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "",
                 if (!item.interactive) {
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                         Text(text = item.label, style = ForestType.body, color = ForestPalette.textPrimary)
+                        if (item.detail.isNotEmpty()) {
+                            Text(text = item.detail, style = ForestType.label, color = ForestPalette.textSecondary)
+                        }
                         if (item.value.isNotEmpty()) {
                             Text(text = item.value, style = ForestType.label, color = ForestPalette.textSecondary)
                         }

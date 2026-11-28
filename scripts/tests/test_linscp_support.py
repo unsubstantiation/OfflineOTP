@@ -37,6 +37,24 @@ class LinScpSupportTest(unittest.TestCase):
         backup_codec = (CORE / "Utilities/EncryptedBackupCodec.kt").read_text(encoding="utf-8")
         self.assertIn("route == BackupRoute.LINSCP", backup_codec)
 
+    def test_expanded_metadata_uses_shared_field_limit_not_browser_csv_limit(self):
+        material = (ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/CredentialMaterialCodec.kt").read_text()
+        self.assertIn("MAX_PASSWORD_FIELD_BYTES = 512 * 1024", material)
+        self.assertIn("reader.text(MAX_PASSWORD_FIELD_BYTES, MAX_PASSWORD_FIELD_BYTES)", material)
+        core = (CORE / "Utilities/LinScpCredentials.kt").read_text()
+        self.assertIn("CredentialMaterialCodec.MAX_PASSWORD_FIELD_BYTES", core)
+        # Native LinSCP no longer maintains a second, narrower PWD1 codec.
+        native = (IOS / "Sources/OfflineOTPKit/LinScpVault.swift").read_text()
+        self.assertIn("PasswordMaterial.decode(bytes).items", native)
+        self.assertIn("PasswordMaterial.encodeFields(pairs.map", native)
+        self.assertNotIn("func readField()", native)
+        self.assertNotIn("func appendField(", native)
+        adapter = (IOS / "App/Sources/SharedInterchangeAdapter.swift").read_text()
+        self.assertIn("CredentialDocumentCodec().linScp", adapter)
+        # Large certificates are credential metadata, not an expanded CSV import allowance.
+        csv = (ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/BrowserCsvCodec.kt").read_text()
+        self.assertIn("MAX_FIELD_CHARS = 64 * 1024", csv)
+
     def test_android_linscp_import_and_export_are_session_guarded_and_wipe_secrets(self):
         main = (APP / "kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
         for token in (

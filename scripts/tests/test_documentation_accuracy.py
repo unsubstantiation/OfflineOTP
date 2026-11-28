@@ -98,6 +98,22 @@ class DocumentationAccuracyTest(unittest.TestCase):
         self.assertIn("No replacement CodeQL workflow", detail)
         self.assertFalse((ROOT / ".github/workflows/codeql.yml").exists())
 
+    def test_current_readmes_do_not_extend_prior_verification_to_dependency_refresh(self):
+        for name in ("README.md", "docs/README.md", "ios/README.md", "scripts/packaging/README.md"):
+            document = text(name)
+            self.assertIn("Earlier non-iOS", document, name)
+            self.assertIn("dependency refresh", document, name)
+            self.assertNotIn("all non-iOS builds/platforms verified", document, name)
+
+    def test_readmes_explain_native_build_and_sandbox_toolchain_limits(self):
+        self.assertIn("native OpenPGP backend before packaging", text("README.md"))
+        self.assertIn("debug Gradle build alone does not build the Rust libraries",
+                      text("scripts/openpgp/README.md"))
+        self.assertIn("does not supply `javac` or `jpackage`", text("scripts/kotlin-sandbox/README.md"))
+        golden = text("desktop/src/test/resources/golden/README.md")
+        self.assertIn("not every", golden)
+        self.assertNotIn("hashes every file", golden)
+
     def test_documentation_index_covers_every_top_level_guide(self):
         index = text("docs/README.md")
         for path in sorted((ROOT / "docs").glob("*.md")):

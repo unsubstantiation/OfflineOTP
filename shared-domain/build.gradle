@@ -14,7 +14,7 @@ kotlin {
 }
 android {
     namespace = 'com.fairuniversal.offlineotp.domain'
-    compileSdk 36
+    compileSdk 37
     defaultConfig { minSdkVersion 28 }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8

@@ -35,9 +35,9 @@ class IosWorkflowTest(unittest.TestCase):
         android = next(s for s in self.steps if s.get("uses", "").startswith("android-actions/setup-android@"))
         self.assertEqual("temurin", java["with"]["distribution"])
         self.assertEqual("17", java["with"]["java-version"])
-        self.assertEqual("12266719", android["with"]["cmdline-tools-version"])
-        self.assertIn("platforms;android-36", android["with"]["packages"])
-        self.assertIn("build-tools;36.0.0", android["with"]["packages"])
+        self.assertEqual("15859902", android["with"]["cmdline-tools-version"])
+        self.assertIn("platforms;android-37", android["with"]["packages"])
+        self.assertIn("build-tools;37.0.0", android["with"]["packages"])
         compile_step = self.step("Build required Compose presentation XCFramework")
         self.assertLess(self.steps.index(java), self.steps.index(compile_step))
         self.assertLess(self.steps.index(android), self.steps.index(compile_step))
@@ -47,12 +47,12 @@ class IosWorkflowTest(unittest.TestCase):
         self.assertIn("xcrun --sdk iphoneos --show-sdk-version", script)
         self.assertIn("xcrun swift --version", script)
         python = script.split("<<'PYTHON'\n", 1)[1].rsplit("\nPYTHON", 1)[0]
-        for version in ("Apple Swift version 6.1 (swiftlang)", "Apple Swift version 6.2", "Apple Swift version 7.0"):
+        for version in ("Apple Swift version 6.2 (swiftlang)", "Apple Swift version 6.3", "Apple Swift version 7.0"):
             with self.subTest(version=version), patch("subprocess.check_output", return_value=version):
                 exec(compile(python, "<ios-toolchain-preflight>", "exec"), {})
-        for version in ("Apple Swift version 6.0.3", "Apple Swift version 5.10", "unknown"):
+        for version in ("Apple Swift version 6.1", "Apple Swift version 6.0.3", "Apple Swift version 5.10", "unknown"):
             with self.subTest(version=version), patch("subprocess.check_output", return_value=version):
-                with self.assertRaisesRegex(SystemExit, "Swift 6.1 or later"):
+                with self.assertRaisesRegex(SystemExit, "Swift 6.2 or later"):
                     exec(compile(python, "<ios-toolchain-preflight>", "exec"), {})
 
     def test_frameworks_are_built_and_checked_before_package_resolution(self):

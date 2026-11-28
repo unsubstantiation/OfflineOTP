@@ -24,7 +24,6 @@ public enum LinScpVault {
     public static let lscp1Prefix = "lscp1$"
     public static let masterKeyBytes = 32
 
-    private static let pwdMagic: UInt32 = 0x5057_4431 // "PWD1"
     private static let sshMagic: UInt32 = 0x5353_4831 // "SSH1"
     private static let lscp1NonceBytes = 16
     private static let lscp1TagBytes = 32
@@ -635,64 +634,13 @@ public enum LinScpVault {
     }
 
     private static func decodePasswordMaterial(_ bytes: [UInt8]) throws -> [(String, String)] {
-        guard bytes.count >= 8, bytes.count <= SecretLimit.password else {
-            throw LinScpVaultError.invalidFormat
-        }
-        var cursor = 0
-        func readUInt32() throws -> UInt32 {
-            guard cursor + 4 <= bytes.count else { throw LinScpVaultError.invalidFormat }
-            let val = (UInt32(bytes[cursor]) << 24) | (UInt32(bytes[cursor + 1]) << 16)
-                | (UInt32(bytes[cursor + 2]) << 8) | UInt32(bytes[cursor + 3])
-            cursor += 4
-            return val
-        }
-        func readField() throws -> String {
-            let len = Int(try readUInt32())
-            guard len >= 0, len <= 65_536, cursor + len <= bytes.count else {
-                throw LinScpVaultError.invalidFormat
-            }
-            let slice = bytes[cursor..<(cursor + len)]
-            cursor += len
-            guard let text = String(bytes: slice, encoding: .utf8) else {
-                throw LinScpVaultError.invalidUTF8
-            }
-            return text
-        }
-        guard try readUInt32() == pwdMagic else { throw LinScpVaultError.invalidFormat }
-        let count = Int(try readUInt32())
-        guard (1...64).contains(count) else { throw LinScpVaultError.invalidFormat }
-        var out: [(String, String)] = []
-        out.reserveCapacity(count)
-        for _ in 0..<count {
-            out.append((try readField(), try readField()))
-        }
-        guard cursor == bytes.count else { throw LinScpVaultError.invalidFormat }
-        return out
+        // Reuse the app's PWD1 model instead of maintaining a separate 64 KiB parser.
+        // Production document validation is supplied by the shared Kotlin codec.
+        try PasswordMaterial.decode(bytes).items.map { ($0.name, $0.value) }
     }
 
     private static func encodePasswordMaterial(_ pairs: [(String, String)]) throws -> [UInt8] {
-        guard (1...64).contains(pairs.count) else { throw LinScpVaultError.invalidFormat }
-        var out: [UInt8] = []
-        func appendUInt32(_ val: UInt32) {
-            out.append(UInt8((val >> 24) & 0xFF))
-            out.append(UInt8((val >> 16) & 0xFF))
-            out.append(UInt8((val >> 8) & 0xFF))
-            out.append(UInt8(val & 0xFF))
-        }
-        func appendField(_ text: String) throws {
-            let utf8 = Array(text.utf8)
-            guard utf8.count <= 65_536 else { throw LinScpVaultError.invalidFormat }
-            appendUInt32(UInt32(utf8.count))
-            out.append(contentsOf: utf8)
-        }
-        appendUInt32(pwdMagic)
-        appendUInt32(UInt32(pairs.count))
-        for (name, val) in pairs {
-            try appendField(name)
-            try appendField(val)
-        }
-        guard out.count <= SecretLimit.password else { throw LinScpVaultError.invalidFormat }
-        return out
+        try PasswordMaterial.encodeFields(pairs.map { PasswordMaterial.Field(name: $0.0, value: $0.1) })
     }
 
     private static func decodeSshKeyMaterial(_ bytes: [UInt8]) throws -> (String, String) {

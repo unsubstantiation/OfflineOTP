@@ -16,10 +16,11 @@ import org.junit.Test
 
 class HardwareDeviceSelectorTest {
 
-    private fun fakeDevice() = object : YubiKeyDevice {
-        override fun <T> openConnection(type: Class<T>): T =
-            throw NotImplementedError("test device never opens a connection")
-    }
+    // The selector only needs opaque device identities, not a partial implementation
+    // of YubiKit's transport/callback/generic connection API. Fail on any SDK call.
+    private fun fakeDevice(): YubiKeyDevice = java.lang.reflect.Proxy.newProxyInstance(
+        YubiKeyDevice::class.java.classLoader, arrayOf(YubiKeyDevice::class.java)
+    ) { _, _, _ -> throw AssertionError("selector must not open or inspect a device") } as YubiKeyDevice
 
     private class FakeSource(private val devices: List<YubiKeyDevice>) : HardwareDeviceSource {
         var scans = 0

@@ -58,7 +58,7 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "${YUBIKIT_CORE_STUBS[@]}")
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
 mapfile -d '' CORE_SOURCES < <(find "$ROOT/shared-domain/src/commonMain/kotlin" "$CORE_MAIN" "$CORE_TEST" "$UI_MODEL_MAIN" "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
-mapfile -d '' DESKTOP_SOURCES < <(find "$DESKTOP_MAIN" "$DESKTOP_TEST" -name '*.kt' -print0 | sort -z)
+mapfile -d '' DESKTOP_SOURCES < <(find "$DESKTOP_MAIN" "$DESKTOP_TEST" "$SANDBOX/desktop-tests" -name '*.kt' -print0 | sort -z)
 # Desktop-only third-party compile stubs (PGPainless/BouncyCastle and the yubikit PC/SC module).
 # Phase 1 (core) never sees these: core speaks library-neutral ports and the portable yubikit
 # core/oath/fido stubs it already owns; only desktop references the PGPainless and PC/SC adapters.

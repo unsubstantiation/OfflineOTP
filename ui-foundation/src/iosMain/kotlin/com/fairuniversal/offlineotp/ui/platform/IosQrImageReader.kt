@@ -4,6 +4,7 @@ package com.fairuniversal.offlineotp.ui.platform
 
 import platform.CoreGraphics.CGImageRelease
 import platform.CoreImage.CIContext
+import platform.CoreImage.createCGImage
 import platform.UIKit.UIImage
 import platform.Vision.VNBarcodeObservation
 import platform.Vision.VNBarcodeSymbologyQR

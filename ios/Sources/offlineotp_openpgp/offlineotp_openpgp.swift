@@ -281,7 +281,7 @@ private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
     errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
-    uniffiEnsureInitialized()
+    uniffiEnsureOfflineotpOpenpgpInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
@@ -352,18 +352,29 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-fileprivate class UniffiHandleMap<T> {
-    private var map: [UInt64: T] = [:]
+// Initial value and increment amount for handles.
+// These ensure that SWIFT handles always have the lowest bit set
+fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
+fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
+
+fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
+    // All mutation happens with this lock held, which is why we implement @unchecked Sendable.
     private let lock = NSLock()
-    private var currentHandle: UInt64 = 1
+    private var map: [UInt64: T] = [:]
+    private var currentHandle: UInt64 = UNIFFI_HANDLEMAP_INITIAL
 
     func insert(obj: T) -> UInt64 {
         lock.withLock {
-            let handle = currentHandle
-            currentHandle += 1
-            map[handle] = obj
-            return handle
+            return doInsert(obj)
         }
+    }
+
+    // Low-level insert function, this assumes `lock` is held.
+    private func doInsert(_ obj: T) -> UInt64 {
+        let handle = currentHandle
+        currentHandle += UNIFFI_HANDLEMAP_DELTA
+        map[handle] = obj
+        return handle
     }
 
      func get(handle: UInt64) throws -> T {
@@ -372,6 +383,15 @@ fileprivate class UniffiHandleMap<T> {
                 throw UniffiInternalError.unexpectedStaleHandle
             }
             return obj
+        }
+    }
+
+     func clone(handle: UInt64) throws -> UInt64 {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return doInsert(obj)
         }
     }
 
@@ -454,7 +474,7 @@ fileprivate struct FfiConverterString: FfiConverter {
 }
 
 
-public enum OpenPgpError {
+public enum OpenPgpError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
 
 
@@ -470,8 +490,21 @@ public enum OpenPgpError {
     case TooLarge
     case Internal(reason: String
     )
+
+
+
+
+
+
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+
 }
 
+#if compiler(>=6)
+extension OpenPgpError: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -552,12 +585,18 @@ public struct FfiConverterTypeOpenPgpError: FfiConverterRustBuffer {
 }
 
 
-extension OpenPgpError: Equatable, Hashable {}
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOpenPgpError_lift(_ buf: RustBuffer) throws -> OpenPgpError {
+    return try FfiConverterTypeOpenPgpError.lift(buf)
+}
 
-extension OpenPgpError: Foundation.LocalizedError {
-    public var errorDescription: String? {
-        String(reflecting: self)
-    }
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOpenPgpError_lower(_ value: OpenPgpError) -> RustBuffer {
+    return FfiConverterTypeOpenPgpError.lower(value)
 }
 
 #if swift(>=5.8)
@@ -633,14 +672,14 @@ fileprivate struct FfiConverterSequenceSequenceUInt8: FfiConverterRustBuffer {
         return seq
     }
 }
-public func crateVersion() -> String {
+public func crateVersion() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_offlineotp_openpgp_fn_func_crate_version($0
     )
 })
 }
-public func decrypt(message: [UInt8], secretKeyBlock: [UInt8], passphrase: String?)throws  -> [UInt8] {
-    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError.lift) {
+public func decrypt(message: [UInt8], secretKeyBlock: [UInt8], passphrase: String?)throws  -> [UInt8]  {
+    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError_lift) {
     uniffi_offlineotp_openpgp_fn_func_decrypt(
         FfiConverterSequenceUInt8.lower(message),
         FfiConverterSequenceUInt8.lower(secretKeyBlock),
@@ -648,16 +687,16 @@ public func decrypt(message: [UInt8], secretKeyBlock: [UInt8], passphrase: Strin
     )
 })
 }
-public func encrypt(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]])throws  -> [UInt8] {
-    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError.lift) {
+public func encrypt(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]])throws  -> [UInt8]  {
+    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError_lift) {
     uniffi_offlineotp_openpgp_fn_func_encrypt(
         FfiConverterSequenceUInt8.lower(plaintext),
         FfiConverterSequenceSequenceUInt8.lower(recipientKeyBlocks),$0
     )
 })
 }
-public func encryptSigned(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]], signingKeyBlock: [UInt8], passphrase: String?)throws  -> [UInt8] {
-    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError.lift) {
+public func encryptSigned(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]], signingKeyBlock: [UInt8], passphrase: String?)throws  -> [UInt8]  {
+    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError_lift) {
     uniffi_offlineotp_openpgp_fn_func_encrypt_signed(
         FfiConverterSequenceUInt8.lower(plaintext),
         FfiConverterSequenceSequenceUInt8.lower(recipientKeyBlocks),
@@ -666,7 +705,7 @@ public func encryptSigned(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]], sig
     )
 })
 }
-public func rpgpVersion() -> String {
+public func rpgpVersion() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_offlineotp_openpgp_fn_func_rpgp_version($0
     )
@@ -680,9 +719,9 @@ private enum InitializationResult {
 }
 // Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult = {
+private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 26
+    let bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_offlineotp_openpgp_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
@@ -707,7 +746,9 @@ private var initializationResult: InitializationResult = {
     return InitializationResult.ok
 }()
 
-private func uniffiEnsureInitialized() {
+// Make the ensure init function public so that other modules which have external type references to
+// our types can call it.
+public func uniffiEnsureOfflineotpOpenpgpInitialized() {
     switch initializationResult {
     case .ok:
         break

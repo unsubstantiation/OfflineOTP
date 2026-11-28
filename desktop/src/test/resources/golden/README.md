@@ -1,8 +1,9 @@
 # Golden interop blobs
 
-Fixed-vector files that pin the on-disk formats shared by the Android app and the desktop client.
-`GoldenInteropTest` hashes every file and opens each blob through the real desktop storage stack,
-so a silent change to the codecs, the PBKDF2 split or the byte framing fails the build.
+Test-only vectors for shared storage/interchange formats. `GoldenInteropTest` pins
+hashes for its encrypted corpus and opens those blobs through the desktop storage
+stack. Other contract fixtures have dedicated consumers listed below; not every
+file is checked by `GoldenInteropTest`. None contains real accounts.
 
 The base encrypted vault/backup blobs below use the password `golden-interop-password` and the same two-entry vault document
 (`expected-vault.json`, produced by the shared `VaultJson` encoder): a 6-digit SHA1 TOTP for
@@ -53,8 +54,6 @@ directory from its own source path), so their source coverage uses the same byte
 are not executed by the current iOS workflow; fixture consumers alone do not establish
 a native pass. They never write here.
 
-These are test-only fixtures with a throwaway password and no real accounts.
-
 ## Hardware and session-backup contracts
 
 `automatic-backup-options.json` pins foreground session-backup defaults and validation boundaries,
@@ -68,7 +67,7 @@ not real hardware credentials. The deterministic independent generator is
 JVM `HardwareUnlockEnvelopeContractTest` checks exact seal/open bytes and tampering; Swift
 `HardwareUnlockEnvelopeTests` uses the same vectors. Added Swift tests still require macOS execution.
 These vectors are not native transport verification. The iOS PRF source route now uses the official
-successor SDK; its Xcode and physical-key acceptance remain pending (see docs/ios-hardware.md).
+successor SDK; its Xcode and physical-key acceptance remain pending (see [iOS hardware](../../../../../docs/ios-hardware.md)).
 
 ## Local credential and entry-extension contracts
 
@@ -90,5 +89,5 @@ normalization/default semantics match Swift. Swift consumers have not been execu
 bounds which must be parsed without deriving keys. Regenerate with
 `python3 scripts/fixtures/generate-vault-protocol.py`; `--check` verifies reproducibility.
 The same corpus is consumed by desktop/shared-domain tests, Android instrumentation sources and
-Xcode app bridge tests. Existing encrypted vectors remain unchanged. See
-`docs/portable-vault-protocol.md` for the contract and unexecuted native validation gates.
+Xcode app bridge tests. Existing encrypted vectors remain unchanged. See the [protocol contract](../../../../../docs/portable-vault-protocol.md) for
+native validation gates.

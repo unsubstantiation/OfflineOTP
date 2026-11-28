@@ -7,7 +7,7 @@ are historical snapshots, not competing descriptions of the shipping architectur
 
 | Area | Recorded evidence |
 | --- | --- |
-| Android, Debian, Windows and macOS | User reports all non-iOS builds/workflows and platform checks verified |
+| Android, Debian, Windows and macOS | Prior user report: all non-iOS builds/workflows and platform checks verified. A later Compose desktop matrix failed; see [follow-up](compose-desktop-cutover.md#validation-workflow-follow-up) |
 | iOS | Confirmed failed build; Kotlin cutover and workflow fixes await a successful native run |
 | CodeQL | Java/Kotlin autobuild failed compiling iOS metadata; source fixes await a successful rerun. Python, Rust and Actions analysis passed in that run |
 | Local follow-up checks | Shared presentation/host JVM tests, Python regressions and architecture/shell checks pass; these do not replace native execution |

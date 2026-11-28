@@ -27,7 +27,7 @@ fi
 if [[ -z "${ANDROID_NDK_HOME:-}" || ! -d "${ANDROID_NDK_HOME}" ]]; then
     # GitHub annotation as well as stderr: on a runner the log body is only reachable through the
     # log download, while an ::error line surfaces as the failing step's annotation.
-    message="ANDROID_NDK_HOME must point at an installed Android NDK (tried: \${ANDROID_NDK_HOME:-<unset>} and \$ANDROID_HOME/ndk/*; install with sdkmanager 'ndk;27.2.12479018')"
+    message="ANDROID_NDK_HOME must point at an installed Android NDK (tried: \${ANDROID_NDK_HOME:-<unset>} and \$ANDROID_HOME/ndk/*; install with sdkmanager 'ndk;30.0.16248370')"
     echo "$message" >&2
     echo "::error title=Android NDK not found::$message"
     exit 2

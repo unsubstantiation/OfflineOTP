@@ -36,11 +36,11 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         self.assertIn('name = "offlineotp_openpgp"', text)
         self.assertIn('crate-type = ["cdylib", "staticlib", "lib"]', text)
         self.assertIn('rust-version = "1.88"', text)
-        self.assertIn('pgp = { version = "=0.21.0"', text)
-        self.assertIn('uniffi = "=0.28.3"', text)
+        self.assertIn('pgp = { version = "=0.21.1"', text)
+        self.assertIn('uniffi = "=0.31.0"', text)
         self.assertIn('thiserror = "=2.0', text)
         self.assertIn('rand = "=0.8', text)
-        self.assertIn('zeroize = "=1.8', text)
+        self.assertIn('zeroize = "=1.9', text)
         self.assertIn("publish = false", text)
 
     def test_udl_contract_and_build_script_generate_scaffolding(self):
@@ -163,11 +163,11 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         desktop = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
         android = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
         self.assertIn('kotlin.srcDir("$rootDir/rust/bindings/kotlin")', desktop)
-        self.assertIn("net.java.dev.jna:jna:5.14.0", desktop)
+        self.assertIn("net.java.dev.jna:jna:5.19.1", desktop)
         self.assertIn("stageOpenPgpNative", (ROOT / "desktop-compose/build.gradle").read_text())
         self.assertIn("-Djna.library.path=$APPDIR/native", (ROOT / "desktop-compose/build.gradle").read_text())
         self.assertIn('java.srcDir "$rootDir/rust/bindings/kotlin"', android)
-        self.assertIn("net.java.dev.jna:jna:5.14.0@aar", android)
+        self.assertIn("net.java.dev.jna:jna:5.19.1@aar", android)
         self.assertIn("jniLibs.srcDir 'src/main/jniLibs'", android)
 
     def test_ios_adapter_calls_the_generated_bindings_when_packed(self):

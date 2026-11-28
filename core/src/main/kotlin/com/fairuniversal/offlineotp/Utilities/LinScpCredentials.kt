@@ -57,7 +57,8 @@ object LinScpCredentials {
     private const val LSCP1_NONCE_BYTES = 16
     private const val LSCP1_TAG_BYTES = 32
     private const val LSCP1_MAX_PASSWORD_BYTES = 4096
-    private const val PASSWORD_FIELD_BYTE_LIMIT = 64 * 1024
+    private const val PASSWORD_FIELD_BYTE_LIMIT =
+        com.fairuniversal.offlineotp.domain.CredentialMaterialCodec.MAX_PASSWORD_FIELD_BYTES
 
     private val LSCP1_TAG_LABEL = "lscp1".toByteArray(StandardCharsets.US_ASCII)
     private val LSCP1_ENC_KEY_LABEL =

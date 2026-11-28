@@ -5,7 +5,15 @@ import com.yubico.yubikit.core.smartcard.SmartCardConnection
 enum class OathType { TOTP, HOTP }
 enum class HashAlgorithm { SHA1, SHA256, SHA512 }
 class Credential(val id: ByteArray = byteArrayOf(), val oathType: OathType = OathType.TOTP,
-                 val issuer: String? = null, val accountName: String = "", val period: Int = 30)
+                 val issuer: String? = null, val accountName: String = "", val period: Int = 30) {
+    // SDK-shaped constructor for tests shared with real Gradle/YubiKit builds.
+    constructor(deviceId: String, id: ByteArray, type: OathType, touchRequired: Boolean) : this(
+        id, type,
+        String(id, Charsets.UTF_8).substringAfter('/').let { if (':' in it) it.substringBefore(':') else null },
+        String(id, Charsets.UTF_8).substringAfter('/').substringAfter(':'),
+        if (type == OathType.HOTP) 0 else String(id, Charsets.UTF_8).substringBefore('/').toIntOrNull() ?: 30
+    )
+}
 class CredentialData(accountName: String, type: OathType, algorithm: HashAlgorithm, secret: ByteArray,
                      digits: Int, period: Int, counter: Int, issuer: String?) {
     // Model YubiKit's ID formatting; this is not an OATH transport.
