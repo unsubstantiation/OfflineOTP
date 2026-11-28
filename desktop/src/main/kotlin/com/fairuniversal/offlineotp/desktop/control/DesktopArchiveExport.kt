@@ -19,10 +19,15 @@ class DesktopArchiveExport(private val state: DesktopVaultState, private val wor
             internal set
         internal var file: File? = null
     }
-    private class Work(private var bytes: ByteArray?) {
-        @Synchronized fun take() = bytes.also { bytes = null }
-        @Synchronized fun cancel() { bytes?.fill(0); bytes = null }
+    private class Work(private var bytes: ByteArray?, generation: Long) {
+        private val delivery = com.fairuniversal.offlineotp.domain.InterchangeWorkflow(generation).also { check(it.preview(0)) }
+        @Synchronized fun take(generation: Long, ready: Boolean): ByteArray? {
+            if (!delivery.consume(generation, ready)) { cancel(); return null }
+            return bytes.also { bytes = null }
+        }
+        @Synchronized fun cancel() { delivery.cancel(); bytes?.fill(0); bytes = null }
     }
+
     var pending: Request? = null
         private set
     private var work: Work? = null
@@ -64,11 +69,11 @@ class DesktopArchiveExport(private val state: DesktopVaultState, private val wor
             request.status = Status.FAILED; changed(); return false
         }
         if (!active() || !current(request)) { bytes.fill(0); return false }
-        val task = Work(bytes); work = task; request.status = Status.WRITING; changed()
+        val task = Work(bytes, state.generation); work = task; request.status = Status.WRITING; changed()
         try {
             worker.execute {
                 if (state.isLocked) { task.cancel(); return@execute }
-                val data = task.take() ?: return@execute
+                val data = task.take(state.generation, !state.isLocked) ?: return@execute
                 val result = try { write(file, data); Status.SAVED }
                     catch (_: FileAlreadyExistsException) { Status.EXISTS }
                     catch (_: Exception) { Status.FAILED }

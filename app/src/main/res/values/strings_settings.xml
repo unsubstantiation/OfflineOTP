@@ -18,7 +18,7 @@
     <string name="settings_title_backup_password_source">Encrypted backup password source</string>
     <string name="settings_backup_password_source_app">Use app password</string>
     <string name="settings_backup_password_source_separate">Use separate backup password (configure above)</string>
-    <string name="settings_desc_shared_backup_password">Enter and confirm a separate backup password. Leave both fields blank to clear it. Existing backups still need their original password. This does not change the selected backup password source.</string>
+    <string name="settings_desc_shared_backup_password">Enter and confirm a separate backup password. Leave both fields blank to clear it. Existing backups still need their original password. This does not change the selected backup password source. New saved passwords are protected by the unlocked vault key; after vault-key recovery or a key change, re-enter this password if automatic export cannot resume.</string>
     <string name="settings_choice_disabled">Disabled</string>
     <string name="settings_choice_enabled">Enabled</string>
     <string name="settings_activity_title">Settings</string>

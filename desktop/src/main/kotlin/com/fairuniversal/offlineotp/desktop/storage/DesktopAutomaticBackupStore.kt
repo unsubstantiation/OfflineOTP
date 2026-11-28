@@ -2,7 +2,6 @@ package com.fairuniversal.offlineotp.desktop.storage
 
 import com.fairuniversal.offlineotp.Utilities.AutomaticBackupCredentialCodec
 import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
-import com.fairuniversal.offlineotp.ui.portable.PortableAutomaticBackupPolicy
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
@@ -19,15 +18,9 @@ class DesktopAutomaticBackupStore(directory: File) {
     private val file = File(directory, FILENAME)
     val exists: Boolean get() = Files.exists(file.toPath(), NOFOLLOW_LINKS)
     fun save(key: SecretKey, config: Configuration) {
-        require(config.folder.length in 1..4096 && File(config.folder).isAbsolute &&
-            (if (config.vaultCopy) config.password.isEmpty() && config.recipientKeys.isEmpty() && !config.requiresSigning && config.minutes in 1..1440 && config.keep in 1..100
-             else if (config.recipientKeys.isEmpty()) PortableAutomaticBackupPolicy.valid(config.minutes, config.keep, config.password.size, true)
-             else config.password.isEmpty() && config.minutes in 1..1440 && config.keep in 1..100 && AutomaticBackupCredentialCodec.validRecipients(config.recipientKeys)))
-        require(!config.requiresSigning || config.recipientKeys.isNotEmpty())
-        require(!Files.isSymbolicLink(file.toPath()))
-        val document = if (config.vaultCopy) AutomaticBackupCredentialCodec.snapshotConfigurationDocument(config.folder, config.minutes, config.keep)
-            else if (config.recipientKeys.isEmpty()) AutomaticBackupCredentialCodec.configurationDocument(config.folder, config.password, config.minutes, config.keep)
-            else AutomaticBackupCredentialCodec.recipientConfigurationDocument(config.folder, config.recipientKeys, config.minutes, config.keep, config.requiresSigning)
+        require(File(config.folder).isAbsolute && !Files.isSymbolicLink(file.toPath()))
+        val document = AutomaticBackupCredentialCodec.configurationDocument(config.folder, config.password,
+            config.minutes, config.keep, config.recipientKeys, config.requiresSigning, config.vaultCopy)
         try {
             val encrypted = AutomaticBackupCredentialCodec.seal(key, document)
             try { NioAtomicFileStore(file).writeAtomic(encrypted) } finally { encrypted.fill(0) }

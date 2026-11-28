@@ -37,6 +37,8 @@ interface PortableSurfaceActions {
  */
 class PortableVaultPresentation {
     private var active by mutableStateOf(true)
+    private val delivery = VaultFrameDelivery()
+    private var frameTicket by mutableStateOf(0L)
     private var vault by mutableStateOf(PortableVaultState.EMPTY)
     private var cardLayout by mutableStateOf(PortableCardLayout.DEFAULT)
     private var artwork by mutableStateOf<VaultArtwork?>(null)
@@ -50,16 +52,20 @@ class PortableVaultPresentation {
 
     /** Replaces the frame without replacing the composition. */
     fun updateVault(state: PortableVaultState) {
+        if (!active) return
+        frameTicket = delivery.publish()
         vault = state
     }
 
     /** Updates the Compose vault card density/layout (`DEFAULT`, `COMPACT`, or `FULL`). */
     fun updateCardLayout(layout: String) {
+        if (!active) return
         cardLayout = PortableCardLayout.values().firstOrNull { it.name == layout } ?: PortableCardLayout.DEFAULT
     }
 
     /** Opens or replaces the visible dialog. A null state closes it. */
     fun updateSurface(state: PortableSurfaceState?) {
+        if (!active) return
         val current = surface
         if (state?.key != current?.key) {
             surfaceEpoch++
@@ -73,8 +79,18 @@ class PortableVaultPresentation {
         }
     }
 
+    /** Hide/revoke a session/background frame without making the reusable composition terminal. */
+    fun clearFrame() {
+        delivery.invalidate()
+        vault = PortableVaultState.EMPTY
+        surface = null
+        surfaceEpoch++
+    }
+
     fun close() {
         active = false
+        delivery.close()
+        vault = PortableVaultState.EMPTY
         artwork = null
         surface = null
         surfaceEpoch++
@@ -98,27 +114,35 @@ class PortableVaultPresentation {
     ): UIViewController = ComposeUIViewController {
         ForestTheme {
             if (active) {
+                val ticket = frameTicket
+                fun current() = active && delivery.current(ticket)
                 PortableVaultScreen(
                     state = vault,
-                    onTab = { position -> vaultActions.selectTab(position) },
-                    onQuery = { text -> vaultActions.search(text) },
-                    onTag = { tag -> vaultActions.toggleTag(tag) },
-                    onClearTags = { vaultActions.clearTags() },
-                    onTool = { action -> vaultActions.tool(action) },
-                    onCard = { index, action -> vaultActions.card(index, action) },
-                    onDismissToast = { vaultActions.tool("dismissToast") },
+                    onTab = { position -> if (current()) vaultActions.selectTab(position) },
+                    onQuery = { text -> if (current()) vaultActions.search(text) },
+                    onTag = { tag -> if (current()) vaultActions.toggleTag(tag) },
+                    onClearTags = { if (current()) vaultActions.clearTags() },
+                    onTool = { action -> if (current()) vaultActions.tool(action) },
+                    onCard = { index, action -> if (current()) vaultActions.card(index, action) },
+                    onDismissToast = { if (current()) vaultActions.tool("dismissToast") },
                     cardLayout = cardLayout,
                     artwork = artwork
                 )
                 val dialog = surface
                 if (dialog != null) {
+                    val epoch = surfaceEpoch
+                    fun surfaceCurrent() = active && epoch == surfaceEpoch && surface?.key == dialog.key
+                    val guarded = object : PortableSurfaceActions {
+                        override fun change(key: String, value: String) { if (surfaceCurrent()) surfaceActions.change(key, value) }
+                        override fun action(key: String): String? = if (surfaceCurrent()) surfaceActions.action(key) else "Reopen this dialog."
+                    }
                     RenderSharedSurface(
                         dialog = dialog,
                         dialogKey = "${dialog.key}:$surfaceEpoch",
                         artwork = artwork,
-                        surfaceActions = surfaceActions,
-                        onAction = { key -> invokeSurfaceAction(surfaceActions, key) },
-                        onDismiss = { invokeSurfaceAction(surfaceActions, "dismiss") }
+                        surfaceActions = guarded,
+                        onAction = { key -> if (surfaceCurrent()) invokeSurfaceAction(guarded, key) else "Reopen this dialog." },
+                        onDismiss = { if (surfaceCurrent()) invokeSurfaceAction(guarded, "dismiss") }
                     )
                 }
             }
@@ -473,6 +497,12 @@ private fun RenderSharedSurface(
                 busy = dialog.busy,
                 count = count,
                 failed = dialog.message.isNotEmpty(),
+                onDecodeSelected = { password, format, variant ->
+                    surfaceActions.change("restoreFormat", format)
+                    surfaceActions.change("andOtpVariant", variant)
+                    surfaceActions.change("password", password)
+                    onAction("restorePreview")
+                },
                 onDecode = { password ->
                     surfaceActions.change("password", password)
                     onAction("restorePreview")

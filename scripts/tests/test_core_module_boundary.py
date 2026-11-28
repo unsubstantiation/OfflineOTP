@@ -79,15 +79,16 @@ class KotlinCoreBoundaryTest(unittest.TestCase):
 
         core_listed = {
             e.replace("$KOTLIN_CORE", "core/src/main/kotlin/com/fairuniversal/offlineotp")
-             .replace("$ROOT", ".")
+             .replace("$ROOT/", "")
             for e in parse("CORE_SOURCES")
         }
         app_listed = {
             e.replace("$KOTLIN_APP", "app/src/main/kotlin/com/fairuniversal/offlineotp")
-             .replace("$ROOT", ".")
+             .replace("$ROOT/", "")
             for e in parse("APP_SOURCES")
         }
-        core_on_disk = {str(p.relative_to(ROOT)) for p in CORE_MAIN.rglob("*.kt")}
+        core_on_disk = {str(p.relative_to(ROOT)) for base in
+                        (CORE_MAIN, ROOT / "shared-domain/src/commonMain/kotlin") for p in base.rglob("*.kt")}
 
         self.assertEqual(core_on_disk, core_listed, "run.sh CORE_SOURCES drifted from core/ tree")
         self.assertEqual(set(), core_listed & app_listed, "a source is listed in both core and app")

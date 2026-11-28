@@ -135,8 +135,10 @@ object DatabaseHelper {
             val id = String(staged, 0, 36, StandardCharsets.US_ASCII)
             val committed = PreferenceManager.getDefaultSharedPreferences(context)
                 .getString(TRANSACTION_ID, "") ?: ""
-            if (expectedId != null && (id != expectedId || id != committed)) return false
-            if (id == committed) {
+            val action = com.fairuniversal.offlineotp.domain.PersistenceRecoveryPolicy.journal(
+                true, true, id == committed, expectedId != null, id == expectedId, false)
+            if (action == com.fairuniversal.offlineotp.domain.JournalAction.BLOCK) return false
+            if (action == com.fairuniversal.offlineotp.domain.JournalAction.PROMOTE) {
                 // Preferences committed first. Finish promotion after a crash/write failure.
                 FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE),
                     Arrays.copyOfRange(staged, 36, staged.size))
@@ -193,6 +195,35 @@ object DatabaseHelper {
         }
     }
 
+    /** Recognize the family even for unsupported headers: never send a copied vault to setup. */
+    @JvmStatic
+    fun hasPortableVault(context: Context): Boolean = synchronized(DatabaseFileLock) {
+        try {
+            android.util.AtomicFile(file(context, Constants.FILENAME_DATABASE)).openRead().use { input ->
+                val prefix = ByteArray(8)
+                var count = 0
+                while (count < prefix.size) {
+                    val read = input.read(prefix, count, prefix.size - count)
+                    if (read <= 0) break
+                    count += read
+                }
+                count == prefix.size && VaultContainer.isContainer(prefix)
+            }
+        } catch (_: Exception) { false }
+    }
+
+    /** Authenticate copied bytes without relying on another device's credential preferences. */
+    @JvmStatic
+    fun portableRecoveryKey(context: Context, password: String): SecretKey = synchronized(DatabaseFileLock) {
+        val bytes = FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))
+        try {
+            val key = VaultContainer.deriveKey(password, VaultContainer.header(bytes))
+            val plain = VaultContainer.openWithKey(key, bytes)
+            plain.fill(0)
+            key
+        } finally { bytes.fill(0) }
+    }
+
     /** Non-secret format capability for UI admission; writes still authenticate/recheck independently. */
     @JvmStatic
     fun isPortableVault(context: Context): Boolean = synchronized(DatabaseFileLock) {
@@ -243,11 +274,14 @@ object DatabaseHelper {
                 plaintext = EncryptionHelper.decrypt(key, original)
                 val migrated = VaultContainer.seal(key, header, plaintext)
                 VaultContainer.open(password, migrated).fill(0)
-                if (!permitted()) return rejected(VaultWriteError.CANCELED)
+                val workflow = com.fairuniversal.offlineotp.domain.PersistenceWorkflow(true, false)
+                if (!workflow.verified(permitted())) return rejected(VaultWriteError.CANCELED)
                 try { FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE_BACKUP), original) }
                 catch (_: Exception) { return rejected(VaultWriteError.BACKUP_FAILED) }
-                if (!permitted()) return rejected(VaultWriteError.CANCELED)
+                check(workflow.backedUp())
+                if (!workflow.beginPromotion(permitted())) return rejected(VaultWriteError.CANCELED)
                 FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE), migrated)
+                check(workflow.promoted())
                 return VaultWriteResult.Saved
             } catch (_: BadPaddingException) { return rejected(VaultWriteError.AUTHENTICATION_FAILED) }
             catch (_: IllegalArgumentException) { return rejected(VaultWriteError.INVALID_INPUT) }
@@ -279,7 +313,15 @@ object DatabaseHelper {
         return try {
             val previous = FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))
             val header = if (VaultContainer.isContainer(previous)) VaultContainer.header(previous) else null
-            FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE), encryptedEntries(entries, key, header))
+            val encrypted = encryptedEntries(entries, key, header)
+            (if (header != null) VaultContainer.openWithKey(requireNotNull(key), encrypted)
+                else EncryptionHelper.decrypt(requireNotNull(key), encrypted)).fill(0)
+            val workflow = com.fairuniversal.offlineotp.domain.PersistenceWorkflow(false, false)
+            check(workflow.verified(true)); check(workflow.beginPromotion(true))
+            try {
+                FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE), encrypted)
+                check(workflow.promoted())
+            } catch (error: Exception) { workflow.promotionFailed(); throw error }
             VaultWriteResult.Saved
         } catch (error: IllegalArgumentException) {
             rejected(VaultWriteError.INVALID_INPUT)
@@ -338,7 +380,7 @@ object DatabaseHelper {
                 if (FileHelper.exists(file(context, Constants.FILENAME_DATABASE))
                     || FileHelper.exists(file(context, Constants.FILENAME_DATABASE_BACKUP)))
                     return rejected(VaultWriteError.ALREADY_EXISTS)
-                entries = initialEntries?.let { source -> ArrayList(source.map { Entry(it.toJSON()) }) }
+                entries = initialEntries?.let { source -> ArrayList(source.map { it.detachedCopy() }) }
                     ?: ArrayList()
             } else {
                 val read = readVault(context, oldKey)
@@ -355,11 +397,17 @@ object DatabaseHelper {
                         FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))))
                     return rejected(VaultWriteError.INVALID_INPUT)
                 val encrypted = encryptedEntries(entries, newKey, header)
+                (if (header != null) VaultContainer.openWithKey(newKey, encrypted)
+                    else EncryptionHelper.decrypt(newKey, encrypted)).fill(0)
+                val workflow = com.fairuniversal.offlineotp.domain.PersistenceWorkflow(!initialize, true)
+                check(workflow.verified(true))
+                if (!initialize) check(workflow.backedUp())
                 val id = UUID.randomUUID().toString()
                 val staged = ByteArray(36 + encrypted.size)
                 System.arraycopy(id.toByteArray(StandardCharsets.US_ASCII), 0, staged, 0, 36)
                 System.arraycopy(encrypted, 0, staged, 36, encrypted.size)
                 FileHelper.writeBytesToFile(file(context, PENDING_FILE), staged)
+                check(workflow.staged())
                 val decision = try {
                     metadataCommitInProgress = true
                     commit.commit(id)
@@ -374,16 +422,20 @@ object DatabaseHelper {
                     transactionPoisoned = true
                     return recoveryRequired(VaultCommitState.UNKNOWN)
                 }
-                if (decision == VaultCommitDecision.CANCELED && id != marker) {
+                val promote = workflow.metadataCommitted(decision.portable(), id == marker)
+                if (workflow.phase == com.fairuniversal.offlineotp.domain.PersistencePhase.CANCELED) {
                     // Contract: CANCELED must be returned before any metadata mutation.
                     return rejected(VaultWriteError.CANCELED)
                 }
-                if (decision != VaultCommitDecision.COMMITTED || id != marker) {
+                if (!promote) {
                     transactionPoisoned = true
                     return recoveryRequired(VaultCommitState.UNKNOWN)
                 }
-                return if (recoverPendingDatabaseLocked(context, id)) VaultWriteResult.Saved
-                else recoveryRequired(VaultCommitState.COMMITTED)
+                return if (recoverPendingDatabaseLocked(context, id)) {
+                    check(workflow.promoted()); VaultWriteResult.Saved
+                } else {
+                    workflow.promotionFailed(); recoveryRequired(VaultCommitState.COMMITTED)
+                }
             } catch (error: IllegalArgumentException) {
                 return rejected(VaultWriteError.INVALID_INPUT)
             } catch (error: VaultException) {
@@ -400,8 +452,10 @@ object DatabaseHelper {
     fun canInitialize(context: Context): Boolean {
         synchronized(DatabaseFileLock) {
             return recoverPendingDatabase(context)
-                && !FileHelper.exists(file(context, Constants.FILENAME_DATABASE))
-                && !FileHelper.exists(file(context, Constants.FILENAME_DATABASE_BACKUP))
+                && com.fairuniversal.offlineotp.domain.PersistenceRecoveryPolicy.canInitialize(
+                    FileHelper.exists(file(context, Constants.FILENAME_DATABASE)),
+                    FileHelper.exists(file(context, Constants.FILENAME_DATABASE_BACKUP)),
+                    FileHelper.exists(file(context, PENDING_FILE)))
         }
     }
 

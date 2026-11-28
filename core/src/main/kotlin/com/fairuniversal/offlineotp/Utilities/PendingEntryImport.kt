@@ -6,18 +6,21 @@ import com.fairuniversal.offlineotp.Database.Entry
 class PendingEntryImport(entry: Entry, private val generation: Long) : AutoCloseable {
     private var pending: Entry? = entry
 
+    private val workflow = com.fairuniversal.offlineotp.domain.InterchangeWorkflow(generation).also { check(it.preview(1)) }
+
     /** Caller must check the live session and call this under VaultSession.MutationLock. */
     @Synchronized
     fun take(currentGeneration: Long, sessionReady: Boolean): Entry? {
         val entry = pending ?: return null
         pending = null
-        if (sessionReady && currentGeneration == generation) return entry
+        if (workflow.consume(currentGeneration, sessionReady)) return entry
         entry.destroy()
         return null
     }
 
     @Synchronized
     override fun close() {
+        workflow.cancel()
         pending?.destroy()
         pending = null
     }

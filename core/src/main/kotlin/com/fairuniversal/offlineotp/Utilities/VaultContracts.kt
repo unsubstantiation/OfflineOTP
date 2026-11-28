@@ -2,7 +2,7 @@ package com.fairuniversal.offlineotp.Utilities
 
 import com.fairuniversal.offlineotp.Database.Entry
 
-enum class VaultReadError { MISSING, MISSING_KEY, AUTHENTICATION_FAILED, CORRUPT, IO_FAILURE, RECOVERY_REQUIRED }
+typealias VaultReadError = com.fairuniversal.offlineotp.domain.PersistenceReadFailure
 
 /** A successful empty vault is Loaded(empty), never an error-shaped empty list. */
 sealed class VaultReadResult {
@@ -23,16 +23,15 @@ sealed class VaultReadResult {
     data class Unavailable(val error: VaultReadError) : VaultReadResult()
 }
 
-enum class VaultWriteError {
-    MISSING, MISSING_KEY, AUTHENTICATION_FAILED, CORRUPT, IO_FAILURE,
-    INVALID_INPUT, ALREADY_EXISTS, BACKUP_FAILED, CANCELED
-}
+typealias VaultWriteError = com.fairuniversal.offlineotp.domain.PersistenceWriteFailure
 enum class VaultCommitDecision { COMMITTED, CANCELED, UNKNOWN;
+    fun portable(): com.fairuniversal.offlineotp.domain.PersistenceCommit =
+        com.fairuniversal.offlineotp.domain.PersistenceCommit.valueOf(name)
     companion object {
         @JvmStatic fun fromCommit(success: Boolean): VaultCommitDecision = if (success) COMMITTED else UNKNOWN
     }
 }
-enum class VaultCommitState { UNKNOWN, COMMITTED }
+typealias VaultCommitState = com.fairuniversal.offlineotp.domain.PersistenceCommitState
 
 /** A staged migration is not a boolean: metadata may be committed even if promotion failed. */
 sealed class VaultWriteResult {

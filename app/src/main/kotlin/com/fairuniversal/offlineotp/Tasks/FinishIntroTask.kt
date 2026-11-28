@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.Tasks
 
 import android.content.Context
+import com.fairuniversal.offlineotp.domain.RestoreWorkflow
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.Constants
@@ -34,7 +35,14 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
 
     protected override fun doInBackground(): Result {
         var prepared: Settings.PreparedCredentials? = null
+        val restore = if (initialEntries != null) RestoreWorkflow() else null
+        val ticket = restore?.start(taskGeneration(), true) ?: 0L
         try {
+            if (initialEntries != null && restore != null) {
+                if (!restore.decoded(ticket, VaultSession.generation(), !isCanceled(), initialEntries.size,
+                        initialEntries.toHashSet().size == initialEntries.size) ||
+                    !restore.confirm(ticket, VaultSession.generation(), !isCanceled(), true)) return Result(false, null, taskGeneration())
+            }
             // New vaults always have portable password recovery. Device-only legacy vaults remain readable.
             if (encryptionType != Constants.EncryptionType.PASSWORD || authMethod != Constants.AuthMethod.PASSWORD)
                 return Result(false, null, taskGeneration())
@@ -47,11 +55,14 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
             if (key == null) return Result(false, null, taskGeneration())
             val credentials = prepared
             val header = if (encryptionType == Constants.EncryptionType.PASSWORD) credentials?.containerHeader() else null
+            if (restore != null && !restore.beginInstall(ticket, VaultSession.generation(),
+                    !isCanceled() && DatabaseHelper.canInitialize(settingsContext), initialEntries!!.size)) return Result(false, null, taskGeneration())
             val write = DatabaseHelper.changeVaultEncryptionWithContainer(settingsContext, null, key, true, initialEntries, header) { id ->
                 if (isCanceled()) VaultCommitDecision.CANCELED
                 else VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, encryptionType, authMethod, credentials, true))
             }
             val success = write is VaultWriteResult.Saved
+            restore?.installed(ticket, success)
             if (success) try { PendingAutomaticBackup.clear(settingsContext) } catch (_: RuntimeException) { }
             if (success && authMethod == Constants.AuthMethod.PASSWORD && password != null && !isCanceled()) {
                 try {
@@ -66,6 +77,7 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
         } catch (error: Exception) {
             return Result(false, null, taskGeneration())
         } finally {
+            restore?.cancel()
             prepared?.destroy()
             initialEntries?.forEach { it.destroy() }
             initialEntries?.clear()

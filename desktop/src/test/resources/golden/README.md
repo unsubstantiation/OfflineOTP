@@ -82,3 +82,12 @@ common manual-editor replacement, cleanup and rejection of cyclic/overdeep direc
 Swift tests consume the same document for typed-edit/save/reload preservation. JVM known fields
 still use their validated canonical codec; preserving opaque keys does not prove all known-field
 normalization/default semantics match Swift. Swift consumers have not been executed in Linux.
+
+### Portable protocol policy (chunk 3)
+
+`portable-vault-protocol.json` contains synthetic framing/dispatch metadata, including legal upper
+bounds which must be parsed without deriving keys. Regenerate with
+`python3 scripts/fixtures/generate-vault-protocol.py`; `--check` verifies reproducibility.
+The same corpus is consumed by desktop/shared-domain tests, Android instrumentation sources and
+Xcode app bridge tests. Existing encrypted vectors remain unchanged. See
+`docs/portable-vault-protocol.md` for the contract and unexecuted native validation gates.

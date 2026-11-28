@@ -110,7 +110,7 @@ object CryptoPrimitives {
     @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
     fun generateSymmetricKeyPBKDF2(password: String?, iter: Int, salt: ByteArray?): SecretKey {
         if (password == null || password.length > InputPolicy.MAX_TEXT_CHARS || salt == null
-            || salt.size < 8 || iter < 1 || iter > 20000000)
+            || salt.size < 8 || iter < 1 || iter > com.fairuniversal.offlineotp.domain.KdfPolicy.MAX_VAULT_PBKDF2)
             throw IllegalArgumentException("Invalid credential parameters")
         val secretKeyFactory = SecretKeyFactory.getInstance(Constants.PBKDF2_ALGORITHM)
         val passwordChars = password.toCharArray()
@@ -144,7 +144,7 @@ object CryptoPrimitives {
     @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
     fun generatePBKDF2Credentials(password: String?, salt: ByteArray?, iter: Int): PBKDF2Credentials {
         if (password == null || password.length > InputPolicy.MAX_TEXT_CHARS || salt == null
-            || salt.size < 8 || iter < 1 || iter > 20000000)
+            || salt.size < 8 || iter < 1 || iter > com.fairuniversal.offlineotp.domain.KdfPolicy.MAX_VAULT_PBKDF2)
             throw IllegalArgumentException("Invalid credential parameters")
         val secretKeyFactory = SecretKeyFactory.getInstance(Constants.PBKDF2_ALGORITHM)
         val passwordChars = password.toCharArray()

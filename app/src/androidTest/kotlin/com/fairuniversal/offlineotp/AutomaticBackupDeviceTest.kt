@@ -32,6 +32,32 @@ import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
 @RunWith(AndroidJUnit4::class)
 class AutomaticBackupDeviceTest {
     @Test
+    fun separatePasswordRecordsRequireTheUnlockedVaultKeyAndSurviveFailedRecovery() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        DeviceTestSupport.finishActivities(); VaultSession.lock()
+        assumeTrue("refusing to alter an existing vault", DatabaseHelper.canInitialize(context))
+        DeviceTestSupport.freshPreferences(context)
+        val settings = Settings(context)
+        val raw = ByteArray(32) { 7 }
+        try {
+            assertFalse(settings.setBackupPassword("backup-test-password"))
+            VaultSession.open(javax.crypto.spec.SecretKeySpec(raw, "AES"))
+            assertTrue(settings.setBackupPassword("backup-test-password"))
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val name = context.getString(R.string.settings_key_backup_password_enc)
+            val record = prefs.getString(name, "")!!
+            assertTrue(record.startsWith("vault-abp1:")); assertFalse(record.contains("backup-test-password"))
+            assertEquals("backup-test-password", Settings(context).getBackupPasswordEnc())
+            VaultSession.lock(); assertEquals("", Settings(context).getBackupPasswordEnc())
+            VaultSession.open(javax.crypto.spec.SecretKeySpec(ByteArray(32) { 8 }, "AES"))
+            assertEquals("", Settings(context).getBackupPasswordEnc())
+            assertEquals(record, prefs.getString(name, ""))
+            VaultSession.lock(); VaultSession.open(javax.crypto.spec.SecretKeySpec(raw, "AES"))
+            assertEquals("backup-test-password", Settings(context).getBackupPasswordEnc())
+        } finally { raw.fill(0); VaultSession.lock(); DeviceTestSupport.freshPreferences(context) }
+    }
+
+    @Test
     fun onlyCommittedChangesLeaveARetryMarker() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         DeviceTestSupport.finishActivities()

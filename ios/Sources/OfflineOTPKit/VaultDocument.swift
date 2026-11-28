@@ -47,3 +47,16 @@ public enum VaultDocumentError: Error, Equatable {
     case tooLarge
     case invalidEntry
 }
+
+/// Engine-facing adapter boundary. Production Apple hosts provide the shared Kotlin codec;
+/// standalone SwiftPM tests retain the native compatibility oracle without a UIKit dependency.
+public protocol EntryDocumentAdapter {
+    func decode(_ text: String) throws -> [Entry]
+    func encode(_ entries: [Entry]) throws -> String
+}
+
+public struct NativeEntryDocumentAdapter: EntryDocumentAdapter {
+    public init() {}
+    public func decode(_ text: String) throws -> [Entry] { try VaultDocument.decode(text) }
+    public func encode(_ entries: [Entry]) throws -> String { try VaultDocument.encode(entries) }
+}

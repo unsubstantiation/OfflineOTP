@@ -1,5 +1,9 @@
 # Automatic vault backups and encrypted exports
 
+Shared configuration, retention and scheduling decisions are implemented in chunk 8; see the
+[shared automatic-backup handoff](portable-automatic-backup.md) for boundaries, compatibility
+tightening, evidence and outstanding native gates.
+
 ## Full saved-vault copies
 
 The automatic-backup form has a **full vault file copies** mode, independent of the existing
@@ -54,6 +58,14 @@ locked. Lock/background/close cancels session work and releases credentials. Dis
 saved configuration, not existing backups. A vault-key change/recovery cannot decrypt an old record:
 this visibly requires reconfiguration, rather than silently discarding it or pretending backup works.
 Desktop minimizes trigger cancellation only when the relock policy requests it.
+
+New Android separate-password settings are also vault-key encrypted (`vault-abp1:`) and readable
+only while unlocked. Existing device-wrapped passwords remain legacy until explicit reconfiguration;
+ordinary open does not rewrap them. The legacy broadcast worker may retry a pending change only
+with the current unlocked session key—it cannot bootstrap a locked session from the Keystore.
+Android retains save-triggered retries rather than gaining a periodic foreground timer here.
+After vault-key replacement/recovery, an unreadable saved password is preserved and must be
+re-entered; settings describe that requirement. Local settings/grants are not copied with a vault file.
 
 Save notifications come from successful persistence, not search/reveal UI refreshes or failed writes.
 iOS queued notifications carry their vault generation and are admitted only in the foreground.

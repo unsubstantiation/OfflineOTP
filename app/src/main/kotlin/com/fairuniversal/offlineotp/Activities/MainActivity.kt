@@ -2610,7 +2610,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 // The installer consumes its input, even on failure. Keep staged originals for retry.
                 val chosen = ArrayList<Entry>()
                 try {
-                    incoming.forEachIndexed { index, entry -> if (index in selected) chosen.add(Entry(entry.toJSON())) }
+                    incoming.forEachIndexed { index, entry -> if (index in selected) chosen.add(entry.detachedCopy()) }
                 } catch (_: Exception) {
                     chosen.forEach { it.destroy() }; chosen.clear()
                 }

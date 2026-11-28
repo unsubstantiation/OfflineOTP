@@ -4,6 +4,6 @@ package com.fairuniversal.offlineotp.Utilities
 object AuthenticationResultPolicy {
     @JvmStatic
     fun accepts(resultOk: Boolean, requestPending: Boolean, sessionGenerationCurrent: Boolean): Boolean {
-        return resultOk && requestPending && sessionGenerationCurrent
+        return com.fairuniversal.offlineotp.domain.SessionResultPolicy.accepts(resultOk, requestPending, sessionGenerationCurrent)
     }
 }

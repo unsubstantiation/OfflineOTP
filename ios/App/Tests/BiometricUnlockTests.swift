@@ -39,6 +39,51 @@ final class BiometricUnlockTests: XCTestCase {
                               algorithm: .sha1, tags: [], newEntry: true)
     }
 
+    func testLateAndDuplicateBiometricCallbacksCannotUnlockAnotherAttemptOrSession() throws {
+        let fake = FakeBiometricKeyStore()
+        let store = unlockedStore(fake)
+        XCTAssertTrue(store.enableBiometricUnlock(password: password))
+        let key = try XCTUnwrap(fake.storedKey)
+        store.lock(); fake.deferLoads = true
+        store.unlockWithBiometrics(); store.unlockWithBiometrics()
+        XCTAssertEqual(fake.pendingLoads.count, 1)
+        store.cancelPendingUnlock()
+        store.unlockWithBiometrics()
+        XCTAssertEqual(fake.pendingLoads.count, 2)
+        fake.pendingLoads[0](.success(key))
+        XCTAssertFalse(store.isUnlocked)
+        fake.pendingLoads[1](.success(key))
+        XCTAssertTrue(store.isUnlocked)
+        fake.pendingLoads[1](.failure(.missing))
+        XCTAssertTrue(store.biometricUnlockEnabled)
+        store.lock()
+        fake.pendingLoads[1](.success(key))
+        XCTAssertFalse(store.isUnlocked)
+    }
+
+    func testPasswordAttemptSupersedesPendingBiometryEvenWhenThePasswordFails() throws {
+        let fake = FakeBiometricKeyStore(); let store = unlockedStore(fake)
+        XCTAssertTrue(store.enableBiometricUnlock(password: password))
+        let key = try XCTUnwrap(fake.storedKey)
+        store.lock(); fake.deferLoads = true; store.unlockWithBiometrics()
+        store.unlock(password: "incorrect synthetic password")
+        fake.pendingLoads[0](.success(key))
+        XCTAssertFalse(store.isUnlocked)
+        store.unlock(password: password)
+        XCTAssertTrue(store.isUnlocked)
+    }
+
+    func testCancelledHardwareResultCannotUseAnOtherwiseValidNativeKey() throws {
+        let fake = FakeBiometricKeyStore(); let store = unlockedStore(fake)
+        XCTAssertTrue(store.enableBiometricUnlock(password: password))
+        let key = try XCTUnwrap(fake.storedKey); store.lock()
+        let old = store.generation
+        store.cancelPendingUnlock()
+        XCTAssertFalse(store.unlockWithHardwareKey(Data(key), expectedGeneration: old))
+        XCTAssertFalse(store.isUnlocked)
+        XCTAssertTrue(store.unlockWithHardwareKey(Data(key), expectedGeneration: store.generation))
+    }
+
     // MARK: - Turning it on
 
     func testTheQuickUnlockIsOffUntilItIsTurnedOn() {
@@ -279,6 +324,8 @@ final class FakeBiometricKeyStore: BiometricKeyStore {
     var saveError: BiometricKeyError?
     /// What the next `load` answers, instead of the stored key.
     var loadResult: Result<[UInt8], BiometricKeyError>?
+    var deferLoads = false
+    var pendingLoads: [(Result<[UInt8], BiometricKeyError>) -> Void] = []
 
     private(set) var savedKeys: [[UInt8]] = []
     private(set) var removedAccounts: [String] = []
@@ -300,6 +347,7 @@ final class FakeBiometricKeyStore: BiometricKeyStore {
               completion: @escaping (Result<[UInt8], BiometricKeyError>) -> Void) {
         didLoad = true
         lastReason = reason
+        if deferLoads { pendingLoads.append(completion); return }
         if let loadResult {
             completion(loadResult)
             return

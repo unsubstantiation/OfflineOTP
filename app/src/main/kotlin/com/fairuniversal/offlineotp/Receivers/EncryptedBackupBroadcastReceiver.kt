@@ -68,6 +68,7 @@ open class EncryptedBackupBroadcastReceiver : BackupBroadcastReceiver() {
 
         // Broadcasts can retry a real pending change, not manufacture unchanged snapshots. Login
         // backup keys exist only in the unlocked process and are retried there instead.
+        if (com.fairuniversal.offlineotp.Utilities.VaultSession.getKey() == null) return
         if (LoginBackupPolicy.usesVaultCopy(context) || LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled() ||
                 PendingAutomaticBackup.read(context) == null) return
         if (!settings.tryAcquireBroadcastBackupSlot()) return

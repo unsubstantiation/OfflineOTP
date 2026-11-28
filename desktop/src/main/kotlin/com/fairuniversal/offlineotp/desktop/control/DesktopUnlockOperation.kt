@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import java.util.concurrent.Executor
+import com.fairuniversal.offlineotp.domain.UnlockAttemptPolicy
 
 /** UI-thread owner of one asynchronous unlock/create attempt. Worker results transfer ownership once. */
 class DesktopUnlockOperation(
@@ -10,7 +11,7 @@ class DesktopUnlockOperation(
     private val onBusy: (Boolean) -> Unit,
     private val onResult: (VaultController.Session) -> Unit
 ) : AutoCloseable {
-    private class Attempt(private var password: String?) {
+    private class Attempt(private var password: String?, val ticket: Long) {
         private var cancelled = false
         private var result: VaultController.Session? = null
         @Synchronized fun takePassword(): String? = password.also { password = null }
@@ -25,12 +26,15 @@ class DesktopUnlockOperation(
             result?.let(::discard); result = null
         }
     }
+    private val authority = UnlockAttemptPolicy()
     private var active: Attempt? = null
     private var closed = false
 
     fun submit(password: String): Boolean {
         if (closed || active != null || password.isEmpty()) return false
-        val attempt = Attempt(password)
+        val ticket = authority.start(0, !closed)
+        if (ticket == 0L) return false
+        val attempt = Attempt(password, ticket)
         active = attempt
         onBusy(true)
         try {
@@ -56,13 +60,16 @@ class DesktopUnlockOperation(
     }
 
     private fun complete(attempt: Attempt) {
-        if (closed || active !== attempt) { attempt.cancel(); return }
+        if (closed || active !== attempt || !authority.current(attempt.ticket, 0, !closed)) { attempt.cancel(); return }
         val result = attempt.takeResult() ?: return
         active = null
         try {
             onBusy(false)
             // Hosts may synchronously close during a busy-state update.
-            if (closed) discard(result) else onResult(result)
+            if (!authority.complete(attempt.ticket, 0, !closed, result is VaultController.Session.Loaded)) {
+                // Error results still reach the current UI once, but can never install a key.
+                if (!closed && result !is VaultController.Session.Loaded) onResult(result) else discard(result)
+            } else onResult(result)
         } catch (error: Exception) { discard(result); throw error }
     }
 
@@ -70,6 +77,7 @@ class DesktopUnlockOperation(
     override fun close() {
         if (closed) return
         closed = true
+        authority.close()
         active?.cancel()
         active = null
         onBusy(false)

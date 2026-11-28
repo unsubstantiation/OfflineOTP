@@ -48,6 +48,12 @@ public enum OtpParseError: String, Error, Equatable {
 /// is done here rather than through `URLComponents`, because `URLComponents` accepts escapes and
 /// encodings the other clients reject.
 public struct OtpUri: Equatable {
+    public init(kind: EntryKind, secret: [UInt8], period: Int, digits: Int, counter: Int64,
+                issuer: String, label: String, algorithm: OtpHashAlgorithm, tags: [String]) {
+        self.kind = kind; self.secret = secret; self.period = period; self.digits = digits
+        self.counter = counter; self.issuer = issuer; self.label = label; self.algorithm = algorithm; self.tags = tags
+    }
+
     public let kind: EntryKind
     /// The seed. For mOTP this is the UTF-8 of the hexadecimal text, as `:core` stores it.
     public let secret: [UInt8]
@@ -64,7 +70,8 @@ public struct OtpUri: Equatable {
     ]
 
     /// Parses a link, or throws `OtpParseError`.
-    public static func parse(_ input: String) throws -> OtpUri {
+    public static func parse(_ input: String, interchange: InterchangeAdapter? = nil) throws -> OtpUri {
+        if let interchange { return try interchange.otp(input) }
         guard !input.isEmpty else { throw OtpParseError.invalidUri }
         guard input.count <= InputPolicy.maxURIChars else { throw OtpParseError.inputTooLong }
 
@@ -219,7 +226,8 @@ public struct OtpUri: Equatable {
     /// Field order and encoding are the JVM's: `secret`, `issuer`, then `counter`/`period`/`digits`/
     /// `algorithm` only when they differ from the defaults, then one `tags` pair per tag. Spaces are
     /// `%20`, never `+`, so the same entry produces the same link everywhere.
-    public static func uri(for entry: Entry) -> String? {
+    public static func uri(for entry: Entry, interchange: InterchangeAdapter? = nil) -> String? {
+        if let interchange { return interchange.otpUri(entry) }
         guard let kind = entry.kind, kind.isOtp, let rawSecret = entry.secretBytes else { return nil }
         let host: String
         switch kind {

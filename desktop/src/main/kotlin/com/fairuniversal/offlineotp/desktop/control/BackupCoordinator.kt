@@ -14,6 +14,7 @@ import com.fairuniversal.offlineotp.Utilities.QrImport
 import com.fairuniversal.offlineotp.desktop.openpgp.RpgpOpenPgpPort
 import com.fairuniversal.offlineotp.desktop.qr.ZxingQrDecoder
 
+import com.fairuniversal.offlineotp.domain.RestoreWorkflow
 import java.io.IOException
 import java.security.GeneralSecurityException
 
@@ -97,24 +98,32 @@ class BackupCoordinator(
     /** UI-thread ownership transfer: consumes detached entries on success AND failure. */
     fun restoreEntries(imported: ArrayList<Entry>, replace: Boolean = false): Int {
         var installed = false
+        val workflow = RestoreWorkflow()
+        val ticket = workflow.start(0, false)
         try {
             check(!state.isLocked) { "Vault is locked" }
             // Android also rejects an empty import rather than replacing a vault with it.
-            require(imported.isNotEmpty()) { "Backup contains no entries" }
-            // EntryList treats equal account identities as one entry. Reject ambiguous backups
-            // rather than report success and silently drop their distinct metadata on the next save.
-            require(imported.toHashSet().size == imported.size) { "Backup contains duplicate accounts" }
+            require(workflow.decoded(ticket, 0, !state.isLocked, imported.size, imported.toHashSet().size == imported.size)) {
+                when {
+                    imported.isEmpty() -> "Backup contains no entries"
+                    workflow.failure == com.fairuniversal.offlineotp.domain.RestoreFailure.DUPLICATE -> "Backup contains duplicate accounts"
+                    else -> "Invalid restore preview"
+                }
+            }
+            check(workflow.confirm(ticket, 0, !state.isLocked, replace))
 
             // One merge rule for both clients: imported entries first, entries the vault already
             // holds kept as they are (counters, metadata, tags), or replaced wholesale.
             val merged = VaultRestoreMerge.plan(imported, state.snapshot(), replace)
 
+            check(workflow.beginInstall(ticket, 0, !state.isLocked, merged.size)) { "Restore authorization expired" }
             check(controller.save(state.key, merged)) { "Vault persistence failed" }
             state.installRestored(merged, destroyPrevious = replace)
             installed = true
+            workflow.installed(ticket, true)
             return imported.size
         } finally {
-            if (!installed) imported.forEach { it.destroy() }
+            if (!installed) { workflow.installed(ticket, false); imported.forEach { it.destroy() } }
         }
     }
 

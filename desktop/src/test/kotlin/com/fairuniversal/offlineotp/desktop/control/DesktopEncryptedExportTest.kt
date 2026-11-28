@@ -54,11 +54,22 @@ class DesktopEncryptedExportTest {
             exporter.open(target); val request = exporter.pending!!
             assertTrue(exporter.submitSnapshot(request)); assertFalse(exporter.submitSnapshot(request))
             assertEquals(0, calls); assertFalse(target.exists())
-            state.updateKey(SecretKeySpec(ByteArray(32) { 2 }, "AES"))
             worker.runNext(); assertEquals(1, calls)
             assertTrue(target.readBytes().contentEquals(original)); assertFalse(exporter.saved)
             ui.runNext(); assertTrue(exporter.saved)
         } finally { exporter.close(); state.lock(); directory.deleteRecursively() }
+    }
+
+    @Test fun supersededGenerationRevokesQueuedFullSnapshotBeforeReadingOrWriting() {
+        val state = state(); val worker = Queue(); val ui = Queue(); var calls = 0; var writes = 0
+        val exporter = DesktopEncryptedExport(state, worker, ui::execute, {},
+            rawSnapshot = { calls++; byteArrayOf(1) }, write = { _, _ -> writes++ })
+        try {
+            exporter.open(File("unused")); assertTrue(exporter.submitSnapshot(exporter.pending!!))
+            state.updateKey(SecretKeySpec(ByteArray(32) { 2 }, "AES"))
+            worker.runNext(); assertEquals(0, calls); assertEquals(0, writes)
+            assertTrue(ui.tasks.isEmpty()); assertFalse(exporter.saved)
+        } finally { exporter.close(); state.lock() }
     }
 
     @Test fun queuedFullSnapshotIsRevocableAndUnavailableSnapshotsNeverWrite() {

@@ -1,0 +1,861 @@
+{
+  "description": "Synthetic protocol metadata only; no derivation is performed at upper bounds.",
+  "headers": [
+    {
+      "name": "vault-argon",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 32,
+      "iterations": 1,
+      "lanes": 1,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 40,
+      "keyBytes": 32,
+      "derivedBytes": 64
+    },
+    {
+      "name": "vault-pbkdf2",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010200000000000000000100000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "error": null,
+      "kdf": "PBKDF2_SHA1",
+      "memory": 0,
+      "iterations": 1,
+      "lanes": 0,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 40,
+      "keyBytes": 16,
+      "derivedBytes": 32
+    },
+    {
+      "name": "backup-argon",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 32,
+      "iterations": 1,
+      "lanes": 1,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 30,
+      "keyBytes": 32,
+      "derivedBytes": 32
+    },
+    {
+      "name": "backup-pbkdf2",
+      "family": "backup",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "error": null,
+      "kdf": "PBKDF2_SHA1",
+      "memory": 0,
+      "iterations": 1,
+      "lanes": 0,
+      "saltHex": "000102030405060708090a0b",
+      "offset": 16,
+      "keyBytes": 32,
+      "derivedBytes": 32
+    },
+    {
+      "name": "vault-size-0",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 0,
+      "error": "SIZE"
+    },
+    {
+      "name": "vault-size-68",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 68,
+      "error": "SIZE"
+    },
+    {
+      "name": "vault-size-16777217",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 16777217,
+      "error": "SIZE"
+    },
+    {
+      "name": "vault-prefix-truncated",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000",
+      "totalBytes": 69,
+      "error": "SIZE"
+    },
+    {
+      "name": "vault-version",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a02010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "VERSION"
+    },
+    {
+      "name": "vault-bounds-0-1-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000000000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-7-1-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000070000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-262145-1-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000400010000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-32-0-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000000000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-32-65-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000004100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-32-1-0",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-256-1-17",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000001000000000100000011000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-262144-5-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000400000000000500000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds--1-1-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100ffffffff0000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-32--1-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a0101010000000020ffffffff00000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-bounds-2147483647-2147483647-16",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a010101007fffffff7fffffff00000010000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-edge-8-1-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000080000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 8,
+      "iterations": 1,
+      "lanes": 1,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 40,
+      "keyBytes": 32,
+      "derivedBytes": 64
+    },
+    {
+      "name": "vault-edge-128-64-16",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000000800000004000000010000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 128,
+      "iterations": 64,
+      "lanes": 16,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 40,
+      "keyBytes": 32,
+      "derivedBytes": 64
+    },
+    {
+      "name": "vault-edge-262144-4-1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010100000400000000000400000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 262144,
+      "iterations": 4,
+      "lanes": 1,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 40,
+      "keyBytes": 32,
+      "derivedBytes": 64
+    },
+    {
+      "name": "backup-size-0",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 0,
+      "error": "SIZE"
+    },
+    {
+      "name": "backup-size-57",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 57,
+      "error": "SIZE"
+    },
+    {
+      "name": "backup-size-16777217",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 16777217,
+      "error": "SIZE"
+    },
+    {
+      "name": "backup-prefix-truncated",
+      "family": "backup",
+      "prefixHex": "4f4f54500100000020000000010100",
+      "totalBytes": 58,
+      "error": "SIZE"
+    },
+    {
+      "name": "backup-version",
+      "family": "backup",
+      "prefixHex": "4f4f545002000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "VERSION"
+    },
+    {
+      "name": "backup-bounds-0-1-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000000000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-7-1-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000070000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-262145-1-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000400010000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-32-0-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-32-65-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000004101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-32-1-0",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000200000000100000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-256-1-17",
+      "family": "backup",
+      "prefixHex": "4f4f545001000001000000000111000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-262144-5-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000400000000000501000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds--1-1-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001ffffffff0000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-32--1-1",
+      "family": "backup",
+      "prefixHex": "4f4f54500100000020ffffffff01000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-bounds-2147483647-2147483647-16",
+      "family": "backup",
+      "prefixHex": "4f4f5450017fffffff7fffffff10000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-edge-8-1-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000080000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 8,
+      "iterations": 1,
+      "lanes": 1,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 30,
+      "keyBytes": 32,
+      "derivedBytes": 32
+    },
+    {
+      "name": "backup-edge-128-64-16",
+      "family": "backup",
+      "prefixHex": "4f4f545001000000800000004010000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 128,
+      "iterations": 64,
+      "lanes": 16,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 30,
+      "keyBytes": 32,
+      "derivedBytes": 32
+    },
+    {
+      "name": "backup-edge-262144-4-1",
+      "family": "backup",
+      "prefixHex": "4f4f545001000400000000000401000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 58,
+      "error": null,
+      "kdf": "ARGON2ID",
+      "memory": 262144,
+      "iterations": 4,
+      "lanes": 1,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 30,
+      "keyBytes": 32,
+      "derivedBytes": 32
+    },
+    {
+      "name": "vault-reserved-9",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01020100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "error": "VERSION"
+    },
+    {
+      "name": "vault-reserved-11",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010101000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "error": "VERSION"
+    },
+    {
+      "name": "vault-unknown-kdf",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010300000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-pbkdf2-0",
+      "family": "backup",
+      "prefixHex": "00000000000102030405060708090a0b",
+      "totalBytes": 44,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-pbkdf2--1",
+      "family": "backup",
+      "prefixHex": "ffffffff000102030405060708090a0b",
+      "totalBytes": 44,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-pbkdf2-1000001",
+      "family": "backup",
+      "prefixHex": "000f4241000102030405060708090a0b",
+      "totalBytes": 44,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-pbkdf2-20000000",
+      "family": "backup",
+      "prefixHex": "01312d00000102030405060708090a0b",
+      "totalBytes": 44,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-pbkdf2-2147483647",
+      "family": "backup",
+      "prefixHex": "7fffffff000102030405060708090a0b",
+      "totalBytes": 44,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-pbkdf2-0",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010200000000000000000000000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-pbkdf2--1",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a0101020000000000ffffffff00000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-pbkdf2-20000001",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a010102000000000001312d0100000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-pbkdf2-2147483647",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010200000000007fffffff00000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "backup-pbkdf2-ceiling",
+      "family": "backup",
+      "prefixHex": "000f4240000102030405060708090a0b",
+      "totalBytes": 44,
+      "error": null,
+      "kdf": "PBKDF2_SHA1",
+      "memory": 0,
+      "iterations": 1000000,
+      "lanes": 0,
+      "saltHex": "000102030405060708090a0b",
+      "offset": 16,
+      "keyBytes": 32,
+      "derivedBytes": 32
+    },
+    {
+      "name": "vault-pbkdf2-ceiling",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a010102000000000001312d0000000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": null,
+      "kdf": "PBKDF2_SHA1",
+      "memory": 0,
+      "iterations": 20000000,
+      "lanes": 0,
+      "saltHex": "000102030405060708090a0b0c0d0e0f",
+      "offset": 40,
+      "keyBytes": 16,
+      "derivedBytes": 32
+    },
+    {
+      "name": "vault-pbkdf2-reserved-10",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010200000000010000000100000000000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    },
+    {
+      "name": "vault-pbkdf2-reserved-01",
+      "family": "vault",
+      "prefixHex": "4f5450564c540d0a01010200000000000000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 69,
+      "error": "PARAMETERS"
+    }
+  ],
+  "routes": [
+    {
+      "name": "vault-auto",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "auto",
+      "variant": "",
+      "route": "VAULT_COPY"
+    },
+    {
+      "name": "vault-vault-copy-",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "vault-copy",
+      "variant": "",
+      "route": "VAULT_COPY"
+    },
+    {
+      "name": "vault-offlineotp-",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "offlineotp",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "vault-andotp-encrypted",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "encrypted",
+      "route": null
+    },
+    {
+      "name": "vault-andotp-plain",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "plain",
+      "route": null
+    },
+    {
+      "name": "vault-andotp-pre063",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "pre063",
+      "route": null
+    },
+    {
+      "name": "vault-andotp-bad",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "bad",
+      "route": null
+    },
+    {
+      "name": "vault-bad-",
+      "prefixHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 70,
+      "format": "bad",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "argon-auto",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "auto",
+      "variant": "",
+      "route": "OFFLINEOTP"
+    },
+    {
+      "name": "argon-vault-copy-",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "vault-copy",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "argon-offlineotp-",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "offlineotp",
+      "variant": "",
+      "route": "OFFLINEOTP"
+    },
+    {
+      "name": "argon-andotp-encrypted",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "andotp",
+      "variant": "encrypted",
+      "route": null
+    },
+    {
+      "name": "argon-andotp-plain",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "andotp",
+      "variant": "plain",
+      "route": "PLAIN"
+    },
+    {
+      "name": "argon-andotp-pre063",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "andotp",
+      "variant": "pre063",
+      "route": null
+    },
+    {
+      "name": "argon-andotp-bad",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "andotp",
+      "variant": "bad",
+      "route": null
+    },
+    {
+      "name": "argon-bad-",
+      "prefixHex": "4f4f545001000000200000000101000102030405060708090a0b0c0d0e0f",
+      "totalBytes": 60,
+      "format": "bad",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "pbkdf2-auto",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "auto",
+      "variant": "",
+      "route": "OFFLINEOTP"
+    },
+    {
+      "name": "pbkdf2-vault-copy-",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "vault-copy",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "pbkdf2-offlineotp-",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "offlineotp",
+      "variant": "",
+      "route": "OFFLINEOTP"
+    },
+    {
+      "name": "pbkdf2-andotp-encrypted",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "andotp",
+      "variant": "encrypted",
+      "route": "ANDOTP_PBKDF2"
+    },
+    {
+      "name": "pbkdf2-andotp-plain",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "andotp",
+      "variant": "plain",
+      "route": "PLAIN"
+    },
+    {
+      "name": "pbkdf2-andotp-pre063",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "andotp",
+      "variant": "pre063",
+      "route": "ANDOTP_PRE063"
+    },
+    {
+      "name": "pbkdf2-andotp-bad",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "andotp",
+      "variant": "bad",
+      "route": null
+    },
+    {
+      "name": "pbkdf2-bad-",
+      "prefixHex": "00000001000102030405060708090a0b",
+      "totalBytes": 46,
+      "format": "bad",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "linscp-auto",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "auto",
+      "variant": "",
+      "route": "LINSCP"
+    },
+    {
+      "name": "linscp-vault-copy-",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "vault-copy",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "linscp-offlineotp-",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "offlineotp",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "linscp-andotp-encrypted",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "encrypted",
+      "route": null
+    },
+    {
+      "name": "linscp-andotp-plain",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "plain",
+      "route": null
+    },
+    {
+      "name": "linscp-andotp-pre063",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "pre063",
+      "route": null
+    },
+    {
+      "name": "linscp-andotp-bad",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "bad",
+      "route": null
+    },
+    {
+      "name": "linscp-bad-",
+      "prefixHex": "4c534350564c5432",
+      "totalBytes": 70,
+      "format": "bad",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "plain-auto",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "auto",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "plain-vault-copy-",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "vault-copy",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "plain-offlineotp-",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "offlineotp",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "plain-andotp-encrypted",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "andotp",
+      "variant": "encrypted",
+      "route": null
+    },
+    {
+      "name": "plain-andotp-plain",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "andotp",
+      "variant": "plain",
+      "route": "PLAIN"
+    },
+    {
+      "name": "plain-andotp-pre063",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "andotp",
+      "variant": "pre063",
+      "route": null
+    },
+    {
+      "name": "plain-andotp-bad",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "andotp",
+      "variant": "bad",
+      "route": null
+    },
+    {
+      "name": "plain-bad-",
+      "prefixHex": "5b5d",
+      "totalBytes": 2,
+      "format": "bad",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "pre063-explicit",
+      "prefixHex": "6e6f6e63652d69732d6e6f742d612d6d61676963",
+      "totalBytes": 70,
+      "format": "andotp",
+      "variant": "pre063",
+      "route": "ANDOTP_PRE063"
+    },
+    {
+      "name": "pre063-not-auto",
+      "prefixHex": "6e6f6e63652d69732d6e6f742d612d6d61676963",
+      "totalBytes": 70,
+      "format": "auto",
+      "variant": "",
+      "route": null
+    },
+    {
+      "name": "size-0",
+      "prefixHex": "5b5d",
+      "totalBytes": 0,
+      "format": "andotp",
+      "variant": "plain",
+      "route": null
+    },
+    {
+      "name": "size-16777217",
+      "prefixHex": "5b5d",
+      "totalBytes": 16777217,
+      "format": "andotp",
+      "variant": "plain",
+      "route": null
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 package com.fairuniversal.offlineotp.Database
 
+import com.fairuniversal.offlineotp.domain.EntryMetadata
+import com.fairuniversal.offlineotp.domain.EntryMetadataError
 import org.apache.commons.codec.binary.Base32
 import org.json.JSONArray
 import org.json.JSONException
@@ -158,12 +160,13 @@ object EntryJson {
             }
             if (kind == OtpKind.STEAM && digits != TokenCalculator.STEAM_DEFAULT_DIGITS)
                 reject(EntryJsonError.INVALID_PARAMETERS)
-            bounded(issuer, InputPolicy.MAX_TEXT_CHARS)
-            bounded(label, InputPolicy.MAX_TEXT_CHARS)
-            bounded(hiddenLabel, InputPolicy.MAX_TEXT_CHARS)
+            val metadata = EntryMetadata(issuer, label, hiddenLabel, tags, lastUsed, usedFrequency, detailsVisible)
+            when (metadata.validationError()) {
+                EntryMetadataError.TEXT_TOO_LONG -> reject(EntryJsonError.TEXT_TOO_LONG)
+                EntryMetadataError.TOO_MANY_TAGS -> reject(EntryJsonError.TOO_MANY_TAGS)
+                null -> Unit
+            }
             bounded(pin, InputPolicy.MAX_TAG_CHARS)
-            if (tags.size > InputPolicy.MAX_TAGS) reject(EntryJsonError.TOO_MANY_TAGS)
-            for (tag in tags) bounded(tag, InputPolicy.MAX_TAG_CHARS)
 
             return ValidatedEntry.create(kind, seed, period, digits, counter, issuer, label, hiddenLabel, algorithm,
                 thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible, sshConnection)
@@ -190,16 +193,17 @@ object EntryJson {
                   hiddenLabel: String = "",
                   detailsVisible: Boolean = false,
                   sshConnection: SshConnection.Details? = null): JSONObject {
+        val metadata = JSONObject(EntryMetadata(issuer, label, hiddenLabel, tags, lastUsed, usedFrequency, detailsVisible).toJson())
         val jsonObj = JSONObject()
         jsonObj.put(JSON_SECRET, String(Base32().encode(secret)))
-        jsonObj.put(JSON_ISSUER, issuer)
-        jsonObj.put(JSON_LABEL, label)
+        jsonObj.put(JSON_ISSUER, metadata.get(JSON_ISSUER))
+        jsonObj.put(JSON_LABEL, metadata.get(JSON_LABEL))
         jsonObj.put(JSON_DIGITS, digits)
         jsonObj.put(JSON_TYPE, kind.name)
         jsonObj.put(JSON_ALGORITHM, algorithm.name)
         jsonObj.put(JSON_THUMBNAIL, thumbnailName)
-        jsonObj.put(JSON_LAST_USED, lastUsed)
-        jsonObj.put(JSON_USED_FREQUENCY, usedFrequency)
+        jsonObj.put(JSON_LAST_USED, metadata.get(JSON_LAST_USED))
+        jsonObj.put(JSON_USED_FREQUENCY, metadata.get(JSON_USED_FREQUENCY))
 
         if (kind == OtpKind.TOTP)
             jsonObj.put(JSON_PERIOD, period)
@@ -213,11 +217,7 @@ object EntryJson {
         if (kind == OtpKind.MOTP && pin.isNotEmpty())
             jsonObj.put(JSON_PIN, pin)
 
-        val tagsArray = JSONArray()
-        for (tag in tags) {
-            tagsArray.put(tag)
-        }
-        jsonObj.put(JSON_TAGS, tagsArray)
+        jsonObj.put(JSON_TAGS, metadata.getJSONArray(JSON_TAGS))
         if (hiddenLabel.isNotEmpty()) jsonObj.put(JSON_HIDDEN_LABEL, hiddenLabel)
         // Preserve legacy bytes for the default (concealed) state.
         if (detailsVisible) jsonObj.put(JSON_DETAILS_VISIBLE, true)

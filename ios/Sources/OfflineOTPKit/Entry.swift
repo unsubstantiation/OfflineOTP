@@ -48,6 +48,9 @@ public enum SecretLimit {
 public struct Entry: Equatable, Hashable {
     /// Every stored field, keyed by name.
     public private(set) var fields: [String: JSONValue]
+    // Lossless future metadata, supplied by the shared validated document adapter. Foundation's
+    // NSNumber cannot represent every JSON number; these fragments bypass that conversion.
+    private var portableExtensions: [String: String] = [:]
 
     /// The order both existing clients write: `EntryJson.serialize` appends exactly these keys, and
     /// Android's `JSONObject` renders a `LinkedHashMap`, so this order is also the order the phone
@@ -312,6 +315,9 @@ public struct Entry: Equatable, Hashable {
     /// advancing a counter, revealing details. A load/save cycle never rewrites a field it did not
     /// understand, which is what makes an unknown field survive this client.
     public mutating func set(_ name: String, _ value: JSONValue?) {
+        if !Self.canonicalFieldOrder.contains(name) {
+            portableExtensions[name] = value?.compact()
+        }
         if let value {
             fields[name] = value
         } else {
@@ -323,7 +329,24 @@ public struct Entry: Equatable, Hashable {
     public mutating func preserveExtensionFields(from source: Entry) {
         let known = Set(Self.canonicalFieldOrder)
         for (name, value) in source.fields where !known.contains(name) { fields[name] = value }
+        portableExtensions = source.portableExtensions
     }
+
+    /// Trusted adapter boundary: fragments must originate from the shared bounded JSON parser,
+    /// never arbitrary UI text. They cannot replace typed/secret fields by name.
+    public mutating func attachValidatedExtensionFields(_ fragments: [String: String]) throws {
+        guard !fragments.keys.contains(where: { Self.canonicalFieldOrder.contains($0) }) else {
+            throw VaultDocumentError.invalidEntry
+        }
+        portableExtensions = fragments
+        for (name, json) in fragments {
+            // Compatibility projection for native callers; serialization uses the exact fragment.
+            fields[name] = try? JSONValue.decode(json)
+        }
+    }
+
+    public var validatedExtensionFields: [String: String] { portableExtensions }
+
 
     public mutating func setLastUsed(_ value: Int64) { set("last_used", .int(value)) }
 
@@ -363,11 +386,13 @@ public struct Entry: Equatable, Hashable {
             ordered.append(JSONField(name, fields[name]!))
             written.insert(name)
         }
-        // Anything else (a newer field, a kind-specific extra) is kept, in a stable order.
-        for name in fields.keys.sorted() where !written.contains(name) {
-            ordered.append(JSONField(name, fields[name]!))
+        // Anything else is opaque. Never round-trip a future number through NSNumber/Double.
+        var body = ordered.map { JSONValue.quote($0.name) + ":" + $0.value.compact() }
+        for name in Set(fields.keys).union(portableExtensions.keys).sorted() where !written.contains(name) {
+            if let raw = portableExtensions[name] ?? fields[name]?.compact() {
+                body.append(JSONValue.quote(name) + ":" + raw)
+            }
         }
-        let body = ordered.map { JSONValue.quote($0.name) + ":" + $0.value.compact() }
         return "{" + body.joined(separator: ",") + "}"
     }
 

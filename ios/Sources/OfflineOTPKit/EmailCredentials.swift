@@ -341,11 +341,11 @@ public enum EmailMaterial {
 
     // MARK: - Thunderbird CSV interchange
 
-    public static func importThunderbirdCsv(_ data: Data) throws -> [Account] {
+    public static func importThunderbirdCsv(_ data: Data, interchange: InterchangeAdapter? = nil) throws -> [Account] {
         guard !data.isEmpty, data.count <= maxImportBytes else {
             throw EmailCredentialError.tooLarge
         }
-        let parsed = try ThunderbirdCsv.parse(data)
+        let parsed = try ThunderbirdCsv.parse(data, interchange: interchange)
         guard !parsed.rows.isEmpty else { throw EmailCredentialError.invalidThunderbirdCsv }
 
         let lowered = parsed.columns.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
@@ -472,7 +472,7 @@ public enum EmailMaterial {
         return result
     }
 
-    public static func exportThunderbirdCsv(_ accounts: [Account]) throws -> Data {
+    public static func exportThunderbirdCsv(_ accounts: [Account], interchange: InterchangeAdapter? = nil) throws -> Data {
         guard !accounts.isEmpty, accounts.count <= InputPolicy.maxEntries else {
             throw EmailCredentialError.invalidThunderbirdCsv
         }
@@ -504,6 +504,7 @@ public enum EmailMaterial {
                 ])
             }
         }
+        if let interchange { return try interchange.exportCsv(columns: ThunderbirdCsv.exportColumns, rows: rows) }
         return ThunderbirdCsv.exportCsv(columns: ThunderbirdCsv.exportColumns, rows: rows)
     }
 
@@ -797,7 +798,11 @@ public enum ThunderbirdCsv {
         public let rows: [BrowserPasswordCsv.Row]
     }
 
-    public static func parse(_ data: Data) throws -> Table {
+    public static func parse(_ data: Data, interchange: InterchangeAdapter? = nil) throws -> Table {
+        if let interchange {
+            let table = try interchange.csv(data, thunderbird: true)
+            return Table(columns: table.columns, rows: table.rows.map { BrowserPasswordCsv.Row(values: $0) })
+        }
         guard !data.isEmpty, data.count <= EmailMaterial.maxImportBytes,
               let rawText = String(data: data, encoding: .utf8),
               !rawText.contains("\u{0000}") else {
@@ -866,12 +871,12 @@ public enum ThunderbirdImport {
         return false
     }
 
-    public static func entries(from data: Data) throws -> [Entry] {
-        let accounts = try EmailMaterial.importThunderbirdCsv(data)
+    public static func entries(from data: Data, interchange: InterchangeAdapter? = nil) throws -> [Entry] {
+        let accounts = try EmailMaterial.importThunderbirdCsv(data, interchange: interchange)
         return try accounts.map { try Entry.email(account: $0) }
     }
 
-    public static func exportCsv(entries: [Entry]) throws -> Data {
+    public static func exportCsv(entries: [Entry], interchange: InterchangeAdapter? = nil) throws -> Data {
         var accounts: [EmailMaterial.Account] = []
         for entry in entries {
             if entry.kind == .email, let bytes = entry.secretBytes {
@@ -885,14 +890,14 @@ public enum ThunderbirdImport {
                         columns: ["url", "username", "password"],
                         rows: [[rawUrl, fields.value("username"), fields.value("password")]]
                     )
-                    accounts.append(contentsOf: try EmailMaterial.importThunderbirdCsv(singleCsv))
+                    accounts.append(contentsOf: try EmailMaterial.importThunderbirdCsv(singleCsv, interchange: interchange))
                 }
             }
         }
         guard !accounts.isEmpty else {
             throw EmailCredentialError.noExportableAccounts
         }
-        return try EmailMaterial.exportThunderbirdCsv(accounts)
+        return try EmailMaterial.exportThunderbirdCsv(accounts, interchange: interchange)
     }
 }
 
@@ -1092,7 +1097,9 @@ public struct EmailEditInput: Equatable, CustomStringConvertible {
         }
         fields["tags"] = .array(cleanedTags.map { .string($0) })
         fields["thumbnail"] = .string(thumbnail.isEmpty ? ThumbnailCatalog.defaultName : thumbnail)
-        return try Entry.parse(.object(fields))
+        var result = try Entry.parse(.object(fields))
+        result.preserveExtensionFields(from: existing)
+        return result
     }
 }
 
@@ -1136,7 +1143,9 @@ public struct EmailPasswordInput: Equatable, CustomStringConvertible {
         let bytes = try EmailMaterial.encode(account: accountJson, identities: identityJson)
         var fields = existing.fields
         fields["secret"] = .string(Base32.encode(bytes))
-        return try Entry.parse(.object(fields))
+        var result = try Entry.parse(.object(fields))
+        result.preserveExtensionFields(from: existing)
+        return result
     }
 }
 
@@ -1460,6 +1469,8 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
         let bytes = try EmailMaterial.encode(account: accountJson, identities: finalIdentities)
         var fields = existing.fields
         fields["secret"] = .string(Base32.encode(bytes))
-        return try Entry.parse(.object(fields))
+        var result = try Entry.parse(.object(fields))
+        result.preserveExtensionFields(from: existing)
+        return result
     }
 }

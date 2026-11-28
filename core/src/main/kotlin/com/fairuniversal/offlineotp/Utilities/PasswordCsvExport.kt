@@ -51,9 +51,7 @@ object PasswordCsvExport {
     @JvmStatic
     fun supportsCommonEdit(entry: Entry): Boolean {
         if (!entry.isPassword()) return false
-        val columns = entry.getPasswordFields().columns().map { it.trim().lowercase(Locale.ROOT) }
-        return REQUIRED.all { name -> columns.count { it == name } == 1 } &&
-            columns.none { it in setOf("origin", "login_uri", "hostname", "host", "user", "login_username", "pass", "login_password") }
+        return com.fairuniversal.offlineotp.domain.BrowserCsvPolicy().commonEdit(entry.getPasswordFields().columns())
     }
 
     /** Human-readable name of a dialect, used for the export warning and the file extension. */
@@ -81,17 +79,9 @@ object PasswordCsvExport {
         } catch (_: IllegalStateException) {
             return Support.Foreign
         }
-        val columns = fields.columns().map { it.trim().lowercase(Locale.ROOT) }
-        if (columns.any { it.isEmpty() } || columns.toSet().size != columns.size) return Support.Foreign
-        if (!columns.containsAll(REQUIRED)) return Support.Foreign
-        val names = columns.toSet()
-        val dialect = when {
-            "title" in names -> Dialect.SAFARI
-            "name" in names -> Dialect.CHROME
-            "httprealm" in names || "formactionorigin" in names || "guid" in names -> Dialect.FIREFOX
-            else -> null
-        }
-        return if (dialect == null) Support.Foreign else Support.Exportable(dialect)
+        val dialect = com.fairuniversal.offlineotp.domain.BrowserCsvPolicy().dialect(fields.columns())
+            ?: return Support.Foreign
+        return Support.Exportable(Dialect.valueOf(dialect))
     }
 
     /**
@@ -137,28 +127,16 @@ object PasswordCsvExport {
         return canonicalHeader(dialect).toList()
     }
 
-    private fun dialectOf(columns: List<String>): Dialect? {
-        val names = columns.map { it.trim().lowercase(Locale.ROOT) }.toSet()
-        if (!names.containsAll(REQUIRED)) return null
-        return when {
-            "title" in names -> Dialect.SAFARI
-            "name" in names -> Dialect.CHROME
-            "httprealm" in names || "formactionorigin" in names || "guid" in names -> Dialect.FIREFOX
-            else -> null
-        }
-    }
+    private fun dialectOf(columns: List<String>): Dialect? =
+        com.fairuniversal.offlineotp.domain.BrowserCsvPolicy().dialect(columns)?.let { Dialect.valueOf(it) }
 
     /**
      * A complete header for [dialect], so a file written from entries that came from mixed sources
      * still imports back into the browser it names.
      */
     @JvmStatic
-    fun canonicalHeader(dialect: Dialect): List<String> = when (dialect) {
-        Dialect.CHROME -> listOf("name", "url", "username", "password", "note")
-        Dialect.FIREFOX -> listOf("url", "username", "password", "httpRealm", "formActionOrigin", "guid",
-            "timeCreated", "timeLastUsed", "timePasswordChanged")
-        Dialect.SAFARI -> listOf("Title", "URL", "Username", "Password", "Notes", "OTPAuth")
-    }
+    fun canonicalHeader(dialect: Dialect): List<String> =
+        com.fairuniversal.offlineotp.domain.BrowserCsvPolicy().header(dialect.name)
 
     /**
      * One cell of the export: the stored value of [column] when the entry has that column, otherwise
@@ -219,7 +197,7 @@ object PasswordCsvExport {
         val label = user.ifBlank { "Password" }
         val material = PasswordMaterial.encodeFields(pairs)
         try {
-            val replacement = Entry(entry.toJSON())
+            val replacement = entry.detachedCopy()
             try {
                 replacement.setSecret(material)
                 // Runtime tint is not serialized in Entry JSON.

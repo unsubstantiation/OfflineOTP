@@ -10,7 +10,7 @@ CORE_MAIN="$ROOT/core/src/main/kotlin"
 CORE_TEST="$ROOT/core/src/test/kotlin"
 DESKTOP_MAIN="$ROOT/desktop/src/main/kotlin"
 # Shared toolkit-free frame layer used by desktop controllers.
-UI_MODEL_MAIN="$ROOT/ui-model/src/commonMain/kotlin"
+UI_MODEL_MAIN="$ROOT/ui-model/src/jvmHostMain/kotlin"
 DESKTOP_TEST="$ROOT/desktop/src/test/kotlin"
 # Gradle puts both main and test resources on the test classpath; mirror that here.
 DESKTOP_RESOURCES="$ROOT/desktop/src/main/resources:$ROOT/desktop/src/test/resources"
@@ -57,7 +57,7 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "${YUBIKIT_CORE_STUBS[@]}")
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
-mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" "$CORE_TEST" "$UI_MODEL_MAIN" "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
+mapfile -d '' CORE_SOURCES < <(find "$ROOT/shared-domain/src/commonMain/kotlin" "$CORE_MAIN" "$CORE_TEST" "$UI_MODEL_MAIN" "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
 mapfile -d '' DESKTOP_SOURCES < <(find "$DESKTOP_MAIN" "$DESKTOP_TEST" -name '*.kt' -print0 | sort -z)
 # Desktop-only third-party compile stubs (PGPainless/BouncyCastle and the yubikit PC/SC module).
 # Phase 1 (core) never sees these: core speaks library-neutral ports and the portable yubikit

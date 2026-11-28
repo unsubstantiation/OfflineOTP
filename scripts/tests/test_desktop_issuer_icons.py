@@ -77,7 +77,7 @@ class DesktopIssuerIconsTest(unittest.TestCase):
         self.assertIn('"/thumbnails/"', icons)
         # The thumbnail name comes from the shared frame model, so the Swing card and the Compose
         # card cannot pick different artwork for the same entry.
-        model = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/"
+        model = (ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/"
                        "VaultCards.kt").read_text(encoding="utf-8")
         self.assertIn("thumbnailName = entry.getThumbnailName()", model)
         # A hidden entry must keep showing the letter tile, never a brand hint.

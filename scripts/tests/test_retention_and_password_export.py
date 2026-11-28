@@ -51,7 +51,7 @@ class BackupRetentionTest(unittest.TestCase):
         # A dated manual export and the shared otp_accounts.json.aes must never be auto-deleted.
         self.assertIn("json.aes", policy)
         self.assertIn("json.gpg", policy)
-        self.assertIn("isUuid", policy)
+        self.assertIn("AutomaticBackupRetention().providerName(name)", policy)
         self.assertNotIn("\"otp_accounts.json", policy.replace("otp_accounts_", ""))
 
     def test_pruning_runs_only_after_a_successful_automatic_export(self):
@@ -119,9 +119,9 @@ class BrowserPasswordExportTest(unittest.TestCase):
         adapter = read(APP / "View/AndroidVaultController.kt")
         self.assertIn("openPasswordEditor(popupTarget, actual)", adapter)
         self.assertNotIn("requestPasswordCsvExport(actual)", adapter)
-        adapter_dialog = read(ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryDialog.kt")
+        adapter_dialog = read(ROOT / "ui/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryDialog.kt")
         dialog = read(ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedPasswordEntryDialog.kt")
-        model = read(ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryInput.kt")
+        model = read(ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryInput.kt")
         self.assertIn('val password: String = ""', model)
         self.assertIn("password = password.ifEmpty { null }", model)
         self.assertIn("SharedPasswordEntryDialog(", adapter_dialog)
@@ -149,7 +149,7 @@ class BrowserPasswordExportTest(unittest.TestCase):
         view = details
         self.assertIn("case\"csvExport\":", view.replace(" ", ""))
         self.assertIn("onExport(csv.data, \"passwords.csv\")", view)
-        self.assertIn("PasswordCsvExport.supportsCommonEdit(entry)", view)
+        self.assertIn("PasswordCsvExport.supportsCommonEdit(entry, interchange: store.interchangePolicy)", view)
         self.assertIn('row("csvExport", "Export passwords as browser CSV…")', view)
         self.assertIn("public func exportBrowserPasswordsCsv()", read(IOS_APP / "VaultStore.swift"))
         store = read(IOS_APP / "VaultStore.swift")

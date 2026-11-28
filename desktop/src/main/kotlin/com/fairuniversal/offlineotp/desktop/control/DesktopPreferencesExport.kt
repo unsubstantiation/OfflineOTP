@@ -11,9 +11,13 @@ class DesktopPreferencesExport(private val state: DesktopVaultState, private val
     private val dispatch: (Runnable) -> Unit, private val snapshot: () -> PreferencesExport.Export,
     private val changed: () -> Unit, private val write: (File, ByteArray) -> Unit = ExclusiveExportFile::writeNew) {
     enum class Status { WRITING, SAVED, EXISTS, FAILED }
-    private class Work(private var data: PreferencesExport.Export?) {
-        @Synchronized fun take() = data.also { data = null }
-        @Synchronized fun cancel() { data?.zero(); data = null }
+    private class Work(private var data: PreferencesExport.Export?, generation: Long) {
+        private val delivery = com.fairuniversal.offlineotp.domain.InterchangeWorkflow(generation).also { check(it.preview(0)) }
+        @Synchronized fun take(generation: Long, ready: Boolean): PreferencesExport.Export? {
+            if (!delivery.consume(generation, ready)) { cancel(); return null }
+            return data.also { data = null }
+        }
+        @Synchronized fun cancel() { delivery.cancel(); data?.zero(); data = null }
     }
     var status: Status? = null
         private set
@@ -27,12 +31,12 @@ class DesktopPreferencesExport(private val state: DesktopVaultState, private val
         if (closed || state.isLocked || work != null || !active()) return false
         val data = try { snapshot() } catch (_: Exception) { status = Status.FAILED; changed(); return false }
         if (closed || state.isLocked || !active()) { data.zero(); return false }
-        val task = Work(data); work = task; count = data.keysWritten; status = Status.WRITING; changed()
+        val task = Work(data, state.generation); work = task; count = data.keysWritten; status = Status.WRITING; changed()
         try {
             worker.execute {
                 if (state.isLocked) { task.cancel(); return@execute }
                 // Once taken, a write may finish even if the UI cancels. No live settings are borrowed.
-                val export = task.take() ?: return@execute
+                val export = task.take(state.generation, !state.isLocked) ?: return@execute
                 val result = try { write(file, export.bytes); Status.SAVED }
                     catch (_: FileAlreadyExistsException) { Status.EXISTS }
                     catch (_: Exception) { Status.FAILED }

@@ -1,7 +1,26 @@
 import XCTest
+import OfflineOTPKit
+import OfflineOTPPresentation
 @testable import OfflineOTP
 
 final class AutomaticBackupCredentialStoreTests: XCTestCase {
+    func testSharedValidationRejectsDuplicateFieldsAndPersistentSigningMaterial() throws {
+        let codec = AutomaticBackupConfigurationCodec()
+        let good = #"{"version":1,"folder":"/synthetic","password":"secret","minutes":15,"keep":10}"#
+        XCTAssertNotNil(codec.canonical(text: good))
+        XCTAssertNil(codec.canonical(text: good.replacingOccurrences(of: "\"version\":1", with: "\"version\":1,\"version\":1")))
+        XCTAssertNil(codec.canonical(text: String(good.dropLast()) + #","signingKey":"private"}"#))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let key = [UInt8](repeating: 3, count: 32)
+        let malformed = String(good.dropLast()) + #","requiresSigning":true}"#
+        let record = try AutomaticBackupCredentialCodec.seal(key: key, plaintext: Data(malformed.utf8))
+        try record.write(to: root.appendingPathComponent(AutomaticBackupCredentialStore.filename))
+        let store = AutomaticBackupCredentialStore(directory: root)
+        XCTAssertThrowsError(try store.load(key: key)); XCTAssertTrue(store.exists)
+    }
+
     func testSnapshotConfigurationV3HasNoExportCredentialsAndLegacyRemainsAnExport() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

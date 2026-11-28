@@ -28,8 +28,11 @@ fun NewVaultRestoreDialog(
     onChooseBackup: () -> Unit,
     allowChooseBackup: Boolean = true,
     onRestore: (backupPassword: String, newVaultPassword: String, confirmation: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRestoreSelected: ((String, String, String, String, String) -> Unit)? = null
 ) {
+    var format by remember { mutableStateOf("vault-copy") }
+    var variant by remember { mutableStateOf("encrypted") }
     var backupPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
@@ -44,12 +47,15 @@ fun NewVaultRestoreDialog(
         title = { Text("Restore a vault from backup") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Choose an OfflineOTP encrypted backup, enter its backup password, then choose a new password for this machine's vault. This restores all backup entries into a new vault; no merge choice is needed.")
+                if (onRestoreSelected != null) com.fairuniversal.offlineotp.ui.vault.FullBackupFormatSelection(format, variant, busy) { selected, encoding ->
+                    format = selected; variant = encoding; backupPassword = ""
+                }
+                Text("Choose a full backup, enter its backup password, then choose a new password for this machine's vault. This restores all backup entries into a new vault; no merge choice is needed.")
                 if (allowChooseBackup) TextButton(onClick = onChooseBackup, enabled = !busy) {
-                    Text("Choose encrypted backup…")
+                    Text("Choose full backup…")
                 }
                 Text(backupName ?: "No backup selected", modifier = Modifier.padding(vertical = 6.dp))
-                OutlinedTextField(backupPassword, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) backupPassword = it }, enabled = !busy,
+                if (!(onRestoreSelected != null && format == "andotp" && variant == "plain")) OutlinedTextField(backupPassword, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) backupPassword = it }, enabled = !busy,
                     label = { Text("Backup password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(newPassword, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) newPassword = it }, enabled = !busy,
@@ -64,8 +70,9 @@ fun NewVaultRestoreDialog(
         confirmButton = { TextButton(onClick = {
             val backup = backupPassword; val password = newPassword; val confirm = confirmation
             backupPassword = ""; newPassword = ""; confirmation = ""
-            onRestore(backup, password, confirm)
-        }, enabled = !busy && backupName != null && backupPassword.isNotEmpty()
+            if (onRestoreSelected != null) onRestoreSelected(backup, password, confirm, format, variant)
+            else onRestore(backup, password, confirm)
+        }, enabled = !busy && backupName != null && (backupPassword.isNotEmpty() || onRestoreSelected != null && format == "andotp" && variant == "plain")
             && newPassword.isNotEmpty() && newPassword == confirmation) { Text("Restore") } },
         dismissButton = { TextButton(enabled = !busy, onClick = { dismiss() }) { Text(if (busy) "Restoring…" else "Cancel") } }
     )

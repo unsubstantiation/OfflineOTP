@@ -23,6 +23,31 @@ class DesktopEncryptedRestoreTest {
     private fun entry(label: String) = ManualEntryInput(label = label, secret = "JBSWY3DPEHPK3PXP").build()
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
 
+    @Test fun noConfirmationBeforeDecodeAndNoReplayAfterConsumption() {
+        val state = state(); val worker = Queue(); val ui = Queue(); var writes = 0
+        val restore = DesktopEncryptedRestore(state, worker, ui::execute, {}, { entries, _ -> writes++; entries.forEach { it.destroy() }; entries.size },
+            decode = { _, _ -> arrayListOf(entry("imported")) })
+        try {
+            restore.open(File("unused")); val request = restore.pending!!
+            assertFalse(restore.confirm(request, true) { true }); assertEquals(0, writes)
+            restore.submit(request, "p") { true }; worker.run(); ui.run()
+            assertEquals(0, writes); assertTrue(restore.confirm(request, false) { true })
+            assertFalse(restore.confirm(request, true) { true }); assertEquals(1, writes)
+        } finally { restore.close(); state.lock() }
+    }
+
+    @Test fun keyReplacementInvalidatesAPreviewWithoutInstallingIt() {
+        val state = state(); val worker = Queue(); val ui = Queue(); var writes = 0
+        val restore = DesktopEncryptedRestore(state, worker, ui::execute, {}, { _, _ -> writes++; 0 },
+            decode = { _, _ -> arrayListOf(entry("imported")) })
+        try {
+            restore.open(File("unused")); val request = restore.pending!!
+            restore.submit(request, "p") { true }; worker.run(); ui.run()
+            state.updateKey(SecretKeySpec(ByteArray(32) { 2 }, "AES"))
+            assertFalse(restore.confirm(request, true) { true }); assertEquals(0, writes)
+        } finally { restore.close(); state.lock() }
+    }
+
     @Test fun realBackupRequiresConfirmationAndMergePersistsCurrentAccounts() {
         val dir = Files.createTempDirectory("compose-restore-").toFile()
         val controller = VaultController(DesktopStorage.open(dir))

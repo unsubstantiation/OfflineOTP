@@ -21,8 +21,8 @@ package com.fairuniversal.offlineotp.Utilities
  *    folder in a sane state (the failure mode is "less was pruned", never "the newest copy went").
  *
  * Anything that cannot be ordered is kept: a candidate with an unknown timestamp is not pruned,
- * because guessing its age could delete the newest copy. [keep] of zero disables pruning entirely —
- * the setting's documented meaning — even though nothing else would be authenticated.
+ * because guessing its age could delete the newest copy. Duplicate provider identities are kept. [keep] of zero disables pruning entirely —
+ * the setting's documented meaning — without changing existing settings.
  */
 object BackupRetention {
     /** Automatic-backup name prefix, shared with [BackupFileNames]. */
@@ -45,57 +45,14 @@ object BackupRetention {
      * is deliberately **not** matched: it has no UUID and a user may be keeping it on purpose.
      */
     @JvmStatic
-    fun isPrunableName(name: String?): Boolean {
-        if (name == null) return false
-        if (!name.startsWith(AUTO_NAME_PREFIX)) return false
-        val suffix = when {
-            name.endsWith(".json.aes") -> ".json.aes"
-            name.endsWith(".json.gpg") -> ".json.gpg"
-            else -> return false
-        }
-        val stem = name.substring(AUTO_NAME_PREFIX.length, name.length - suffix.length)
-        return isUuid(stem)
-    }
+    fun isPrunableName(name: String?): Boolean = name != null &&
+        com.fairuniversal.offlineotp.domain.AutomaticBackupRetention().providerName(name)
 
-    /** The 8-4-4-4-12 hexadecimal form `UUID.randomUUID().toString()` writes, upper or lower case. */
-    private fun isUuid(stem: String): Boolean {
-        if (stem.length != 36) return false
-        for (i in 0 until 36) {
-            val c = stem[i]
-            val dash = i == 8 || i == 13 || i == 18 || i == 23
-            if (dash) {
-                if (c != '-') return false
-            } else if (!c.isDigit() && c !in 'a'..'f' && c !in 'A'..'F') {
-                return false
-            }
-        }
-        return true
-    }
-
-    /**
-     * The names to delete: automatic backups older than the newest [keep], oldest first.
-     *
-     * [lastModified] is the provider's timestamp, which a hostile provider can report as anything —
-     * so this only ever *chooses less to delete* when the data is odd (ties keep everything, an
-     * unset timestamp keeps the file).
-     */
     @JvmStatic
-    fun plan(documents: List<Candidate>, keep: Int): List<String> {
-        if (keep <= 0) return emptyList()
-        val candidates = documents.filter { isPrunableName(it.name) }
-        if (candidates.size <= keep) return emptyList()
-        // Newest first; a document whose timestamp is unknown (<= 0) counts as newest, so it is
-        // always inside the kept set rather than silently deleted.
-        val newestFirst = candidates.sortedWith(
-            compareByDescending<Candidate> { if (it.lastModified > 0L) it.lastModified else Long.MAX_VALUE }
-                .thenBy { it.name })
-        val doomed = newestFirst.drop(keep)
-        // Oldest first, so an interrupted run deleted the least useful copies first.
-        return doomed.sortedWith(
-            compareBy<Candidate> { if (it.lastModified > 0L) it.lastModified else Long.MAX_VALUE }
-                .thenBy { it.name })
-            .map { it.name }
-    }
+    fun plan(documents: List<Candidate>, keep: Int): List<String> =
+        com.fairuniversal.offlineotp.domain.AutomaticBackupRetention().providerPlan(documents.map {
+            com.fairuniversal.offlineotp.domain.BackupRetentionCandidate(it.name, it.lastModified)
+        }, keep)
 
     /** [keep] clamped to the offered choices; an out-of-range stored value falls back to the default. */
     @JvmStatic

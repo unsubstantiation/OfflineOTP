@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Continuous-integration entry point for the desktop Swing client and the shared :core module.
+# Continuous-integration entry point for the desktop Compose client and the shared :core module.
 # Run this script on a full JDK 17+ host with network access. The separate GitHub workflows
 # build platform-specific artifacts and do not replace this verification suite.
 #
@@ -19,7 +19,9 @@ export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v
 
 scripts/kotlin-sandbox/compile-core.sh
 scripts/kotlin-sandbox/compile-desktop.sh
+scripts/kotlin-sandbox/compile-ui.sh
 scripts/run-jvm-tests.sh
+python3 scripts/check_shared_boundaries.py
 python3 -m unittest discover -s scripts/tests -p "test_*.py"
 python3 scripts/check_build_inputs.py
 

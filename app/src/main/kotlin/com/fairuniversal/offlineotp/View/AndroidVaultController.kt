@@ -1511,7 +1511,7 @@ class AndroidVaultController(
             val candidate = ArrayList<Entry>()
             try {
                 entries.getEntries().forEach { entry ->
-                    candidate.add(Entry(entry.toJSON()).also { if (entry === selected) EntryUsage.recordUse(it, used) })
+                    candidate.add(entry.detachedCopy().also { if (entry === selected) EntryUsage.recordUse(it, used) })
                 }
                 val result = persistence.save(candidate, key, false,
                     UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })

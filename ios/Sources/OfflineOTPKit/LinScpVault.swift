@@ -63,14 +63,14 @@ public enum LinScpVault {
     }
 
     /// Opens an `LSCPVLT2` vault and encodes the imported entries as a `VaultDocument` string.
-    public static func openToDocument(password: String, data: Data) throws -> String {
-        let entries = try open(password: password, data: data)
+    public static func openToDocument(password: String, data: Data, interchange: InterchangeAdapter? = nil) throws -> String {
+        let entries = try open(password: password, data: data, interchange: interchange)
         return try VaultDocument.encode(entries)
     }
 
     /// Decrypts and validates a LinSCP `LSCPVLT2` vault, enriching linked `SSH_KEY` entries with
     /// their corresponding session or jump-host connection metadata.
-    public static func open(password: String, data: Data) throws -> [Entry] {
+    public static func open(password: String, data: Data, interchange: InterchangeAdapter? = nil) throws -> [Entry] {
         guard password.count <= InputPolicy.maxVaultPasswordChars, !password.isEmpty else {
             throw EncryptedBackupError.invalidPassword
         }
@@ -95,10 +95,11 @@ public enum LinScpVault {
         guard let jsonText = String(data: plain, encoding: .utf8) else {
             throw LinScpVaultError.invalidUTF8
         }
-        return try importPlainDocument(jsonText)
+        return try importPlainDocument(jsonText, interchange: interchange)
     }
 
-    private static func importPlainDocument(_ jsonText: String) throws -> [Entry] {
+    private static func importPlainDocument(_ jsonText: String, interchange: InterchangeAdapter? = nil) throws -> [Entry] {
+        let jsonText = try interchange?.linScp(jsonText, bundle: false) ?? jsonText
         try InputPolicy.validateJSONDepth(jsonText)
         guard let elements = (try JSONValue.decode(jsonText)).arrayValue,
               (1...InputPolicy.maxEntries).contains(elements.count) else {
@@ -111,14 +112,15 @@ public enum LinScpVault {
     public static func importData(
         _ data: Data,
         password: String? = nil,
-        masterKeyData: Data? = nil
+        masterKeyData: Data? = nil,
+        interchange: InterchangeAdapter? = nil
     ) throws -> [Entry] {
         guard !data.isEmpty, data.count <= maxFileBytes else {
             throw LinScpVaultError.invalidFormat
         }
         if isEncryptedVault(data) {
             guard let password else { throw EncryptedBackupError.invalidPassword }
-            return try open(password: password, data: data)
+            return try open(password: password, data: data, interchange: interchange)
         }
         guard let rawText = String(data: data, encoding: .utf8) else {
             throw LinScpVaultError.invalidUTF8
@@ -130,28 +132,29 @@ public enum LinScpVault {
             if looksLikeSessionsIni(trimmed) && trimmed.components(separatedBy: "\n").contains(where: {
                 let line = $0.trimmingCharacters(in: .whitespacesAndNewlines)
                 return !line.hasPrefix("[") && !line.hasPrefix("#") && !line.hasPrefix(";") && line.contains("=")
-            }) { return try importSessionsIni(trimmed, masterKey: callerKey) }
+            }) { return try importSessionsIni(trimmed, masterKey: callerKey, interchange: interchange) }
             let next = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
             let jsonToken = next.first.map { "{]\"[0123456789-".contains($0) } ?? false
             let literal = ["null", "true", "false"].contains { next.hasPrefix($0 + "]") || next.hasPrefix($0 + ",") }
             if jsonToken || literal || !looksLikeSessionsIni(trimmed) {
-                return try importPlainDocument(trimmed)
+                return try importPlainDocument(trimmed, interchange: interchange)
             }
         }
         if trimmed.hasPrefix("{") {
-            return try importBackupBundle(trimmed, callerKey: callerKey)
+            return try importBackupBundle(trimmed, callerKey: callerKey, interchange: interchange)
         }
         guard looksLikeSessionsIni(trimmed) else { throw LinScpVaultError.invalidFormat }
-        return try importSessionsIni(trimmed, masterKey: callerKey)
+        return try importSessionsIni(trimmed, masterKey: callerKey, interchange: interchange)
     }
 
     /// Encrypts `SSH_KEY` and `PASSWORD` entries into a LinSCP `LSCPVLT2` vault.
-    public static func sealWithFreshParameters(entries: [Entry], password: String) throws -> Data {
+    public static func sealWithFreshParameters(entries: [Entry], password: String, interchange: InterchangeAdapter? = nil) throws -> Data {
         try seal(
             entries: entries,
             password: password,
             salt: VaultCrypto.randomBytes(saltBytes),
-            nonce: VaultCrypto.randomBytes(nonceBytes)
+            nonce: VaultCrypto.randomBytes(nonceBytes),
+            interchange: interchange
         )
     }
 
@@ -160,7 +163,8 @@ public enum LinScpVault {
         entries: [Entry],
         password: String,
         salt: [UInt8],
-        nonce: [UInt8]
+        nonce: [UInt8],
+        interchange: InterchangeAdapter? = nil
     ) throws -> Data {
         guard password.count <= InputPolicy.maxVaultPasswordChars, !password.isEmpty else {
             throw EncryptedBackupError.invalidPassword
@@ -168,7 +172,7 @@ public enum LinScpVault {
         guard salt.count == saltBytes, nonce.count == nonceBytes else {
             throw LinScpVaultError.invalidFormat
         }
-        let plainData = try exportPlain(entries: entries)
+        let plainData = try exportPlain(entries: entries, interchange: interchange)
         var key = try VaultCrypto.argon2id(
             password: password,
             salt: salt,
@@ -191,7 +195,7 @@ public enum LinScpVault {
     }
 
     /// Explicit opt-in unencrypted document, identical to the encrypted payload.
-    public static func exportPlain(entries: [Entry]) throws -> Data {
+    public static func exportPlain(entries: [Entry], interchange: InterchangeAdapter? = nil) throws -> Data {
         let credentials = entries.filter { $0.kind == .sshKey || $0.kind == .password }
         guard !credentials.isEmpty, credentials.count <= InputPolicy.maxEntries else {
             throw LinScpVaultError.emptyCredentials
@@ -248,6 +252,7 @@ public enum LinScpVault {
         }
 
         let jsonText = try VaultDocument.encode(exportedEntries)
+        _ = try interchange?.linScp(jsonText, bundle: false)
         let plainData = Data(jsonText.utf8)
         guard plainData.count <= maxFileBytes else { throw LinScpVaultError.invalidFormat }
 
@@ -434,7 +439,8 @@ public enum LinScpVault {
         return ordered
     }
 
-    private static func importBackupBundle(_ jsonText: String, callerKey: [UInt8]?) throws -> [Entry] {
+    private static func importBackupBundle(_ jsonText: String, callerKey: [UInt8]?, interchange: InterchangeAdapter? = nil) throws -> [Entry] {
+        let jsonText = try interchange?.linScp(jsonText, bundle: true) ?? jsonText
         try InputPolicy.validateJSONDepth(jsonText)
         guard let bundle = (try JSONValue.decode(jsonText)).objectValue else {
             throw LinScpVaultError.invalidFormat
@@ -453,10 +459,10 @@ public enum LinScpVault {
         } else {
             key = callerKey
         }
-        return try importSessionsIni(ini, masterKey: key)
+        return try importSessionsIni(ini, masterKey: key, interchange: interchange)
     }
 
-    private static func importSessionsIni(_ iniText: String, masterKey: [UInt8]?) throws -> [Entry] {
+    private static func importSessionsIni(_ iniText: String, masterKey: [UInt8]?, interchange: InterchangeAdapter? = nil) throws -> [Entry] {
         struct IniSite {
             var name: String
             var fields: [String: String]
@@ -482,6 +488,9 @@ public enum LinScpVault {
             }
         }
 
+        if let interchange {
+            sections = try interchange.linScpIni(iniText).map { IniSite(name: $0.name, fields: $0.fields) }
+        } else {
         for rawLine in iniText.components(separatedBy: "\n") {
             let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -501,6 +510,7 @@ public enum LinScpVault {
             currentFields[key] = value
         }
         flush()
+        }
         guard !sections.isEmpty, sections.count <= InputPolicy.maxEntries else {
             throw LinScpVaultError.emptyCredentials
         }

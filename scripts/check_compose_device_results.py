@@ -5,11 +5,59 @@ import sys
 import xml.etree.ElementTree as ET
 
 PACKAGE = "com.fairuniversal.offlineotp."
+# Explicit release manifest: source regression tests require every @Test in these classes.
 EXPECTED = {
     (PACKAGE + "ComposeVaultDeviceTest", "frameReplacementUsesCurrentActionsAndClearIsTerminal"),
-    (PACKAGE + "ComposeVaultDeviceTest", "concealedFramesHaveNoProtectedTextOrArtworkRequests"),
     (PACKAGE + "ComposeVaultDeviceTest", "disablingThumbnailsSkipsTheHostArtworkLoader"),
+    (PACKAGE + "ComposeVaultDeviceTest", "concealedFramesHaveNoProtectedTextOrArtworkRequests"),
+    (PACKAGE + "ComposeVaultDeviceTest", "sharedSettingsNavigationBlocksBusyAndClosedCallbacks"),
+    (PACKAGE + "ComposeVaultDeviceTest", "setupShellAttachesNativeContentAndGuardsDisposedNavigation"),
+    (PACKAGE + "ComposeVaultDeviceTest", "aboutTabsRenderHostGeneratedVersionsAndFullLicenseNotices"),
+    (PACKAGE + "ComposeVaultDeviceTest", "confirmedSecretShellDismissalReleasesNativeInputAndRejectsReplay"),
+    (PACKAGE + "ComposeVaultDeviceTest", "settingsFeedbackReplacementKeepsCurrentDismissalAndCloseClearsText"),
+    (PACKAGE + "ComposeVaultDeviceTest", "biometricOperationDisablesEntryAndPublishesRetryFailureInsideSharedForm"),
+    (PACKAGE + "ComposeVaultDeviceTest", "authenticationPersistentStatusIsVisibleAndClearsOnRetryAndBackground"),
     (PACKAGE + "IssuerArtworkDeviceTest", "bundledBrandsDecodeAndUnknownNamesUseTheSharedFallback"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "portableSessionAuthorityAndNativeHandoffsRejectStaleResults"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "canceledMetadataTransactionKeepsRecoverableVaultAndDiscardsOnlyUncommittedJournal"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "explicitPasswordMigrationPreservesRollbackBytesAndPortableRecovery"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "copiedPortableFileOverridesMissingOrStaleDeviceSettings"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "aCancelledUnlockPromptCannotRevealTheVault"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "theConfiguredPasswordStillUnlocksTheVault"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "aVaultStoredAsAPinStillOpensThroughThePasswordPrompt"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "aPasswordUnlockProvidesASeparatePortableBackupKey"),
+    (PACKAGE + "AuthenticationFlowDeviceTest", "backgroundTimeCountsTowardsTheInactivityRelock"),
+    (PACKAGE + "AutomaticBackupDeviceTest", "separatePasswordRecordsRequireTheUnlockedVaultKeyAndSurviveFailedRecovery"),
+    (PACKAGE + "AutomaticBackupDeviceTest", "onlyCommittedChangesLeaveARetryMarker"),
+    (PACKAGE + "AutomaticBackupDeviceTest", "olderOverlappingSnapshotCannotSuppressRetryOfRevertedVault"),
+    (PACKAGE + "AutomaticBackupDeviceTest", "setupAndPasswordChangesReplaceTheBackupKeyWithoutBreakingOldFiles"),
+    (PACKAGE + "BackupRestoreDeviceTest", "portableRestoreWorkflowRequiresPreviewConsentAndLiveAuthorityOnAndroid"),
+    (PACKAGE + "BackupRestoreDeviceTest", "portableVaultProtocolCorpusAndCryptoProvidersAgreeOnAndroid"),
+    (PACKAGE + "BackupRestoreDeviceTest", "portableEntryDocumentsPreserveEveryKindAndFutureNumbersOnAndroid"),
+    (PACKAGE + "BackupRestoreDeviceTest", "portableVaultFileVectorsRestoreThroughTheSameAndroidTask"),
+    (PACKAGE + "BackupRestoreDeviceTest", "sharedDesktopInteropVectorsRestoreThroughAndroidTask"),
+    (PACKAGE + "BackupRestoreDeviceTest", "desktopPrivacyExportRestoresChoicesThroughAndroidTask"),
+    (PACKAGE + "BackupRestoreDeviceTest", "desktopSshExportRestoresThroughAndroidTask"),
+    (PACKAGE + "BackupRestoreDeviceTest", "desktopNoteExportRestoresThroughAndroidTask"),
+    (PACKAGE + "BackupRestoreDeviceTest", "androidCryptoProviderProducesAFileReadableByTheSharedDesktopCodec"),
+    (PACKAGE + "BackupRestoreDeviceTest", "currentEncryptedBackupIsRestored"),
+    (PACKAGE + "BackupRestoreDeviceTest", "aHeaderlessPre063EncryptedBackupIsRejected"),
+    (PACKAGE + "BackupRestoreDeviceTest", "aWrongPasswordIsRejected"),
+    (PACKAGE + "BackupRestoreDeviceTest", "aTruncatedEncryptedBackupIsRejected"),
+    (PACKAGE + "BackupRestoreDeviceTest", "aMissingDocumentFailsWithoutCrashing"),
+    (PACKAGE + "EntryDocumentDeviceTest", "sshKeyPairRoundTripsThroughAndroidJson"),
+    (PACKAGE + "EntryDocumentDeviceTest", "secureNoteRoundTripsThroughAndroidJson"),
+    (PACKAGE + "EntryDocumentDeviceTest", "totpUriRoundTripsThroughTheUriStringSerializer"),
+    (PACKAGE + "EntryDocumentDeviceTest", "uriCarriesNonDefaultParametersAndTags"),
+    (PACKAGE + "EntryDocumentDeviceTest", "hotpAndSteamEntriesRoundTrip"),
+    (PACKAGE + "EntryDocumentDeviceTest", "motpUriRoundTripKeepsTheSeedButNotThePin"),
+    (PACKAGE + "EntryDocumentDeviceTest", "labelsWithSpacesAndColonsSurviveTheRoundTrip"),
+    (PACKAGE + "EntryDocumentDeviceTest", "platformJsonParsesAndReserializesTheStoredDocument"),
+    (PACKAGE + "EntryDocumentDeviceTest", "destroyedEntriesDoNotSerialize"),
+    (PACKAGE + "InterchangeCodecDeviceTest", "browserCsvRoundTripRetainsUnknownColumnsAndQuotedSecrets"),
+    (PACKAGE + "InterchangeCodecDeviceTest", "migrationAndOtpUseSharedValidationAndConsumeNativePendingOwnershipOnce"),
+    (PACKAGE + "GoogleMigrationDeviceTest", "multipartAccountsAreSavedTogetherAndDuplicatesAreSkipped"),
+    (PACKAGE + "GoogleMigrationDeviceTest", "activityRequiresConfirmationAndRelockDismissesStaleBatches"),
 }
 
 
@@ -43,4 +91,4 @@ if __name__ == "__main__":
     if errors:
         print("\n".join(errors), file=sys.stderr)
         sys.exit(1)
-    print(f"All {len(EXPECTED)} selected Compose/artwork device tests executed successfully.")
+    print(f"All {len(EXPECTED)} selected migration/Compose/artwork device tests executed successfully.")

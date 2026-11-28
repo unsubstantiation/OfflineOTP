@@ -57,7 +57,8 @@ class PreferencesFormatTest(unittest.TestCase):
         self.assertIn("PLATFORM_DESKTOP", kotlin)
         self.assertIn("class WrongPlatformException", kotlin)
         self.assertIn(".put(\"platform\", platform)", kotlin)
-        self.assertIn("sourcePlatform != platform", kotlin)
+        self.assertIn('plan.error == "PLATFORM"', kotlin)
+        self.assertIn("if (source != platform)", read(ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/PreferencesInterchangeCodec.kt"))
         swift = read(IOS_KIT / "PreferencesExport.swift")
         self.assertIn("case wrongPlatform(source: String, target: String)", swift)
         self.assertIn("guard source == platform else", swift)
@@ -133,11 +134,11 @@ class PreferencesWiringTest(unittest.TestCase):
         view = read(IOS_APP / "ComposeVaultHost.swift")
         self.assertIn('row("prefsExport", "Export preferences…")', view)
         self.assertIn('row("prefsImport", "Import preferences…")', view)
-        self.assertIn("PreferencesExport.export(store.preferencesPort)", view)
+        self.assertIn("PreferencesExport.export(store.preferencesPort, interchange: store.interchangePolicy)", view)
         # The picked file is confirmed in a shared Compose surface; this adapter applies it.
         self.assertIn('case "prefsImport": kind = "preferences"', view)
         # `apply`, not `import`: the latter is a declaration keyword in Swift.
-        self.assertIn("PreferencesExport.apply(pendingImport, into: store.preferencesPort)", view)
+        self.assertIn("PreferencesExport.apply(pendingImport, into: store.preferencesPort, interchange: store.interchangePolicy)", view)
         self.assertIn("store.reloadInactivityLock()", view)
         picker = read(IOS_APP / "NativeFilePicker.swift")
         self.assertIn("UIDocumentPickerViewController(forExporting:", picker)

@@ -35,7 +35,7 @@ class LinScpSupportTest(unittest.TestCase):
             self.assertIn(token, codec)
 
         backup_codec = (CORE / "Utilities/EncryptedBackupCodec.kt").read_text(encoding="utf-8")
-        self.assertIn("LinScpCredentials.isEncryptedVault(data)", backup_codec)
+        self.assertIn("route == BackupRoute.LINSCP", backup_codec)
 
     def test_android_linscp_import_and_export_are_session_guarded_and_wipe_secrets(self):
         main = (APP / "kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
@@ -74,7 +74,7 @@ class LinScpSupportTest(unittest.TestCase):
         ios = (IOS / "App/Sources/ComposeVaultHost.swift").read_text()
         self.assertIn('draft["linScpPlain"] == "true"', ios)
         self.assertIn("store.generation == epoch", ios)
-        self.assertIn("$0.fields == candidate.fields", ios)
+        self.assertIn("$0.compact() == candidate.compact()", ios)
         self.assertIn("store.importLinScpSelection(chosen)", ios)
         self.assertIn("masterKeyData: masterKey", ios)
         self.assertIn('case "linScpKey":', ios)

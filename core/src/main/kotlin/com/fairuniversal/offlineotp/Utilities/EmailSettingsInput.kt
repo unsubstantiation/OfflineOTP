@@ -152,7 +152,7 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
         }
         val bytes = EmailMaterial.encode(account.account, finalIdentities)
         try {
-            val replacement = Entry(existing.toJSON())
+            val replacement = existing.detachedCopy()
             try { replacement.setSecret(bytes); replacement.validate(); return replacement }
             catch (error: Exception) { replacement.destroy(); throw error }
         } finally { bytes.fill(0) }

@@ -51,6 +51,45 @@ import javax.crypto.SecretKey
 class AuthenticationFlowDeviceTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
+    @Test fun portableSessionAuthorityAndNativeHandoffsRejectStaleResults() {
+        val authority = com.fairuniversal.offlineotp.domain.SessionAuthority()
+        val pending = authority.beginUnlock()
+        assertNull(authority.activate(pending, true))
+        val active = authority.generation
+        authority.lock(com.fairuniversal.offlineotp.domain.SessionLockReason.SCREEN_OFF)
+        assertEquals(com.fairuniversal.offlineotp.domain.SessionRejection.STALE_GENERATION, authority.activate(active, true))
+        val attempt = com.fairuniversal.offlineotp.domain.UnlockAttemptPolicy()
+        val ticket = attempt.start(1, true); attempt.cancel()
+        assertTrue(!attempt.complete(ticket, 1, true, true))
+        val native = com.fairuniversal.offlineotp.Utilities.SessionController(Any())
+        val generation = native.beginUnlock().generation
+        assertTrue(native.publishDerived(ByteArray(32) { 7 }, generation) is SessionCommandResult.Applied)
+        native.lock(com.fairuniversal.offlineotp.Utilities.SessionLockReason.BACKGROUND)
+        assertTrue(native.consumeDerived(generation) is com.fairuniversal.offlineotp.Utilities.SessionHandoff.Unavailable)
+    }
+
+    @Test fun canceledMetadataTransactionKeepsRecoverableVaultAndDiscardsOnlyUncommittedJournal() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val key = installPasswordVault(context, PASSWORD)
+        try {
+            val file = java.io.File(context.getFilesDir(), Constants.FILENAME_DATABASE)
+            val prior = file.readBytes()
+            val result = DatabaseHelper.changeVaultEncryption(context, key, key, false) {
+                VaultCommitDecision.CANCELED
+            }
+            assertEquals(VaultWriteResult.Rejected(com.fairuniversal.offlineotp.Utilities.VaultWriteError.CANCELED), result)
+            assertTrue(prior.contentEquals(file.readBytes()))
+            assertTrue(prior.contentEquals(java.io.File(context.getFilesDir(), Constants.FILENAME_DATABASE_BACKUP).readBytes()))
+            assertTrue(DatabaseHelper.recoverPendingDatabase(context))
+            assertTrue(!java.io.File(context.getFilesDir(), DatabaseHelper.PENDING_FILE).exists())
+            assertTrue(prior.contentEquals(file.readBytes()))
+            DatabaseHelper.readVault(context, key).let { loaded ->
+                assertTrue(loaded is com.fairuniversal.offlineotp.Utilities.VaultReadResult.Loaded)
+                (loaded as com.fairuniversal.offlineotp.Utilities.VaultReadResult.Loaded).close()
+            }
+        } finally { cleanUp(context) }
+    }
+
     @Test
     fun explicitPasswordMigrationPreservesRollbackBytesAndPortableRecovery() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -74,6 +113,47 @@ class AuthenticationFlowDeviceTest {
             assertTrue(com.fairuniversal.offlineotp.Utilities.VaultContainer.isContainer(file.readBytes()))
             assertEquals("[]", com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec.open(PASSWORD, file.readBytes()))
         } finally { cleanUp(context) }
+    }
+
+    @Test
+    fun copiedPortableFileOverridesMissingOrStaleDeviceSettings() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val key = installPasswordVault(context, PASSWORD)
+        try {
+            assertTrue(DatabaseHelper.migrateToContainer(context, PASSWORD, key) { true } is VaultWriteResult.Saved)
+            val copied = java.io.File(context.getFilesDir(), Constants.FILENAME_DATABASE).readBytes()
+            // Simulate a file copied into a fresh installation, with no credential sidecar.
+            DeviceTestSupport.wipePreferences(context)
+            val settings = Settings(context)
+            assertEquals(Constants.AuthMethod.PASSWORD, settings.getAuthMethod())
+            assertEquals(Constants.EncryptionType.PASSWORD, settings.getEncryption())
+            assertTrue(settings.getFirstTimeWarningShown())
+            val recovered = DatabaseHelper.portableRecoveryKey(context, PASSWORD)
+            assertTrue(DatabaseHelper.vaultSnapshot(context, recovered).contentEquals(copied))
+            // Unrelated destination credentials must not override the authenticated file header.
+            android.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putString(context.getString(R.string.settings_key_auth_credentials), "c3RhbGU=")
+                .putString(context.getString(R.string.settings_key_auth_salt), "c3RhbGU=")
+                .commit()
+            settings.setAuthMethod(Constants.AuthMethod.DEVICE)
+            settings.setEncryption(Constants.EncryptionType.KEYSTORE)
+            assertTrue(DatabaseHelper.vaultSnapshot(context,
+                DatabaseHelper.portableRecoveryKey(context, PASSWORD)).contentEquals(copied))
+            var rejected = false
+            try { DatabaseHelper.portableRecoveryKey(context, "unrelated destination password") }
+            catch (_: Exception) { rejected = true }
+            assertTrue(rejected)
+            assertTrue(copied.contentEquals(java.io.File(context.getFilesDir(), Constants.FILENAME_DATABASE).readBytes()))
+            DeviceTestSupport.startActivity(context, MainActivity::class.java)
+            val prompt = DeviceTestSupport.awaitResumed<AuthenticateActivity>()
+            assertNotNull("copied vault must request its recovery password instead of setup/device auth", prompt)
+            instrumentation.runOnMainSync {
+                requireNotNull(prompt!!.findViewById<EditText>(R.id.passwordEdit)).setText(PASSWORD)
+                requireNotNull(prompt.findViewById<Button>(R.id.buttonUnlock)).performClick()
+            }
+            assertTrue("copied vault recovery failed with unrelated settings", awaitVaultKey())
+            assertNotNull(DeviceTestSupport.awaitResumed<MainActivity>())
+        } finally { DeviceTestSupport.finishActivities(); cleanUp(context) }
     }
 
     @Test

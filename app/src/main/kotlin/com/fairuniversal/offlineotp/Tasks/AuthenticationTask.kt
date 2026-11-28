@@ -23,26 +23,43 @@ import java.util.Arrays
 
 /** Verifies a password/PIN, returning a generation-bound derived key on success. */
 open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boolean,
-                              private val existingAuthCredentials: String, private val plainPassword: String?) :
+                              private val existingAuthCredentials: String, plainPassword: String?) :
         UiBasedBackgroundTask<AuthenticationOutcome>(AuthenticationOutcome.Rejected(AuthenticationError.DENIED)) {
-    private val settings: Settings = Settings(context.getApplicationContext())
+    @Volatile private var plainPassword: String? = plainPassword
+    protected override fun onCancellation() { plainPassword = null }
+    private val applicationContext = context.getApplicationContext()
+    private val settings: Settings = Settings(applicationContext)
 
     protected override fun discardResult(result: AuthenticationOutcome) {
         if (result is AuthenticationOutcome.Verified) result.close()
     }
 
     protected override fun doInBackground(): AuthenticationOutcome {
-        if (isCanceled() || plainPassword == null || plainPassword.length > InputPolicy.MAX_TEXT_CHARS) return AuthenticationOutcome.Rejected(AuthenticationError.DENIED)
+        val password = plainPassword.also { plainPassword = null }
+        if (isCanceled() || password == null || password.length > InputPolicy.MAX_TEXT_CHARS) return AuthenticationOutcome.Rejected(AuthenticationError.DENIED)
+        // A copied portable file is its own authority, not the destination's stale verifier.
+        if (com.fairuniversal.offlineotp.Utilities.DatabaseHelper.hasPortableVault(applicationContext)) {
+            return try {
+                val key = com.fairuniversal.offlineotp.Utilities.DatabaseHelper.portableRecoveryKey(applicationContext, password)
+                val raw = key.encoded
+                try {
+                    if (isCanceled()) AuthenticationOutcome.Rejected(AuthenticationError.DENIED)
+                    else {
+                        offerLoginBackupKey(password)
+                        AuthenticationOutcome.verified(raw, taskGeneration())
+                    }
+                } finally { raw.fill(0) }
+            } catch (_: Exception) { AuthenticationOutcome.Rejected(AuthenticationError.DENIED) }
+        }
         return if (isAuthUpgrade) {
-            upgradeAuthentication()
+            upgradeAuthentication(password)
         } else {
-            confirmAuthentication()
+            confirmAuthentication(password)
         }
     }
 
     /** Derive a separate, session-only backup key after a real password unlock, never for a PIN. */
-    private fun offerLoginBackupKey() {
-        val password = plainPassword ?: return
+    private fun offerLoginBackupKey(password: String) {
         if (isCanceled() || settings.getAuthMethod() != Constants.AuthMethod.PASSWORD ||
                 VaultSession.snapshot() !is SessionState.Unlocking) return
         try {
@@ -56,12 +73,12 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
     }
 
     /** Verifies legacy SHA-256 credentials and attempts a PBKDF2 upgrade. */
-    private fun upgradeAuthentication(): AuthenticationOutcome {
-        val hashedPassword = String(Hex.encodeHex(DigestUtils.sha256(plainPassword)))
+    private fun upgradeAuthentication(password: String): AuthenticationOutcome {
+        val hashedPassword = String(Hex.encodeHex(DigestUtils.sha256(password)))
         if (hashedPassword != existingAuthCredentials)
             return AuthenticationOutcome.Rejected(AuthenticationError.DENIED)
 
-        val key = settings.setAuthCredentials(plainPassword) {
+        val key = settings.setAuthCredentials(password) {
             !isCanceled()
                     && settings.getAuthCredentials().isEmpty()
                     && existingAuthCredentials == settings.getOldCredentials(settings.getAuthMethod())
@@ -71,7 +88,7 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
             return AuthenticationOutcome.Rejected(AuthenticationError.LEGACY_MIGRATION_FAILED)
         else {
             try {
-                offerLoginBackupKey()
+                offerLoginBackupKey(password)
                 return AuthenticationOutcome.verified(key, taskGeneration())
             } finally {
                 Arrays.fill(key, 0.toByte())
@@ -80,15 +97,15 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
     }
 
     /** Checks the entered password/PIN against the stored Argon2id (or legacy PBKDF2) credentials. */
-    private fun confirmAuthentication(): AuthenticationOutcome {
+    private fun confirmAuthentication(password: String): AuthenticationOutcome {
         var credentials: PBKDF2Credentials? = null
         var passwordArray: ByteArray? = null
         try {
-            val derived = settings.deriveVaultCredentials(plainPassword)
+            val derived = settings.deriveVaultCredentials(password)
             credentials = derived
             passwordArray = Base64.decode(existingAuthCredentials, Base64.URL_SAFE)
             if (MessageDigest.isEqual(passwordArray, derived.password)) {
-                offerLoginBackupKey()
+                offerLoginBackupKey(password)
                 return AuthenticationOutcome.verified(derived.key, taskGeneration())
             }
             return AuthenticationOutcome.Rejected(AuthenticationError.DENIED)

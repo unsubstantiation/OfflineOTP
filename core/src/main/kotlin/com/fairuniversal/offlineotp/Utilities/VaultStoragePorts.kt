@@ -3,7 +3,10 @@ package com.fairuniversal.offlineotp.Utilities
 import java.io.IOException
 
 /**
- * Platform port for one replaceable, crash-safe byte file (the vault, its backup or a journal).
+ * Native JVM port for one replaceable, crash-safe byte file (vault, backup or journal).
+ * Shared PersistenceWorkflow controls sequencing; this adapter owns bytes and durability.
+ * A post-promotion verification/acknowledgment failure may mean the new target is installed;
+ * callers must preserve the rollback copy rather than assume failure means no mutation.
  *
  * The Android adapter is backed by `android.util.AtomicFile`; the desktop adapter uses a
  * `java.nio` temp-file-and-move pair. Implementations must guarantee that a failed write never

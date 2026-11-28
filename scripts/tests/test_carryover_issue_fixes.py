@@ -95,9 +95,11 @@ class InactivityRelockTest(unittest.TestCase):
         self.assertIn("fun suspendInactivity()", text)
         self.assertIn("fun hasInactivityExpired(): Boolean", text)
         self.assertIn("fun suspendForeground()", text)
-        self.assertRegex(text, r"private var deadline: Long\? = null")
+        self.assertIn("domain.InactivityPolicy()", text)
+        policy = read(ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/SessionAuthority.kt")
+        self.assertRegex(policy, r"private var deadline: Long\? = null")
         suspend = text.split("fun suspendInactivity()", 1)[1].split("fun hasInactivityExpired", 1)[0]
-        self.assertNotIn("deadline = null", suspend,
+        self.assertNotIn("inactivity.cancel()", suspend,
                          "suspending must keep the deadline: background time is not free time")
 
     def test_main_activity_checks_expiry_before_rearming(self):

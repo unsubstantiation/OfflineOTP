@@ -221,7 +221,7 @@ public enum PreferencesExport {
         }
     }
 
-    public static func export(_ port: SettingsPort, platform: String = platformIos) throws -> Export {
+    public static func export(_ port: SettingsPort, platform: String = platformIos, interchange: InterchangeAdapter? = nil) throws -> Export {
         var settings: [String: Any] = [:]
         var written = 0
         for entry in catalog {
@@ -245,13 +245,15 @@ public enum PreferencesExport {
         if !skipped.isEmpty { document["skipped"] = skipped }
         let data = try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys])
         guard data.count <= maxBytes else { throw PreferencesError.invalidSize }
-        return Export(bytes: data, keysWritten: written, skipped: skipped, includesSecrets: false)
+        let checked = try interchange?.preferences(data, platform: platform) ?? data
+        return Export(bytes: checked, keysWritten: written, skipped: skipped, includesSecrets: false)
     }
 
     /// Validates a preferences document without writing to any store, returning the import summary.
     public static func inspect(_ bytes: Data,
-                               platform: String = platformIos) throws -> Import {
-        let (_, summary) = try parseDocument(bytes, platform: platform)
+                               platform: String = platformIos, interchange: InterchangeAdapter? = nil) throws -> Import {
+        let checked = try interchange?.preferences(bytes, platform: platform) ?? bytes
+        let (_, summary) = try parseDocument(checked, platform: platform)
         return summary
     }
 
@@ -260,8 +262,9 @@ public enum PreferencesExport {
     /// Named `apply` rather than `import` to match the Kotlin object's method without shadowing a
     /// declaration keyword; the operation is the same, and a caller reads it as "apply this file".
     public static func apply(_ bytes: Data, into port: SettingsPort,
-                             platform: String = platformIos) throws -> Import {
-        let (accepted, summary) = try parseDocument(bytes, platform: platform)
+                             platform: String = platformIos, interchange: InterchangeAdapter? = nil) throws -> Import {
+        let checked = try interchange?.preferences(bytes, platform: platform) ?? bytes
+        let (accepted, summary) = try parseDocument(checked, platform: platform)
         if let atomic = port as? AtomicSettingsPort {
             try atomic.writeBatch(Dictionary(uniqueKeysWithValues: accepted.map { ($0.0.key, $0.1) }))
         } else {

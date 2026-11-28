@@ -22,6 +22,9 @@ GOLDEN = ROOT / "desktop/src/test/resources/golden"
 def kotlin_const(relative, name):
     text = (CORE / relative).read_text(encoding="utf-8")
     match = re.search(rf"const val {name}\s*=\s*([0-9_]+)", text)
+    if match is None and f"const val {name} = com.fairuniversal.offlineotp.domain.EntryMetadata.{name}" in text:
+        domain = ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/EntryMetadata.kt"
+        match = re.search(rf"const val {name}\s*=\s*([0-9_]+)", domain.read_text(encoding="utf-8"))
     if match is None:
         raise AssertionError(f"{name} not found in {relative}")
     return int(match.group(1).replace("_", ""))

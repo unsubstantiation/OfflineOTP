@@ -25,7 +25,9 @@ The SwiftUI production views were deleted, not merely excluded from the target. 
 keychain/biometrics, camera, clipboard, lifecycle and privacy covering remain platform adapters.
 Remaining feature gaps and validation work are tracked in the
 [Compose UI plan](docs/compose-unified-ui-plan.md) and the
-[shared UI boundary](docs/shared-ui-ownership.md).
+[shared UI boundary](docs/shared-ui-ownership.md). The next consolidation steps, supported-target
+intent, platform-service boundaries and verification gates are recorded in the
+[shared-code migration plan](docs/shared-code-migration.md).
 
 The Android application ID, namespace, and Kotlin/Java packages use `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app instead of being detected as its update. Updating an existing OfflineOTP installation still requires the same signing key, and it does not collide with andOTP.
 
@@ -481,7 +483,7 @@ bash scripts/kotlin-sandbox/compile-desktop.sh
 ```
 
 The shared UI has its own boundary gate: it compiles `:core`, then `:ui-model` with no Compose
-artifact on the classpath, then `ui/src/commonMain` against the compile-only Compose stubs in
+artifact on the classpath, then `ui/src/jvmHostMain` adapters against the compile-only Compose stubs in
 `scripts/kotlin-sandbox/stubs-compose`, then runs the frame-layer tests, then type-checks both hosts.
 It proves the shared sources need no Android, Swing, storage or session API; it does not render a
 single pixel.

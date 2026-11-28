@@ -20,6 +20,9 @@ class VaultContainerContractTest {
             assertEquals(plain, String(VaultContainer.openWithKey(SecretKeySpec(key, "AES"), file)))
             assertEquals(plain, EncryptedBackupCodec.open(password, file))
             val rewritten = VaultContainer.seal(SecretKeySpec(key, "AES"), VaultContainer.header(file), plain.toByteArray())
+            assertTrue(file.copyOfRange(0, VaultContainer.HEADER_BYTES).contentEquals(rewritten.copyOfRange(0, VaultContainer.HEADER_BYTES)))
+            assertEquals(plain.toByteArray().size + VaultContainer.OVERHEAD_BYTES, rewritten.size)
+            assertEquals(plain, EncryptedBackupCodec.openSelected(password, rewritten, "vault-copy"))
             assertTrue(!file.contentEquals(rewritten)); assertEquals(plain, String(VaultContainer.open(password, rewritten)))
         }
     }

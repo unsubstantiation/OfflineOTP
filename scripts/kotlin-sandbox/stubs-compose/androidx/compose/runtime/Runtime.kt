@@ -1,6 +1,6 @@
 // Compose Multiplatform dependency stub: androidx.compose.runtime.
 //
-// These declarations exist so `ui/src/commonMain` can be type-checked without the Compose
+// These declarations exist so `ui/src/jvmHostMain` can be type-checked without the Compose
 // artifacts, which the sandbox cannot download. The shapes mirror the real API closely enough that
 // a call site which compiles here compiles in Gradle, but nothing executes: there is no composer,
 // no snapshot state and no recomposition. This is a compile gate, not a runtime.

@@ -5,9 +5,9 @@ object InputPolicy {
     const val MAX_URI_CHARS = 16384
     const val MAX_ENTRIES = 2000
     const val MAX_JSON_DEPTH = 32
-    const val MAX_TEXT_CHARS = 1024
-    const val MAX_TAGS = 32
-    const val MAX_TAG_CHARS = 128
+    const val MAX_TEXT_CHARS = com.fairuniversal.offlineotp.domain.EntryMetadata.MAX_TEXT_CHARS
+    const val MAX_TAGS = com.fairuniversal.offlineotp.domain.EntryMetadata.MAX_TAGS
+    const val MAX_TAG_CHARS = com.fairuniversal.offlineotp.domain.EntryMetadata.MAX_TAG_CHARS
     const val MAX_SECRET_BYTES = 2048
     const val MAX_NOTE_CHARACTERS = 200
 
@@ -90,9 +90,6 @@ object InputPolicy {
     @JvmStatic
     fun tokenParameters(period: Int, digits: Int, counter: Long) {
         // Keep legacy custom 1–9 digit OTPs, but never overflow the int modulus.
-        if (period < 1 || period > MAX_PERIOD_SECONDS || digits < 1 || digits > 9
-                || counter < 0 || counter == Long.MAX_VALUE) {
-            throw IllegalArgumentException("Invalid OTP parameters")
-        }
+        com.fairuniversal.offlineotp.domain.EntryParameters.validate(period, digits, counter)
     }
 }

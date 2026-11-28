@@ -34,7 +34,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn("extensionFields = null", entry)
         for path in [ANDROID / "View/AndroidVaultController.kt",
                      DESKTOP / "control/DesktopEntryTransaction.kt",
-                     ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt"]:
+                     ROOT / "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt"]:
             self.assertIn("preserveExtensionFieldsFrom(", path.read_text())
         for path in [ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/storage/EntryExtensionContractTest.kt",
                      ROOT / "ios/Tests/OfflineOTPKitTests/EntryExtensionContractTests.swift"]:
@@ -124,7 +124,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn("entry.noteText", ios_backup)
 
         # Direct password editing and bulk CSV export on iOS, and per-entry tag editing on Android
-        self.assertIn("PasswordCsvExport.supportsCommonEdit(entry)", ios_backup)
+        self.assertIn("PasswordCsvExport.supportsCommonEdit(entry, interchange: store.interchangePolicy)", ios_backup)
         self.assertIn('row("csvExport", "Export passwords as browser CSV…")', ios_backup)
         popup_menu = (ROOT / "app/src/main/res/menu/menu_popup.xml").read_text(encoding="utf-8")
         self.assertIn('android:id="@+id/menu_popup_tags"', popup_menu)

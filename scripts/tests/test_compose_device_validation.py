@@ -1,5 +1,6 @@
 """The manual emulator gate must not confuse compilation, missing tests or skips with UI passes."""
 import importlib.util
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -42,6 +43,17 @@ class ComposeDeviceValidationTest(unittest.TestCase):
         for classname, method in results.EXPECTED:
             source = ROOT / "app/src/androidTest/kotlin" / (classname.replace(".", "/") + ".kt")
             self.assertIn(f"fun {method}()", source.read_text())
+
+    def test_manifest_covers_every_test_in_each_selected_class(self):
+        workflow = (ROOT / ".github/workflows/android.yml").read_text()
+        selected = re.search(r"RunnerArguments.class=([^\s]+)", workflow).group(1).split(",")
+        self.assertEqual({name for name, _ in results.EXPECTED}, set(selected))
+        for classname in selected:
+            source = ROOT / "app/src/androidTest/kotlin" / (classname.replace(".", "/") + ".kt")
+            methods = set(re.findall(r"@Test\s+fun\s+(\w+)\s*\(", source.read_text()))
+            self.assertTrue(methods, classname)
+            self.assertEqual(methods, {method for name, method in results.EXPECTED if name == classname})
+        self.assertNotIn("settleTheApp", {method for _, method in results.EXPECTED})
 
     def test_gate_is_manual_unsigned_and_runs_both_flavors(self):
         workflow = (ROOT / ".github/workflows/android.yml").read_text()

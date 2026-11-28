@@ -379,6 +379,7 @@ final class VaultStoreTests: XCTestCase {
         let other = VaultStore(directory: elsewhere)
         other.unlock(password: "correct horse", confirmation: "correct horse", creating: true)
         XCTAssertTrue(other.isUnlocked)
+        XCTAssertNotNil(other.previewEncryptedBackupCount(encrypted: exported.data, password: "backup pass"))
         let plan = try XCTUnwrap(other.restore(encrypted: exported.data, password: "backup pass",
                                               replace: false))
         XCTAssertEqual(plan.added, 2)
@@ -431,9 +432,9 @@ final class VaultStoreTests: XCTestCase {
         let imported = try rawEntry("kept")
         let extra = try rawEntry("extra")
         let document = try VaultDocument.encode([imported, extra])
-        let plan = try XCTUnwrap(store.restore(encrypted:
-            EncryptedBackup.sealWithFreshParameters(password: "backup pass", plain: document),
-            password: "backup pass", replace: false))
+        let backup = try EncryptedBackup.sealWithFreshParameters(password: "backup pass", plain: document)
+        XCTAssertNotNil(store.previewEncryptedBackupCount(encrypted: backup, password: "backup pass"))
+        let plan = try XCTUnwrap(store.restore(encrypted: backup, password: "", replace: false))
         XCTAssertEqual(plan.added, 1)
         XCTAssertEqual(store.entries.map(\.label), ["extra", "kept"])
     }
@@ -443,7 +444,8 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertTrue(store.add(try rawEntry("current")))
         let document = try VaultDocument.encode([try rawEntry("imported")])
         let data = try EncryptedBackup.sealWithFreshParameters(password: "pw", plain: document)
-        let plan = try XCTUnwrap(store.restore(encrypted: data, password: "pw", replace: true))
+        XCTAssertNotNil(store.previewEncryptedBackupCount(encrypted: data, password: "pw"))
+        let plan = try XCTUnwrap(store.restore(encrypted: data, password: "", replace: true))
         XCTAssertEqual(plan.entries.map(\.label), ["imported"])
         XCTAssertEqual(store.entries.map(\.label), ["imported"])
     }
@@ -453,7 +455,7 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertTrue(store.add(try rawEntry("kept")))
         let exported = try XCTUnwrap(store.exportBackup(password: "backup pass"))
 
-        XCTAssertNil(store.restore(encrypted: exported.data, password: "wrong", replace: false))
+        XCTAssertNil(store.previewEncryptedBackupCount(encrypted: exported.data, password: "wrong"))
         XCTAssertEqual(store.message, BackupWording.wrongPassword)
         XCTAssertEqual(store.entries.map(\.label), ["kept"])
     }
@@ -469,9 +471,9 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertNotEqual(String(data: exported.data, encoding: .utf8), document)
 
         let emptyData = try EncryptedBackup.sealWithFreshParameters(password: "pw", plain: "[]")
-        XCTAssertNil(store.restore(encrypted: emptyData, password: "pw", replace: false))
+        XCTAssertNil(store.previewEncryptedBackupCount(encrypted: emptyData, password: "pw"))
         XCTAssertEqual(store.message, BackupWording.emptyBackup)
-        XCTAssertNil(store.restore(encrypted: Data(), password: "pw", replace: false))
+        XCTAssertNil(store.previewEncryptedBackupCount(encrypted: Data(), password: "pw"))
         XCTAssertEqual(store.message, BackupWording.unreadableBackup)
     }
 
@@ -1214,6 +1216,7 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(adapter.action(key: "linScpExport"),
                        "There are no SSH keys or password entries in this vault.")
 
+        adapter.refresh()
         adapter.card(index: 0, action: "edit")
         adapter.change(key: "issuer", value: "GitHub Enterprise")
         adapter.change(key: "secret", value: "")
@@ -1221,6 +1224,7 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(store.entries[0].issuer, "GitHub Enterprise")
         XCTAssertEqual(store.entries[0].secretBase32, originalSecret)
 
+        adapter.refresh()
         adapter.card(index: 0, action: "edit")
         adapter.change(key: "type", value: "HOTP")
         adapter.change(key: "secret", value: "")
@@ -1230,6 +1234,7 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertNil(adapter.action(key: "confirm"))
         XCTAssertEqual(store.entries[0].kind, .hotp)
 
+        adapter.refresh()
         adapter.card(index: 0, action: "counter")
         adapter.change(key: "counter", value: "9")
         XCTAssertNil(adapter.action(key: "confirm"))
@@ -1246,4 +1251,44 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertNil(store.previewEncryptedBackupCount(encrypted: emptyExport.data, password: "backup-pass"))
         XCTAssertEqual(store.message, BackupWording.emptyBackup)
     }
+    func testMigrationConfirmationCannotReplayAfterLockOrSuccessfulConsumption() throws {
+        let store = unlockedStore()
+        let preview = try XCTUnwrap(store.addMigrationImportCode(migrationSingle).entries)
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertEqual(store.confirmMigrationImport(preview), .saveFailed)
+        XCTAssertTrue(store.entries.isEmpty)
+        let fresh = try XCTUnwrap(store.addMigrationImportCode(migrationSingle).entries)
+        XCTAssertEqual(store.confirmMigrationImport(fresh), .imported(added: 1, skipped: 0))
+        XCTAssertEqual(store.confirmMigrationImport(fresh), .saveFailed)
+    }
+
+    func testMigrationConfirmationCannotSubstituteAnUnpreviewedEntry() throws {
+        let store = unlockedStore()
+        _ = try XCTUnwrap(store.addMigrationImportCode(migrationSingle).entries)
+        let different = try OtpUri.parse("otpauth://totp/not-previewed?secret=KRSXG5A=").entry()
+        XCTAssertEqual(store.confirmMigrationImport([different]), .saveFailed)
+        XCTAssertTrue(store.entries.isEmpty)
+    }
+
+    func testCardCallbacksCannotRetargetAReorderedEntryBeforeTheNextFrame() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("first", issuer: "Alpha")))
+        XCTAssertTrue(store.add(try draft("second", issuer: "Beta")))
+        let adapter = vaultAdapter(store)
+        defer { adapter.invalidate() }
+        adapter.refresh()
+        XCTAssertTrue(store.moveDisplayed(from: 0, to: 1))
+        let reordered = store.entries
+        adapter.card(index: 0, action: "reveal") // index zero belonged to a different displayed entry
+        XCTAssertEqual(reordered, store.entries)
+        adapter.refresh()
+        adapter.card(index: 0, action: "reveal")
+        XCTAssertNotEqual(reordered, store.entries)
+        adapter.invalidate()
+        let closed = store.entries
+        adapter.card(index: 0, action: "reveal")
+        XCTAssertEqual(closed, store.entries)
+    }
+
 }

@@ -1,5 +1,6 @@
 import Foundation
 import OfflineOTPKit
+import OfflineOTPPresentation
 
 /// Foreground/session-only encrypted backups. UI ownership is main-queue confined; a Work token
 /// transfers a detached document to a serial worker and cancels publication after lock/disable.
@@ -25,14 +26,15 @@ final class SessionAutomaticBackup {
         private let lock = NSLock()
         private var cancelled = false
         private var input: Input?
-        init(_ input: Input) { self.input = input }
+        private let delivery = InterchangeWorkflow(generation: 0)
+        init(_ input: Input) { self.input = input; _ = delivery.preview(count: 1) }
         func take() -> Input? {
             lock.lock(); defer { lock.unlock() }
-            guard !cancelled else { return nil }
+            guard !cancelled, delivery.consume(currentGeneration: 0, sessionReady: true) else { return nil }
             let value = input; input = nil; return value
         }
-        func cancel() { lock.lock(); cancelled = true; input = nil; lock.unlock() }
-        func active() -> Bool { lock.lock(); defer { lock.unlock() }; return !cancelled }
+        func cancel() { lock.lock(); cancelled = true; delivery.cancel(); input = nil; lock.unlock() }
+        func active() -> Bool { lock.lock(); defer { lock.unlock() }; return !cancelled && delivery.current(currentGeneration: 0, sessionReady: true) }
     }
     private static let worker = DispatchQueue(label: "OfflineOTP.automatic-backup", qos: .utility)
     private let enqueue: (@escaping () -> Void) -> Void
@@ -40,13 +42,16 @@ final class SessionAutomaticBackup {
     private let schedule: (TimeInterval, @escaping () -> Void) -> (() -> Void)
     private var cancelTimer: (() -> Void)?
     private var timerEpoch = UUID()
-    private var pendingChange = false
+    private let automation = AutomaticBackupSchedule()
+    private var pendingChange: Bool { automation.pendingChange }
+    private var generation: () -> Int = { 0 }
+    private var admitted: () -> Bool = { false }
     init(enqueue: ((@escaping () -> Void) -> Void)? = nil,
          seal: ((String, String) throws -> Data)? = nil,
          schedule: ((TimeInterval, @escaping () -> Void) -> (() -> Void))? = nil) {
         self.enqueue = enqueue ?? { task in SessionAutomaticBackup.worker.async(execute: task) }
         self.seal = seal ?? { password, document in
-            try EncryptedBackup.sealWithFreshParameters(password: password, plain: document)
+            try EncryptedBackup.sealWithFreshParameters(password: password, plain: document, protocolPolicy: SharedVaultProtocolAdapter())
         }
         self.schedule = schedule ?? { delay, action in
             let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in action() }
@@ -64,10 +69,11 @@ final class SessionAutomaticBackup {
     }
     /// Coalesce successful saves without overlapping snapshots or extending the first-change delay.
     func vaultChanged() {
-        guard enabled, !pendingChange else { return }
-        pendingChange = true
-        if !busy {
-            scheduleNext(AutomaticBackupPolicy.changeDelay)
+        guard enabled else { return }
+        let delay = automation.changed(currentGeneration: Int64(generation()), ready: admitted())
+        guard automation.enabled else { disable(); return }
+        if delay >= 0 {
+            scheduleNext(TimeInterval(delay) / 1000)
             message = "Vault saved. Automatic backup scheduled shortly."; changed?()
         }
     }
@@ -97,19 +103,21 @@ final class SessionAutomaticBackup {
     func configure(directory: URL, password: String, confirmation: String, minutes: Int, keep: Int,
                    snapshot: @escaping () -> String?, changed: @escaping () -> Void, beforeEnable: () throws -> Void = {},
                    recipientKeys: [Data] = [], sealRecipients: ((String, [Data]) throws -> Data)? = nil,
-                   admitted: () -> Bool = { true }, signingKey: Data? = nil, signingPassphrase: String = "",
+                   admitted: @escaping () -> Bool = { true }, generation: @escaping () -> Int = { 0 }, signingKey: Data? = nil, signingPassphrase: String = "",
                    sealSigned: ((String, [Data], Data, String) throws -> Data)? = nil,
                    vaultSnapshot: (() -> Data?)? = nil) -> Bool {
+        guard let boundedMinutes = Int32(exactly: minutes), let boundedKeep = Int32(exactly: keep),
+              BackupAutomationPolicy().timing(minutes: boundedMinutes, keep: boundedKeep),
+              password.utf16.count <= InputPolicy.maxTextChars else { return false }
         let valid: Bool
         if vaultSnapshot != nil {
-            valid = (1...1440).contains(minutes) && (1...100).contains(keep) && password.isEmpty && confirmation.isEmpty
+            valid = password.isEmpty && confirmation.isEmpty
                 && recipientKeys.isEmpty && signingKey == nil
         } else if recipientKeys.isEmpty {
-            valid = AutomaticBackupPolicy.valid(minutes: minutes, retention: keep,
-                passwordUTF16Units: password.utf16.count, passwordsMatch: password == confirmation)
+            valid = BackupAutomationPolicy().valid(minutes: Int32(minutes), keep: Int32(keep),
+                passwordUnits: Int32(password.utf16.count), passwordsMatch: password == confirmation)
         } else {
-            valid = AutomaticBackupConfiguration.validRecipients(recipientKeys) && (1...1440).contains(minutes)
-                && (1...100).contains(keep) && password.isEmpty && confirmation.isEmpty && sealRecipients != nil
+            valid = AutomaticBackupConfiguration.validRecipients(recipientKeys) && password.isEmpty && confirmation.isEmpty && sealRecipients != nil
         }
         let validSigning = signingKey.map { !$0.isEmpty && $0.count <= InputPolicy.maxDocumentBytes
             && signingPassphrase.utf16.count <= InputPolicy.maxTextChars && !recipientKeys.isEmpty && sealSigned != nil } ?? true
@@ -140,14 +148,15 @@ final class SessionAutomaticBackup {
             self.signingKey = signingKey; self.signingPassphrase = signingPassphrase; self.sealSigned = sealSigned
             interval = TimeInterval(minutes * 60); retention = keep
             self.vaultSnapshot = vaultSnapshot
-            self.snapshot = snapshot; self.changed = changed; enabled = true
+            self.snapshot = snapshot; self.changed = changed; self.generation = generation; self.admitted = admitted
+            _ = automation.enable(generation: Int64(generation()), minutes: Int32(minutes)); enabled = true
             runNow()
             return true
         } catch { return false }
     }
 
     func disable() {
-        stopTimer(); pendingChange = false
+        stopTimer(); automation.disable(); admitted = { false }; generation = { 0 }
         work?.cancel(); work = nil
         vaultSnapshot = nil
         password = ""; signingKey = nil; signingPassphrase = ""; sealSigned = nil; recipientKeys = []; sealRecipients = nil; directory = nil; snapshot = nil; scope = nil
@@ -158,7 +167,10 @@ final class SessionAutomaticBackup {
 
     func runNow() {
         guard enabled, !busy, let directory = directory, let scope = scope else { return }
-        stopTimer(); pendingChange = false
+        guard admitted() else { disable(); return }
+        let ticket = automation.begin(currentGeneration: Int64(generation()), ready: admitted())
+        guard ticket != 0 else { return }
+        stopTimer()
         let bytes: Data?
         let document: String
         if let vaultSnapshot {
@@ -217,10 +229,12 @@ final class SessionAutomaticBackup {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self, self.work === task, task.active() else { return }
                 self.work = nil; self.busy = false
+                let delay = self.automation.complete(ticket: ticket, currentGeneration: Int64(self.generation()), ready: self.admitted(), success: succeeded)
                 guard succeeded else { self.fail(); return }
+                guard delay >= 0 else { self.disable(); return }
                 self.message = self.pendingChange ? "Automatic backup saved. New changes pending; another backup is scheduled shortly."
                     : "Automatic backup saved. Next periodic backup in \(Int(self.interval / 60)) minutes."
-                self.scheduleNext(self.pendingChange ? AutomaticBackupPolicy.changeDelay : self.interval)
+                self.scheduleNext(TimeInterval(delay) / 1000)
                 self.changed?()
             }
         }
@@ -254,11 +268,11 @@ final class SessionAutomaticBackup {
         let files = try FileManager.default.contentsOfDirectory(at: directory,
             includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         let owned = try files.filter { url in
-            guard url.lastPathComponent.range(of: "^auto-[0-9]{16}-[0-9a-f-]{36}\\.\(fileExtension)$", options: .regularExpression) != nil else { return false }
             let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             return values.isRegularFile == true && values.isSymbolicLink != true
-        }.sorted { $0.lastPathComponent > $1.lastPathComponent }
-        for url in owned.dropFirst(keep) { try FileManager.default.removeItem(at: url) }
+        }
+        let plan = AutomaticBackupRetention().managedPlan(names: owned.map { $0.lastPathComponent }, keep: Int32(keep), fileExtension: fileExtension)
+        for name in plan { try FileManager.default.removeItem(at: directory.appendingPathComponent(name)) }
     }
 
     deinit { cancelTimer?(); work?.cancel() }

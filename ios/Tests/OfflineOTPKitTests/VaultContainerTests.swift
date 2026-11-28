@@ -21,6 +21,14 @@ final class VaultContainerTests: XCTestCase {
             XCTAssertEqual(Data(plaintext.utf8), try VaultContainer.open(password: password, data: file))
             XCTAssertEqual(Data(plaintext.utf8), try VaultContainer.openWithKey(key, data: file))
             XCTAssertEqual(plaintext, try EncryptedBackup.open(password: password, data: file))
+            // Exercise the Swift writer against the same header/key contract as the JVM writer.
+            let rewritten = try VaultContainer.seal(key: key, header: VaultContainer.header(file),
+                plaintext: Data(plaintext.utf8))
+            XCTAssertEqual(rewritten.prefix(VaultContainer.headerBytes), file.prefix(VaultContainer.headerBytes))
+            XCTAssertEqual(rewritten.count, Data(plaintext.utf8).count + VaultContainer.overheadBytes)
+            XCTAssertEqual(try VaultContainer.open(password: password, data: rewritten), Data(plaintext.utf8))
+            XCTAssertEqual(try EncryptedBackup.openSelected(password: password, data: rewritten,
+                format: "vault-copy"), plaintext)
             XCTAssertThrowsError(try VaultContainer.open(password: "wrong", data: file))
             for offset in file.indices {
                 var changed = file; changed[offset] ^= 1

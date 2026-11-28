@@ -17,8 +17,8 @@ public protocol KeyValueSettings: AnyObject {
 
     /// Deletes a value.
     ///
-    /// A rollback needs this: `PasswordVault.changePassword` restores the settings it replaced, and
-    /// a setting that was *absent* before has to go back to being absent rather than to a default.
+    /// Settings import/reset needs to distinguish an absent value from a stored default.
+    /// Password rekey publishes settings only after the self-contained vault is promoted.
     /// Defaulted to doing nothing so an adapter that cannot delete still compiles — a store that
     /// can, must.
     func remove(_ key: String)
@@ -62,11 +62,20 @@ public final class PasswordVault {
     public let backupFile: AtomicByteStore
     public let settings: KeyValueSettings
     private let storageLock = NSRecursiveLock()
+    private let documents: EntryDocumentAdapter
+    private let protocolPolicy: VaultProtocolAdapter
+    private let persistence: PersistenceAdapter
 
-    public init(vaultFile: AtomicByteStore, backupFile: AtomicByteStore, settings: KeyValueSettings) {
+    public init(vaultFile: AtomicByteStore, backupFile: AtomicByteStore, settings: KeyValueSettings,
+                documents: EntryDocumentAdapter = NativeEntryDocumentAdapter(),
+                protocolPolicy: VaultProtocolAdapter = NativeVaultProtocolAdapter(),
+                persistence: PersistenceAdapter = NativePersistenceAdapter()) {
         self.vaultFile = vaultFile
         self.backupFile = backupFile
         self.settings = settings
+        self.documents = documents
+        self.protocolPolicy = protocolPolicy
+        self.persistence = persistence
     }
 
     /// What an unlock returns: the entries and the session key. The key is never persisted here.
@@ -87,7 +96,7 @@ public final class PasswordVault {
     public var vaultIdentifier: String? {
         storageLock.lock(); defer { storageLock.unlock() }
         if let bytes = try? vaultFile.read(), VaultContainer.isContainer(bytes) {
-            guard let header = try? VaultContainer.header(bytes) else { return nil }
+            guard let header = try? VaultContainer.header(bytes, protocolPolicy: protocolPolicy) else { return nil }
             return VaultCrypto.base64URLEncode(header.salt)
         }
         guard let saltText = settings.string(VaultSettingsKeys.authSalt),
@@ -103,14 +112,16 @@ public final class PasswordVault {
     /// Creates a new vault containing a complete, already-decoded restore in one encrypted write.
     public func create(password: String, entries: [Entry]) throws {
         storageLock.lock(); defer { storageLock.unlock() }
-        guard !vaultFile.exists(), !backupFile.exists() else {
+        guard persistence.canInitialize(vaultExists: vaultFile.exists(), backupExists: backupFile.exists()) else {
             throw VaultWriteError.alreadyExists
         }
         guard !password.isEmpty, password.utf16.count <= InputPolicy.maxTextChars else {
             throw VaultWriteError.invalidInput
         }
-        let key = try provisionCredentials(password: password)
-        try writeEncrypted(key: key, entries: entries, newHeader: VaultContainer.fromSettings(settings))
+        let candidateSettings = CredentialSettings()
+        let key = try provisionCredentials(password: password, target: candidateSettings)
+        try writeEncrypted(key: key, entries: entries, newHeader: VaultContainer.fromSettings(candidateSettings, protocolPolicy: protocolPolicy))
+        candidateSettings.publish(to: settings)
     }
 
     /// Verifies the password against the stored verifier, then decrypts the vault.
@@ -122,7 +133,7 @@ public final class PasswordVault {
         do { bytes = try vaultFile.read() } catch { throw VaultOpenError.ioFailure }
         let key: [UInt8]
         if VaultContainer.isContainer(bytes) {
-            key = try VaultContainer.deriveKey(password: password, header: VaultContainer.header(bytes))
+            key = try VaultContainer.deriveKey(password: password, header: VaultContainer.header(bytes, protocolPolicy: protocolPolicy))
         } else { key = try deriveSessionKey(password: password) }
         return try decrypt(key: key, bytes: bytes)
     }
@@ -166,51 +177,36 @@ public final class PasswordVault {
     }
 
     /// Verifies `currentPassword`, provisions fresh Argon2id credentials for `newPassword`,
-    /// and re-encrypts the vault atomically, rolling back settings + `.bck` on failure.
+    /// and promotes a verified self-contained vault before publishing compatibility settings.
+    /// Ambiguous promotion never triggers an automatic overwrite with the rollback copy.
     public func changePassword(currentPassword: String, newPassword: String) throws -> Unlocked {
         storageLock.lock(); defer { storageLock.unlock() }
         guard !newPassword.isEmpty, newPassword.utf16.count <= InputPolicy.maxTextChars else {
             throw VaultWriteError.invalidInput
         }
         let unlocked = try open(password: currentPassword)
+        let workflow = persistence.transaction(requiresBackup: true)
+        guard workflow.verified() else { throw VaultWriteError.ioFailure }
         guard backup() else {
             throw VaultWriteError.ioFailure
         }
-        let priorStrings: [String: String?] = [
-            VaultSettingsKeys.authMethod: settings.string(VaultSettingsKeys.authMethod),
-            VaultSettingsKeys.encryption: settings.string(VaultSettingsKeys.encryption),
-            VaultSettingsKeys.authKdf: settings.string(VaultSettingsKeys.authKdf),
-            VaultSettingsKeys.authCredentials: settings.string(VaultSettingsKeys.authCredentials),
-            VaultSettingsKeys.authSalt: settings.string(VaultSettingsKeys.authSalt),
-        ]
-        let priorInts: [String: Int?] = [
-            VaultSettingsKeys.authMemoryKiB: settings.integer(VaultSettingsKeys.authMemoryKiB),
-            VaultSettingsKeys.authIterations: settings.integer(VaultSettingsKeys.authIterations),
-            VaultSettingsKeys.authParallelism: settings.integer(VaultSettingsKeys.authParallelism),
-        ]
-        func rollbackSettings() {
-            for (k, v) in priorStrings {
-                if let v { settings.setString(k, v) } else { settings.remove(k) }
-            }
-            for (k, v) in priorInts {
-                if let v { settings.setInteger(k, v) } else { settings.remove(k) }
-            }
-        }
+        guard workflow.backedUp() else { throw VaultWriteError.ioFailure }
         do {
-            let newKey = try provisionCredentials(password: newPassword)
+            let candidateSettings = CredentialSettings()
+            let newKey = try provisionCredentials(password: newPassword, target: candidateSettings)
             do {
-                try writeEncrypted(key: newKey, entries: unlocked.entries, newHeader: VaultContainer.fromSettings(settings))
+                guard workflow.beginPromotion() else { throw VaultWriteError.ioFailure }
+                try writeEncrypted(key: newKey, entries: unlocked.entries, newHeader: VaultContainer.fromSettings(candidateSettings, protocolPolicy: protocolPolicy))
+                guard workflow.promoted() else { throw VaultWriteError.ioFailure }
+                candidateSettings.publish(to: settings)
                 return Unlocked(entries: unlocked.entries, key: newKey)
             } catch {
-                rollbackSettings()
-                _ = restoreBackup()
+                workflow.promotionFailed()
                 throw error
             }
         } catch let err as VaultWriteError {
-            rollbackSettings()
             throw err
         } catch {
-            rollbackSettings()
             throw VaultWriteError.ioFailure
         }
     }
@@ -220,7 +216,7 @@ public final class PasswordVault {
         storageLock.lock(); defer { storageLock.unlock() }
         let bytes = try vaultFile.read()
         guard VaultContainer.isContainer(bytes) else { throw VaultWriteError.invalidInput }
-        var plaintext = try VaultContainer.openWithKey(key, data: bytes)
+        var plaintext = try VaultContainer.openWithKey(key, data: bytes, protocolPolicy: protocolPolicy)
         defer { plaintext.resetBytes(in: 0..<plaintext.count) }
         return bytes
     }
@@ -231,19 +227,25 @@ public final class PasswordVault {
         let opened = try open(password: password)
         let prior = try vaultFile.read()
         if VaultContainer.isContainer(prior) { return }
-        let descriptor = try VaultContainer.fromSettings(settings)
+        let descriptor = try VaultContainer.fromSettings(settings, protocolPolicy: protocolPolicy)
         var plaintext = try VaultCrypto.open(prior, key: opened.key)
         defer { plaintext.resetBytes(in: 0..<plaintext.count) }
-        let migrated = try VaultContainer.seal(key: opened.key, header: descriptor, plaintext: plaintext)
-        var verified = try VaultContainer.open(password: password, data: migrated)
+        let migrated = try VaultContainer.seal(key: opened.key, header: descriptor, plaintext: plaintext, protocolPolicy: protocolPolicy)
+        var verified = try VaultContainer.open(password: password, data: migrated, protocolPolicy: protocolPolicy)
         verified.resetBytes(in: 0..<verified.count)
+        let workflow = persistence.transaction(requiresBackup: true)
+        guard workflow.verified() else { throw VaultWriteError.ioFailure }
         try backupFile.writeAtomic(prior)
-        try vaultFile.writeAtomic(migrated)
+        guard workflow.backedUp(), workflow.beginPromotion() else { throw VaultWriteError.ioFailure }
+        do {
+            try vaultFile.writeAtomic(migrated)
+            guard workflow.promoted() else { throw VaultWriteError.ioFailure }
+        } catch { workflow.promotionFailed(); throw error }
     }
 
     // MARK: - Internals
 
-    private func provisionCredentials(password: String) throws -> [UInt8] {
+    private func provisionCredentials(password: String, target: KeyValueSettings) throws -> [UInt8] {
         let salt = VaultCrypto.randomBytes(VaultCrypto.argon2SaltBytes)
         let memoryKiB = VaultCrypto.argon2MemoryKiB
         let iterations = VaultCrypto.argon2Iterations
@@ -255,15 +257,15 @@ public final class PasswordVault {
             iterations: iterations,
             parallelism: parallelism
         )
-        settings.setString(VaultSettingsKeys.authMethod, "password")
-        settings.setString(VaultSettingsKeys.encryption, "password")
-        settings.setString(VaultSettingsKeys.authKdf, VaultCrypto.kdfArgon2id)
-        settings.setString(VaultSettingsKeys.authCredentials,
+        target.setString(VaultSettingsKeys.authMethod, "password")
+        target.setString(VaultSettingsKeys.encryption, "password")
+        target.setString(VaultSettingsKeys.authKdf, VaultCrypto.kdfArgon2id)
+        target.setString(VaultSettingsKeys.authCredentials,
                            VaultCrypto.base64URLEncode(credentials.verifier))
-        settings.setString(VaultSettingsKeys.authSalt, VaultCrypto.base64URLEncode(salt))
-        settings.setInteger(VaultSettingsKeys.authMemoryKiB, memoryKiB)
-        settings.setInteger(VaultSettingsKeys.authIterations, iterations)
-        settings.setInteger(VaultSettingsKeys.authParallelism, parallelism)
+        target.setString(VaultSettingsKeys.authSalt, VaultCrypto.base64URLEncode(salt))
+        target.setInteger(VaultSettingsKeys.authMemoryKiB, memoryKiB)
+        target.setInteger(VaultSettingsKeys.authIterations, iterations)
+        target.setInteger(VaultSettingsKeys.authParallelism, parallelism)
         return credentials.key
     }
 
@@ -331,7 +333,7 @@ public final class PasswordVault {
         }
         var plain: Data
         do {
-            if VaultContainer.isContainer(sealed) { plain = try VaultContainer.openWithKey(key, data: sealed) }
+            if VaultContainer.isContainer(sealed) { plain = try VaultContainer.openWithKey(key, data: sealed, protocolPolicy: protocolPolicy) }
             else { plain = try VaultCrypto.open(sealed, key: key) }
         } catch VaultCryptoError.authenticationFailed {
             throw VaultOpenError.authenticationFailed
@@ -342,7 +344,8 @@ public final class PasswordVault {
         }
         defer { plain.resetBytes(in: 0..<plain.count) }
         do {
-            return Unlocked(entries: try VaultDocument.decode(plain), key: key)
+            guard let text = String(data: plain, encoding: .utf8) else { throw VaultOpenError.corrupt }
+            return Unlocked(entries: try documents.decode(text), key: key)
         } catch {
             throw VaultOpenError.corrupt
         }
@@ -351,7 +354,7 @@ public final class PasswordVault {
     private func writeEncrypted(key: [UInt8], entries: [Entry], newHeader: VaultContainer.Header? = nil) throws {
         let text: String
         do {
-            text = try VaultDocument.encode(entries)
+            text = try documents.encode(entries)
         } catch {
             throw VaultWriteError.invalidInput
         }
@@ -366,19 +369,28 @@ public final class PasswordVault {
             if descriptor == nil, vaultFile.exists() {
                 let prior = try vaultFile.read()
                 if VaultContainer.isContainer(prior) {
-                    var authenticated = try VaultContainer.openWithKey(key, data: prior)
+                    var authenticated = try VaultContainer.openWithKey(key, data: prior, protocolPolicy: protocolPolicy)
                     authenticated.resetBytes(in: 0..<authenticated.count)
-                    descriptor = try VaultContainer.header(prior)
+                    descriptor = try VaultContainer.header(prior, protocolPolicy: protocolPolicy)
                 }
             }
-            if let descriptor { ciphertext = try VaultContainer.seal(key: key, header: descriptor, plaintext: plain) }
+            if let descriptor { ciphertext = try VaultContainer.seal(key: key, header: descriptor, plaintext: plain, protocolPolicy: protocolPolicy) }
             else { ciphertext = try VaultCrypto.sealWithRandomNonce(plain, key: key) }
         } catch {
             throw VaultWriteError.ioFailure
         }
+        let workflow = persistence.transaction(requiresBackup: false)
         do {
+            var verified: Data
+            if VaultContainer.isContainer(ciphertext) {
+                verified = try VaultContainer.openWithKey(key, data: ciphertext, protocolPolicy: protocolPolicy)
+            } else { verified = try VaultCrypto.open(ciphertext, key: key) }
+            verified.resetBytes(in: 0..<verified.count)
+            guard workflow.verified(), workflow.beginPromotion() else { throw VaultWriteError.ioFailure }
             try vaultFile.writeAtomic(ciphertext)
+            guard workflow.promoted() else { throw VaultWriteError.ioFailure }
         } catch {
+            workflow.promotionFailed()
             throw VaultWriteError.ioFailure
         }
     }
@@ -507,5 +519,19 @@ public final class PropertyListSettings: KeyValueSettings {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
         try? data.write(to: url, options: [.atomic])
+    }
+}
+
+/// Only the self-contained promoted vault authorizes publishing these compatibility settings.
+private final class CredentialSettings: KeyValueSettings {
+    private var strings: [String: String] = [:]
+    private var ints: [String: Int] = [:]
+    func string(_ key: String) -> String? { strings[key] }
+    func integer(_ key: String) -> Int? { ints[key] }
+    func setString(_ key: String, _ value: String) { strings[key] = value }
+    func setInteger(_ key: String, _ value: Int) { ints[key] = value }
+    func publish(to target: KeyValueSettings) {
+        for (key, value) in strings { target.setString(key, value) }
+        for (key, value) in ints { target.setInteger(key, value) }
     }
 }

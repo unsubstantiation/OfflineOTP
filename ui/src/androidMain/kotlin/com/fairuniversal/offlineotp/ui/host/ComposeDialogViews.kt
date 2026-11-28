@@ -654,7 +654,8 @@ class EncryptedRestorePasswordComposeView(
     activity: Activity,
     private val onDecode: (String) -> Unit,
     private val onDismiss: () -> Unit,
-    private val decodeDescription: String = "Open a password-encrypted OfflineOTP backup. You will confirm before entries are changed."
+    private val decodeDescription: String = "Choose the source format. You will confirm before entries are changed.",
+    private val onDecodeSelected: ((String, String, String) -> Unit)? = null
 ) : ComposeDialogHost(activity) {
 
     init {
@@ -670,6 +671,9 @@ class EncryptedRestorePasswordComposeView(
                 count = null,
                 failed = false,
                 onDecode = onDecode,
+                onDecodeSelected = onDecodeSelected?.let { callback -> { password, format, variant ->
+                    if (dismissals == 0) callback(password, format, variant)
+                } },
                 onConfirm = {},
                 onDismiss = onDismiss,
                 decodeDescription = decodeDescription

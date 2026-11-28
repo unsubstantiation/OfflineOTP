@@ -5,6 +5,32 @@ not app preferences, device credentials, hardware enrolments or automatic-export
 Recovery uses the **vault recovery password**, not a separately chosen export password.
 Password-encrypted and OpenPGP **exports** remain independent formats and operations.
 
+## Cross-build portability
+
+Android (all distribution flavors), Desktop and iOS use **one vault-file format**, not
+platform-specific backup formats. A current full backup is exactly the saved vault bytes;
+manual and automatic full copies do not add another password or wrapper. Copying from any
+build to another preserves the recovery password in use when that file was saved. File
+extensions are labels, not format identifiers. Password/OpenPGP exports are separate choices.
+
+For manual file placement, completely close the destination app, preserve its existing vault,
+and put the copied file at its configured vault path as `secrets.dat`. Use the actual data
+directory, not necessarily the executable directory. Android/iOS private-directory restrictions
+usually make the restore picker the practical alternative. Do not copy transaction journals,
+local credential preferences or hardware/biometric enrollment from another device. This is
+snapshot transfer, not live multi-writer synchronization; never replace a file while it is open.
+
+Android recognizes portable files before first-run/setup and derives the unlock key from the
+file's authenticated header rather than missing or stale local credential preferences. A
+recognized but unsupported/corrupt container must fail closed, not provision a replacement vault.
+Desktop and iOS password engines likewise open copied containers without credential sidecars.
+Local quick-unlock enrollment is not transferable; retain the recovery password.
+
+Independent Argon2id and PBKDF2 container vectors are consumed by JVM, Swift and Android device
+tests. Both JVM and Swift writer tests check the same header layout, authenticated encryption
+and recovery path. Native Swift execution and Android device execution still require their
+respective toolchains/devices; Linux source/stub checks alone are not native validation.
+
 ## Binary contract
 
 All integers are unsigned big-endian 32-bit values, constrained to the bounds below.

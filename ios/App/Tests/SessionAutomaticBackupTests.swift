@@ -1,7 +1,38 @@
 import XCTest
+import OfflineOTPPresentation
 @testable import OfflineOTP
 
 final class SessionAutomaticBackupTests: XCTestCase {
+    func testSharedSchedulingRejectsLateCompletionAndCoalescesSuccessfulSaves() {
+        let schedule = AutomaticBackupSchedule()
+        XCTAssertTrue(schedule.enable(generation: 7, minutes: 15))
+        let first = schedule.begin(currentGeneration: 7, ready: true)
+        XCTAssertGreaterThan(first, 0)
+        XCTAssertEqual(schedule.changed(currentGeneration: 7, ready: true), -1)
+        XCTAssertEqual(schedule.complete(ticket: first, currentGeneration: 7, ready: true, success: true), 1000)
+        let second = schedule.begin(currentGeneration: 7, ready: true)
+        schedule.disable()
+        XCTAssertEqual(schedule.complete(ticket: second, currentGeneration: 7, ready: true, success: true), -1)
+        XCTAssertFalse(schedule.enabled)
+        XCTAssertEqual(BackupAutomationPolicy().resume(unlocked: true, requiresSigning: true, signingAvailable: false), "SIGNING_REQUIRED")
+    }
+
+    func testGenerationChangePreventsAnotherNativeSnapshot() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var queued: [() -> Void] = []; var generation = 1; var ready = true
+        let backup = SessionAutomaticBackup(enqueue: { queued.append($0) })
+        defer { backup.disable() }
+        XCTAssertTrue(backup.configure(directory: root, password: "secret", confirmation: "secret", minutes: 1, keep: 2,
+            snapshot: { "[]" }, changed: {}, admitted: { ready }, generation: { generation }))
+        generation = 2; ready = false
+        backup.vaultChanged()
+        XCTAssertFalse(backup.enabled)
+        queued.removeFirst()() // canceled token cannot write even though work was already queued
+        XCTAssertEqual([], try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("OfflineOTP-automatic").path))
+    }
+
     @MainActor
     func testSavedVaultCopiesBypassEntrySerializationAndEncryptionAndCancelQueuedWrites() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

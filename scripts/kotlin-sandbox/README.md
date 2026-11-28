@@ -59,7 +59,7 @@ The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists 
   opt-in window, dialog, menu, visibility, search and clipboard checks.
 - `scripts/kotlin-sandbox/compile-ui.sh` is the shared UI gate: it compiles `:core`, then
   `:ui-model` (the frame layer) with **no Compose artifact on the classpath**, then
-  `ui/src/commonMain` against the compile-only Compose stubs in
+  `ui/src/jvmHostMain` against the compile-only Compose stubs in
   [`stubs-compose/`](stubs-compose/README.md), then runs the frame-layer tests from
   `ui-model/src/desktopTest/kotlin`. A Compose screen that reaches for `android.*`, Swing, storage, crypto
   or session types fails to compile, and the frame-model tests (grouping, countdown arithmetic,

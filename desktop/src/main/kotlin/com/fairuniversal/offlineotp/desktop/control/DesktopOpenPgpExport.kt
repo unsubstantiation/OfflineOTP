@@ -31,12 +31,16 @@ class DesktopOpenPgpExport(
     private class Input(val keyFiles: List<File>, val document: String) {
         override fun toString() = "BackupInput(redacted)"
     }
-    private class Work(private var input: Input?) {
+    private class Work(private var input: Input?, generation: Long) {
+        private val delivery = com.fairuniversal.offlineotp.domain.InterchangeWorkflow(generation).also { check(it.preview(0)) }
         private var cancelled = false
-        @Synchronized fun take(): Input? = input.also { input = null }
-        @Synchronized fun cancel() { cancelled = true; input = null }
+        @Synchronized fun take(generation: Long, ready: Boolean): Input? {
+            if (!delivery.consume(generation, ready)) { cancel(); return null }
+            return input.also { input = null }
+        }
+        @Synchronized fun cancel() { delivery.cancel(); cancelled = true; input = null }
         // Cancellation before this point suppresses the write. Once writing starts it may finish.
-        @Synchronized fun claimWrite(): Boolean = !cancelled
+        @Synchronized fun claimWrite(generation: Long, ready: Boolean): Boolean = !cancelled && delivery.current(generation, ready)
     }
     var pending: Request? = null
         private set
@@ -71,29 +75,29 @@ class DesktopOpenPgpExport(
             request.failure = Failure.EXPORT; changed(); return false
         }
         if (!active() || closed || state.isLocked || pending !== request) return false
-        val task = Work(Input(keyFiles.toList(), document))
+        val task = Work(Input(keyFiles.toList(), document), state.generation)
         work = task; request.busy = true; request.failure = null; changed()
         try {
             worker.execute {
                 if (state.isLocked) { task.cancel(); return@execute }
-                val input = task.take() ?: return@execute
+                val input = task.take(state.generation, !state.isLocked) ?: return@execute
                 var encrypted: ByteArray? = null
                 val failure = try {
                     val keys = arrayListOf<ByteArray>()
                     try {
                         var remaining = BoundedInputReader.MAX_DOCUMENT_BYTES
                         for (file in input.keyFiles) {
-                            if (state.isLocked || !task.claimWrite()) return@execute
+                            if (state.isLocked || !task.claimWrite(state.generation, !state.isLocked)) return@execute
                             require(remaining > 0) { "Recipient files exceed total size limit" }
                             val key = file.inputStream().use { BoundedInputReader.read(it, remaining) }
                             keys.add(key)
                             require(key.isNotEmpty()) { "Empty recipient file" }
                             remaining -= key.size
                         }
-                        if (state.isLocked || !task.claimWrite()) return@execute
+                        if (state.isLocked || !task.claimWrite(state.generation, !state.isLocked)) return@execute
                         encrypted = OpenPgpBackupCodec.seal(port, input.document, keys)
                     } finally { keys.forEach { it.fill(0) }; keys.clear() }
-                    if (state.isLocked || !task.claimWrite()) return@execute
+                    if (state.isLocked || !task.claimWrite(state.generation, !state.isLocked)) return@execute
                     write(request.target, encrypted)
                     null
                 } catch (_: FileAlreadyExistsException) { Failure.EXISTS }

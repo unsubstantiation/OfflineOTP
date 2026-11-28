@@ -72,8 +72,8 @@ class BackupRetentionTest {
     @Test
     fun nonBackupFilesAreIgnoredHoweverOldTheyAre() {
         val documents = listOf(
-            auto(at = 1_000L),
-            auto(at = 2_000L),
+            named(1, 1_000L),
+            named(2, 2_000L),
             BackupRetention.Candidate("otp_accounts_2020-01-01_00-00-00.json.aes", 1L),
             BackupRetention.Candidate("holiday-photo.jpg", 1L),
             BackupRetention.Candidate("secrets.dat", 1L),

@@ -22,10 +22,10 @@ object Argon2id {
     const val MIN_SALT_BYTES = 8
     const val MIN_TAG_BYTES = 4
     const val MAX_TAG_BYTES = 1024
-    const val MAX_PARALLELISM = 16
-    const val MAX_MEMORY_KIB = 262_144 // 256 MiB ceiling for untrusted headers/settings
-    const val MAX_ITERATIONS = 64
-    const val MAX_BLOCK_PASSES = 1_048_576L
+    const val MAX_PARALLELISM = com.fairuniversal.offlineotp.domain.KdfPolicy.MAX_PARALLELISM
+    const val MAX_MEMORY_KIB = com.fairuniversal.offlineotp.domain.KdfPolicy.MAX_MEMORY_KIB
+    const val MAX_ITERATIONS = com.fairuniversal.offlineotp.domain.KdfPolicy.MAX_ARGON_ITERATIONS
+    const val MAX_BLOCK_PASSES = com.fairuniversal.offlineotp.domain.KdfPolicy.MAX_BLOCK_PASSES
 
     private const val MASK_32 = 0xFFFFFFFFL
 
@@ -180,13 +180,8 @@ object Argon2id {
         parallelism: Int,
         tagLength: Int
     ) {
-        if (password == null ||
-            salt == null || salt.size < MIN_SALT_BYTES || salt.size > 1024 ||
-            parallelism < 1 || parallelism > MAX_PARALLELISM ||
-            memoryKiB < 8 * parallelism || memoryKiB > MAX_MEMORY_KIB ||
-            iterations < 1 || iterations > MAX_ITERATIONS ||
-            memoryKiB.toLong() * iterations.toLong() > MAX_BLOCK_PASSES ||
-            tagLength < MIN_TAG_BYTES || tagLength > MAX_TAG_BYTES
+        if (password == null || salt == null || !com.fairuniversal.offlineotp.domain.KdfPolicy.validArgon(
+                salt.size, memoryKiB, iterations, parallelism, tagLength)
         ) {
             throw IllegalArgumentException("Invalid Argon2id parameters")
         }

@@ -42,7 +42,7 @@ if [[ -z "$STDLIB" ]]; then
 fi
 [[ -f "$STDLIB" ]] || { echo "kotlin-stdlib.jar not found; set KOTLIN_STDLIB" >&2; exit 2; }
 
-mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" "$CORE_TEST" -name '*.kt' -print0 | sort -z)
+mapfile -d '' CORE_SOURCES < <(find "$ROOT/shared-domain/src/commonMain/kotlin" "$CORE_MAIN" "$CORE_TEST" -name '*.kt' -print0 | sort -z)
 [[ ${#CORE_SOURCES[@]} -gt 0 ]] || { echo "no core sources found under $CORE_MAIN" >&2; exit 2; }
 
 # Deliberately NO stubs/android and NO stubs/androidx: this is the Android-free guarantee. Only the

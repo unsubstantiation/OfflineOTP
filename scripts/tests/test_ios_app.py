@@ -33,6 +33,16 @@ def swift_names(name):
     return re.sub(r"_([a-z])", lambda match: match.group(1).upper(), name)
 
 
+
+# Chunk 9: assertions follow adapters into the sole portable card/list renderer.
+def card_render_chain():
+    return "\n".join((ROOT / path).read_text() for path in (
+        "ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultCardPresentation.kt",
+        "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCardPresentation.kt",
+        "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/VaultRenderContract.kt",
+        "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedVaultRenderer.kt"))
+
+
 class IosAppTest(unittest.TestCase):
     def test_the_project_is_defined_as_yaml_and_generated_not_committed(self):
         project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
@@ -115,7 +125,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("guard active, foreground, store.isUnlocked, !automaticBackup.enabled", host)
         self.assertIn("self.foreground, self.store.isUnlocked", host)
         unlock = app_sources()["ComposeUnlockHost.swift"]
-        self.assertIn("foreground = false; hardwareCancel()", unlock)
+        self.assertIn("foreground = false; store.cancelPendingUnlock(); hardwareCancel()", unlock)
         self.assertGreaterEqual(unlock.count("guard foreground else { return }"), 8)
         native = app_sources()["HardwareNativeOperation.swift"]
         self.assertIn("defer { dispose(&result) }", native)
@@ -141,7 +151,7 @@ class IosAppTest(unittest.TestCase):
                        'draft["hardwareSeedConsent"] == "true"',
                        'draft["hardwareSeedConsent"] = "false"',
                        'draft.removeValue(forKey: "hardwareSeedPassword")',
-                       'store.entries[index].fields == hardwareCopyFields',
+                       'store.entries[index].compact() == hardwareCopyFields',
                        'hardwareWriter.cancel()', 'self.store.generation == generation']:
             self.assertIn(marker, host)
         policy = (KIT / "HardwareOathCopyPolicy.swift").read_text()
@@ -180,7 +190,7 @@ class IosAppTest(unittest.TestCase):
         self.assertNotIn("let signingKey", config)
         self.assertNotIn("let signingPassphrase", config)
         host = sources["ComposeVaultHost.swift"]
-        self.assertIn("if config.requiresSigning == true", host)
+        self.assertIn("BackupAutomationPolicy().resume(unlocked: store.isUnlocked, requiresSigning: config.requiresSigning == true", host)
         self.assertIn("automaticBackup.reportSigningRequired()", host)
         self.assertIn("requiresSigning: signingKey != nil", host)
         self.assertIn("signingKey: signingKey, signingPassphrase: signingPassphrase", host)
@@ -190,8 +200,8 @@ class IosAppTest(unittest.TestCase):
 
     def test_automatic_openpgp_uses_snapshotted_bounded_certificates_and_mode_scoped_retention(self):
         sources = app_sources()
-        self.assertIn('mode == "openpgp" && password.isEmpty', sources["AutomaticBackupCredentialStore.swift"])
-        self.assertIn("Set(keys).count == keys.count", sources["AutomaticBackupCredentialStore.swift"])
+        self.assertIn('AutomaticBackupConfigurationCodec().canonical(text: text)', sources["AutomaticBackupCredentialStore.swift"])
+        self.assertIn("BackupAutomationPolicy().validRecipients(keys: arrays)", sources["AutomaticBackupCredentialStore.swift"])
         backup = sources["SessionAutomaticBackup.swift"]
         self.assertIn("sealRecipients(input.document, input.recipients)", backup)
         self.assertIn("fileExtension: input.fileExtension", backup)
@@ -277,12 +287,12 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("self.automaticBackup.vaultChanged()", host)
         self.assertIn("backupChanges?.cancel()", host)
         backup = app_sources()["SessionAutomaticBackup.swift"]
-        for marker in ["func vaultChanged()", "pendingChange = true", "AutomaticBackupPolicy.changeDelay",
+        for marker in ["func vaultChanged()", "automation.changed(currentGeneration:", "automation.complete(ticket:",
                        "input = nil", "guard let input = task.take()", "self.timerEpoch == id"]:
             self.assertIn(marker, backup)
         self.assertNotIn("[weak self, scope]", backup)
         desktop = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopAutomaticBackup.kt").read_text()
-        for marker in ["fun vaultChanged()", "CHANGE_DELAY_MILLIS", "input?.close(); input = null", "timer === scheduled"]:
+        for marker in ["fun vaultChanged()", "automation.changed(state.generation", "input?.close(); input = null", "timer === scheduled"]:
             self.assertIn(marker, desktop)
         compose = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn("controller.persistedRevision", compose)
@@ -294,7 +304,7 @@ class IosAppTest(unittest.TestCase):
         for marker in ["EncryptedBackup.sealWithFreshParameters", "task.active()", "self.work === task",
                        ".withoutOverwriting", ".completeFileProtection", "encrypted.resetBytes",
                        "startAccessingSecurityScopedResource", "stopAccessingSecurityScopedResource",
-                       "values.isSymbolicLink != true", "owned.dropFirst(keep)"]:
+                       "values.isSymbolicLink != true", "AutomaticBackupRetention().managedPlan("]:
             self.assertIn(marker, backup)
         self.assertNotIn("UserDefaults", backup)
         self.assertNotIn("setString", backup)
@@ -535,7 +545,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("let revealed = store.isRevealed(entry)", host)
         self.assertIn('entry.kind?.isOtp == true && code != nil', host)
         self.assertIn('subtitle: revealed && !entry.label.isEmpty', host)
-        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("card.visibleCode()", renderer)
 
     def test_the_manual_form_offers_only_what_it_can_build(self):
@@ -666,9 +676,11 @@ class IosAppTest(unittest.TestCase):
         """`Entry.toUriString`'s order is what `Show QR code` shows, so it is pinned here too."""
         kotlin = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Database/Entry.kt"
                   ).read_text(encoding="utf-8")
-        for piece in ('query["secret"]', 'query["issuer"]', 'query["counter"]',
+        self.assertIn("ProvisioningCodec.encode(", kotlin)
+        kotlin = (ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/ProvisioningCodec.kt").read_text()
+        for piece in ('linkedMapOf("secret" to secret, "issuer" to issuer)', 'query["counter"]',
                       'query["period"]', 'query["digits"]', 'query["algorithm"]',
-                      'append("&tags=")'):
+                      '"&tags=" + percentEncode(it)'):
             self.assertIn(piece, kotlin)
         swift = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
         for piece in ('pairs.append(("secret"', 'pairs.append(("issuer"',
@@ -768,6 +780,8 @@ class IosAppTest(unittest.TestCase):
     def test_the_google_authenticator_import_matches_the_shared_rules(self):
         """An export is Google's wire format, so its reader has to agree with `:core` byte for byte."""
         kotlin = (UTILITIES / "GoogleAuthenticatorMigration.kt").read_text(encoding="utf-8")
+        self.assertIn("MigrationInterchangeCodec.parse(input)", kotlin)
+        kotlin += (ROOT / "shared-domain/src/commonMain/kotlin/com/fairuniversal/offlineotp/domain/MigrationInterchangeCodec.kt").read_text()
         swift = (KIT / "MigrationImport.swift").read_text(encoding="utf-8")
 
         # The scheme, the fixed authority, and the rule that only the scheme is case-insensitive.
@@ -796,7 +810,7 @@ class IosAppTest(unittest.TestCase):
         # and never imports part of an export.
         self.assertIn("reader.message()", kotlin)
         self.assertIn("var nested = try reader.message()", swift)
-        self.assertIn("else -> reject(MigrationError.UNSUPPORTED)", kotlin)
+        self.assertIn("else -> reject(PortableMigrationError.UNSUPPORTED)", kotlin)
         self.assertIn("throw MigrationError.unsupported", swift)
         for bound in ("InputPolicy.maxURIChars", "InputPolicy.maxEntries",
                       "InputPolicy.maxSecretBytes", "InputPolicy.maxTextChars"):
@@ -918,7 +932,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("try vault.open(password: password)", store)
         self.assertIn("guard verified.key == key", store)
         self.assertIn("try biometrics.save(key: verified.key", store)
-        self.assertIn("try vault.openWithKey(sessionKey)", store)
+        self.assertIn("try self.vault.openWithKey(sessionKey)", store)
         # The key store only ever handles bytes: there is no shape of it that could carry the
         # password, and no setting in the vault document that would duplicate one.
         store_protocol = biometric.split("public protocol BiometricKeyStore {", 1)[1].split(
@@ -959,10 +973,10 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("public static func remainingDescription(_ seconds: Int?) -> String", code)
         self.assertIn('seconds == 1 ? "1 second left"', code)
 
-        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
-        self.assertIn('contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")', renderer)
-        self.assertIn('contentDescription = "Copy Token for "', renderer)
-        self.assertIn('contentDescription = "Edit "', renderer)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
+        self.assertIn('"Code " + it.toCharArray().joinToString(" ")', renderer)
+        self.assertIn('if (card.hasCode) "Copy Token" else "Copy"', renderer)
+        self.assertIn('command("edit", "Edit")', renderer)
         self.assertNotIn('onCard(card.index, "details")', renderer)
         self.assertNotIn('onCard(card.index, "more")', renderer)
         for expected in ("Add an entry", "Backups and links", "Settings", "Lock the vault",
@@ -1020,7 +1034,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn('openEditor(index: index, kind: entry.kind ?? .totp)', host)
         self.assertIn("private func saveEditor() -> String?", host)
         self.assertIn("guard store.update(at: index, with: built)", host)
-        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn("PortableRow.KIND_SECURE -> OutlinedTextField(", renderer)
         self.assertIn("onChange(row.key, it)", renderer)
 

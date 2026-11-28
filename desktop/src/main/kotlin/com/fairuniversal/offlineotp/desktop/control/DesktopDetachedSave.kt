@@ -49,7 +49,7 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
         var key: OwnedKey? = null
         val snapshot = try {
             // Clones are created on the UI thread; live entries never cross into the worker.
-            state.snapshot().forEach { entries.add(Entry(it.toJSON())) }
+            state.snapshot().forEach { entries.add(it.detachedCopy()) }
             prepare(entries)
             key = OwnedKey(state.key.encoded ?: error("Unexportable key"))
             Snapshot(key, entries)

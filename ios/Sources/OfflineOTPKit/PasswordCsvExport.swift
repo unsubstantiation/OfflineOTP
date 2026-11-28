@@ -11,8 +11,9 @@ public enum PasswordCsvExport {
     public static let commonEditFieldLimit = 64 * 1024
 
     /// Same common-form contract as the JVM core; unusual aliases must not be overwritten.
-    public static func supportsCommonEdit(_ entry: Entry) -> Bool {
+    public static func supportsCommonEdit(_ entry: Entry, interchange: InterchangeAdapter? = nil) -> Bool {
         guard entry.kind == .password, let fields = try? entry.passwordFields() else { return false }
+        if let interchange { return interchange.browserCommonEdit(fields.items.map { $0.name }) }
         let names = fields.items.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         let aliases: Set<String> = ["origin", "login_uri", "hostname", "host", "user", "login_username", "pass", "login_password"]
         return ["url", "username", "password"].allSatisfy { name in names.filter { $0 == name }.count == 1 }
@@ -46,13 +47,17 @@ public enum PasswordCsvExport {
     public static let fieldUsername = "username"
     public static let fieldPassword = "password"
 
-    public static func support(_ entry: Entry) -> Support {
+    public static func support(_ entry: Entry, interchange: InterchangeAdapter? = nil) -> Support {
         guard entry.kind == .password else { return .notPassword }
         guard let fields = try? entry.passwordFields() else { return .foreign }
-        return support(fields)
+        return support(fields, interchange: interchange)
     }
 
-    public static func support(_ fields: PasswordMaterial.Fields) -> Support {
+    public static func support(_ fields: PasswordMaterial.Fields, interchange: InterchangeAdapter? = nil) -> Support {
+        if let interchange {
+            guard let name = interchange.browserDialect(fields.items.map { $0.name }), let dialect = Dialect(rawValue: name) else { return .foreign }
+            return .exportable(dialect)
+        }
         let columns = fields.items.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         guard !columns.contains(""), Set(columns).count == columns.count else { return .foreign }
         guard columns.contains(fieldURL), columns.contains(fieldUsername), columns.contains(fieldPassword) else {
@@ -82,9 +87,9 @@ public enum PasswordCsvExport {
 
     /// The dialect the whole selection agrees on, else `fallback` — the rule the desktop client uses
     /// so one selection always produces one file.
-    public static func agreedDialect(_ entries: [Entry], fallback: Dialect = .firefox) -> Dialect {
+    public static func agreedDialect(_ entries: [Entry], fallback: Dialect = .firefox, interchange: InterchangeAdapter? = nil) -> Dialect {
         let dialects = entries.compactMap { entry -> Dialect? in
-            if case let .exportable(dialect) = support(entry) { return dialect }
+            if case let .exportable(dialect) = support(entry, interchange: interchange) { return dialect }
             return nil
         }
         guard let only = dialects.first, dialects.allSatisfy({ $0 == only }) else { return fallback }
@@ -93,21 +98,22 @@ public enum PasswordCsvExport {
 
     /// Writes the entries as one CSV in `dialect`'s header. Every entry must report
     /// `.exportable`; otherwise this throws rather than writing a file that drops columns.
-    public static func exportCsv(entries: [Entry], dialect: Dialect) throws -> Data {
+    public static func exportCsv(entries: [Entry], dialect: Dialect, interchange: InterchangeAdapter? = nil) throws -> Data {
         guard !entries.isEmpty else { throw PasswordCsvExportError.nothingToExport }
         var decoded: [PasswordMaterial.Fields] = []
         for entry in entries {
-            guard case .exportable = support(entry), let fields = try? entry.passwordFields() else {
+            guard case .exportable = support(entry, interchange: interchange), let fields = try? entry.passwordFields() else {
                 throw PasswordCsvExportError.notABrowserEntry
             }
             decoded.append(fields)
         }
-        let columns = header(for: decoded, dialect: dialect)
+        let columns = header(for: decoded, dialect: dialect, interchange: interchange)
         let rows = decoded.map { fields in columns.map { column($0, fields) } }
+        if let interchange { return try interchange.exportCsv(columns: columns, rows: rows) }
         return ThunderbirdCsv.exportCsv(columns: columns, rows: rows)
     }
 
-    private static func header(for decoded: [PasswordMaterial.Fields], dialect: Dialect) -> [String] {
+    private static func header(for decoded: [PasswordMaterial.Fields], dialect: Dialect, interchange: InterchangeAdapter? = nil) -> [String] {
         guard let first = decoded.first else { return canonicalHeader(dialect) }
         let firstColumns = first.items.map { $0.name }
         let normalized = firstColumns.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
@@ -116,8 +122,8 @@ public enum PasswordCsvExport {
             return names == normalized
         }
         // An unchanged, agreeing header is the file dialect the user actually imported; keep it.
-        if same, support(first) == .exportable(dialect) { return firstColumns }
-        return canonicalHeader(dialect)
+        if same, support(first, interchange: interchange) == .exportable(dialect) { return firstColumns }
+        return interchange?.browserHeader(dialect.rawValue) ?? canonicalHeader(dialect)
     }
 
     /// One cell: the entry's own value when it has that column, else a value mapped from the same
@@ -196,7 +202,9 @@ public enum PasswordCsvExport {
         updated["secret"] = .string(Base32.encode(try PasswordMaterial.encodeFields(pairs)))
         updated["issuer"] = .string(issuer)
         updated["label"] = .string(user.isEmpty ? "Password" : user)
-        return try Entry.parse(.object(updated))
+        var result = try Entry.parse(.object(updated))
+        result.preserveExtensionFields(from: entry)
+        return result
     }
 
     /// Creates a new browser-CSV-exportable `PASSWORD` entry using the canonical Chrome column schema.

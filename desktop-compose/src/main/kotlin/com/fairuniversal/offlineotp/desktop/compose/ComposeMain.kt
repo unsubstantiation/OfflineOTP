@@ -366,7 +366,8 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
             try { restoreFile = DesktopSavePicker.openEncryptedBackup(window) }
             catch (_: Exception) { restoreError = "The backup file could not be selected." }
         },
-        onRestore = { backupPassword, newPassword, confirmation ->
+        onRestore = { _, _, _ -> },
+        onRestoreSelected = { backupPassword, newPassword, confirmation, format, variant ->
             val source = restoreFile
             if (source == null || !storageAvailable() || controller.isInitialized()) {
                 restoreError = "Select a backup in an empty vault folder and try again."
@@ -377,18 +378,23 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
                 try {
                     worker.execute {
                         var imported: ArrayList<com.fairuniversal.offlineotp.Database.Entry>? = null
+                        val workflow = com.fairuniversal.offlineotp.domain.RestoreWorkflow()
+                        val ticket = workflow.start(0, true)
                         val result = try {
                             val bytes = source.inputStream().use {
                                 BoundedInputReader.read(it, BoundedInputReader.MAX_DOCUMENT_BYTES)
                             }
-                            val document = try { EncryptedBackupCodec.open(backupPassword, bytes) }
+                            val document = try { EncryptedBackupCodec.openSelected(backupPassword, bytes, format, variant) }
                                 finally { bytes.fill(0) }
                             imported = VaultJson.stringToEntries(document)
-                            require(imported!!.toHashSet().size == imported!!.size) { "Duplicate entries" }
+                            check(workflow.decoded(ticket, 0, restoreActive.get(), imported!!.size, imported!!.toHashSet().size == imported!!.size))
+                            // The setup Restore button is explicit consent for this source/new destination.
+                            check(workflow.confirm(ticket, 0, restoreActive.get(), true))
                             check(restoreActive.get()) { "Restore request expired" }
-                            controller.createVault(newPassword, imported!!)
+                            check(workflow.beginInstall(ticket, 0, restoreActive.get() && !controller.isInitialized(), imported!!.size))
+                            controller.createVault(newPassword, imported!!).also { workflow.installed(ticket, it is VaultController.Session.Loaded) }
                         } catch (_: Exception) { null }
-                        finally { imported?.forEach { it.destroy() }; imported?.clear() }
+                        finally { workflow.cancel(); imported?.forEach { it.destroy() }; imported?.clear() }
                         EventQueue.invokeLater {
                             if (!restoreActive.get()) {
                                 if (result is VaultController.Session.Loaded) DesktopUnlockOperation.discard(result)
@@ -750,7 +756,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     automaticVaultCopyMode = config.vaultCopy
                     automaticRequiresSigning = config.requiresSigning
                     automaticRememberedRecipients = config.recipientKeys.map { it.copyOf() }
-                    if (config.requiresSigning) { automaticBackup.reportSigningRequired(); return@use }
+                    if (com.fairuniversal.offlineotp.domain.BackupAutomationPolicy().resume(!vault.isLocked, config.requiresSigning, false) != "READY") {
+                        automaticBackup.reportSigningRequired(); return@use
+                    }
                     val resumed = if (config.vaultCopy) automaticBackup.configureSnapshots(java.io.File(config.folder), config.minutes, config.keep)
                         else if (config.recipientKeys.isEmpty()) automaticBackup.configure(java.io.File(config.folder), config.password.copyOf(), config.password.copyOf(), config.minutes, config.keep)
                         else automaticBackup.configureRecipients(java.io.File(config.folder), config.recipientKeys, config.minutes, config.keep)
@@ -1517,6 +1525,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (restoreRequest != null) EncryptedRestoreDialog(inputKey = restoreRequest,
         busy = restoreRequest.busy, count = restoreRequest.count, failed = restoreRequest.failed,
         onDecode = { password -> restorer.submit(restoreRequest, password, lifetime::checkActive) },
+        onDecodeSelected = { password, format, variant -> restorer.submitSelected(restoreRequest, password, format, variant, lifetime::checkActive) },
         onConfirm = { replace ->
             if (restorer.confirm(restoreRequest, replace, lifetime::checkActive)) {
                 presenter.syncRevealedIds(vault.snapshot().filter { it.areDetailsVisible() }.map { it.getListId() }.toSet())

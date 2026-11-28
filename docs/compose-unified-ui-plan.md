@@ -96,10 +96,10 @@ growing a second UI inside `:desktop`.
 
 | Area | Files | Notes |
 | --- | --- | --- |
-| Design system | `ui/src/commonMain/.../ui/theme/ForestPalette.kt`, `ForestTheme.kt` | The Dark Forest tokens and a named type scale, replacing the duplicated `colors.xml`/`ForestTheme` values and the Material 3 colour scheme. |
-| Frame model | `ui-model/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection,VaultCards}.kt` | A module with no Compose dependency at all. Everything a row shows — and the tab/sort wording the Swing client also uses — is computed here and unit-tested on a host JVM. |
-| Screen | `ui/src/commonMain/.../ui/vault/{VaultScreen,VaultComponents,Countdown}.kt` | Stateless: one immutable frame in, callbacks out. |
-| Unlock | `ui/src/commonMain/.../ui/unlock/UnlockScreen.kt` | Password field only; the host owns the unlock path. |
+| Design system | `ui/src/jvmHostMain/.../ui/theme/ForestPalette.kt`, `ForestTheme.kt` | The Dark Forest tokens and a named type scale, replacing the duplicated `colors.xml`/`ForestTheme` values and the Material 3 colour scheme. |
+| Frame model | `ui-model/src/jvmHostMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection,VaultCards}.kt` | A module with no Compose dependency at all. Everything a row shows — and the tab/sort wording the Swing client also uses — is computed here and unit-tested on a host JVM. |
+| Screen | `ui/src/jvmHostMain/.../ui/vault/{VaultScreen,VaultComponents,Countdown}.kt` | Stateless: one immutable frame in, callbacks out. |
+| Unlock | `ui/src/jvmHostMain/.../ui/unlock/UnlockScreen.kt` | Password field only; the host owns the unlock path. |
 | Android seam | `ui/src/androidMain/.../ui/vault/VaultComposeView.kt` | `AbstractComposeView` subclass with `render(frame)`/`clear()`, so the Activity can push frames from its own session without rebuilding the composition. Type-checked by the gate against the app's Android stubs. |
 | Desktop host | `desktop-compose/src/main/kotlin/.../compose/ComposeMain.kt` | Unlock, list, copy, reveal, HOTP advance, search/tag/sort, lock — over the existing `VaultController`. |
 
@@ -157,7 +157,7 @@ python3 -m unittest scripts.tests.test_compose_ui_module -v
 ```
 
 `compile-ui.sh` runs six phases: it compiles `:core`; compiles `:ui-model` **with no Compose
-artifact on the classpath**; compiles `ui/src/commonMain` against the hand-written Compose stubs in
+artifact on the classpath**; compiles `ui/src/jvmHostMain` against the hand-written Compose stubs in
 [`scripts/kotlin-sandbox/stubs-compose`](../scripts/kotlin-sandbox/stubs-compose/README.md); runs the
 frame-layer tests with the JUnit shim; type-checks `desktop-compose` against the compiled `:desktop`
 gate output and the Compose Desktop window stubs; and type-checks the Android seam

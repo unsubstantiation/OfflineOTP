@@ -55,7 +55,7 @@ class DesktopHardwareCopy(private val state: DesktopVaultState, private val work
         if (source == null || state.snapshot().none { it === source } || !HardwareOathClient.canCopy(source)) {
             pin.fill(' '); dismiss(request); return false
         }
-        val detached = try { Entry(source.toJSON()) } catch (_: Exception) {
+        val detached = try { source.detachedCopy() } catch (_: Exception) {
             pin.fill(' '); request.status = Status.FAILED; changed(); return false
         }
         if (!active() || !current(request)) { detached.destroy(); pin.fill(' '); return false }

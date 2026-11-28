@@ -66,14 +66,16 @@ class PasswordVault(
     /** Provisions a new vault directly from a fully decoded restore; never creates a partial empty vault. */
     @Synchronized
     fun create(password: String, initialEntries: ArrayList<Entry>): VaultWriteResult {
-        if (vaultFile.exists() || backupFile.exists())
+        if (!com.fairuniversal.offlineotp.domain.PersistenceRecoveryPolicy.canInitialize(vaultFile.exists(), backupFile.exists(), false))
             return VaultWriteResult.Rejected(VaultWriteError.ALREADY_EXISTS)
         return try {
             require(password.isNotEmpty() && password.length <= InputPolicy.MAX_TEXT_CHARS && StandardCharsets.UTF_8.newEncoder().canEncode(password)) {
                 "Invalid vault password"
             }
-            val key = provisionCredentials(password)
-            writeEncrypted(key, initialEntries, VaultContainer.fromSettings(settings))
+            val candidateSettings = CredentialSettings()
+            val key = provisionCredentials(password, candidateSettings)
+            writeEncrypted(key, initialEntries, VaultContainer.fromSettings(candidateSettings))
+            candidateSettings.publish(settings)
             VaultWriteResult.Saved
         } catch (error: IllegalArgumentException) {
             VaultWriteResult.Rejected(VaultWriteError.INVALID_INPUT)
@@ -195,10 +197,13 @@ class PasswordVault(
             val migrated = try { VaultContainer.seal(opened.key, header, plaintext) } finally { plaintext.fill(0) }
             // Authenticate a complete container before any persistent mutation.
             VaultContainer.open(password, migrated).fill(0)
-            if (!permitted()) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
+            val workflow = com.fairuniversal.offlineotp.domain.PersistenceWorkflow(true, false)
+            if (!workflow.verified(permitted())) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
             try { backupFile.writeAtomic(prior) } catch (_: Exception) { return VaultWriteResult.Rejected(VaultWriteError.BACKUP_FAILED) }
-            if (!permitted()) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
+            check(workflow.backedUp())
+            if (!workflow.beginPromotion(permitted())) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
             vaultFile.writeAtomic(migrated)
+            check(workflow.promoted())
             return VaultWriteResult.Saved
         } catch (_: IllegalArgumentException) { return VaultWriteResult.Rejected(VaultWriteError.INVALID_INPUT) }
         catch (_: Exception) { return VaultWriteResult.Rejected(VaultWriteError.IO_FAILURE) }
@@ -229,8 +234,10 @@ class PasswordVault(
 
     /**
      * Verifies [currentPassword], provisions fresh Argon2id credentials for [newPassword], and
-     * re-encrypts the vault atomically. If writing the re-encrypted vault fails, both the
-     * credential settings and `secrets.dat` (from `.bck`) are restored before returning.
+     * re-encrypts the vault atomically. Credential settings remain untouched until a verified,
+     * self-contained replacement is promoted. An ambiguous promotion is never overwritten by
+     * an automatic rollback; the prior bytes remain in `.bck` and the candidate is recoverable
+     * with the new password even if publishing compatibility settings fails.
      */
     @Synchronized
     fun changePassword(currentPassword: String, newPassword: String): ReKey {
@@ -246,47 +253,31 @@ class PasswordVault(
                 VaultReadError.IO_FAILURE -> VaultWriteError.IO_FAILURE
             })
         }
+        val workflow = com.fairuniversal.offlineotp.domain.PersistenceWorkflow(true, false)
+        check(workflow.verified(true))
         if (!backup()) {
             unlocked.entries.forEach { it.destroy() }
             return ReKey.Failed(VaultWriteError.BACKUP_FAILED)
         }
-        val priorStrings = mapOf(
-            VaultSettingsKeys.AUTH_METHOD to settings.getString(VaultSettingsKeys.AUTH_METHOD, ""),
-            VaultSettingsKeys.ENCRYPTION to settings.getString(VaultSettingsKeys.ENCRYPTION, ""),
-            VaultSettingsKeys.AUTH_KDF to settings.getString(VaultSettingsKeys.AUTH_KDF, ""),
-            VaultSettingsKeys.AUTH_CREDENTIALS to settings.getString(VaultSettingsKeys.AUTH_CREDENTIALS, ""),
-            VaultSettingsKeys.AUTH_SALT to settings.getString(VaultSettingsKeys.AUTH_SALT, "")
-        )
-        val priorInts = mapOf(
-            VaultSettingsKeys.AUTH_MEMORY_KIB to settings.getInt(VaultSettingsKeys.AUTH_MEMORY_KIB, -1),
-            VaultSettingsKeys.AUTH_ITERATIONS to settings.getInt(VaultSettingsKeys.AUTH_ITERATIONS, -1),
-            VaultSettingsKeys.AUTH_PARALLELISM to settings.getInt(VaultSettingsKeys.AUTH_PARALLELISM, -1)
-        )
-        fun rollbackSettings() {
-            for ((k, v) in priorStrings) {
-                if (v.isEmpty()) settings.remove(k) else settings.putString(k, v)
-            }
-            for ((k, v) in priorInts) {
-                if (v < 0) settings.remove(k) else settings.putInt(k, v)
-            }
-        }
+        check(workflow.backedUp())
         return try {
-            val newKey = provisionCredentials(newPassword)
+            val candidateSettings = CredentialSettings()
+            val newKey = provisionCredentials(newPassword, candidateSettings)
             try {
-                writeEncrypted(newKey, unlocked.entries, VaultContainer.fromSettings(settings))
+                check(workflow.beginPromotion(true))
+                writeEncrypted(newKey, unlocked.entries, VaultContainer.fromSettings(candidateSettings))
+                check(workflow.promoted())
+                candidateSettings.publish(settings)
                 ReKey.Changed(unlocked.entries, newKey)
             } catch (error: Exception) {
-                rollbackSettings()
-                restoreBackup()
+                workflow.promotionFailed()
                 unlocked.entries.forEach { it.destroy() }
                 ReKey.Failed(VaultWriteError.IO_FAILURE)
             }
         } catch (error: IllegalArgumentException) {
-            rollbackSettings()
             unlocked.entries.forEach { it.destroy() }
             ReKey.Failed(VaultWriteError.INVALID_INPUT)
         } catch (error: Exception) {
-            rollbackSettings()
             unlocked.entries.forEach { it.destroy() }
             ReKey.Failed(VaultWriteError.IO_FAILURE)
         }
@@ -296,7 +287,7 @@ class PasswordVault(
      * Generates the Argon2id salt/verifier/parameter settings for a new password and returns the
      * matching AES key.
      */
-    private fun provisionCredentials(password: String): SecretKey {
+    private fun provisionCredentials(password: String, target: KeyValueSettings): SecretKey {
         val salt = CryptoPrimitives.generateRandom(Constants.ARGON2_SALT_LENGTH)
         val memoryKiB = Constants.ARGON2_MEMORY_KIB
         val iterations = Constants.ARGON2_ITERATIONS
@@ -309,16 +300,16 @@ class PasswordVault(
             parallelism = parallelism
         )
         try {
-            settings.putString(VaultSettingsKeys.AUTH_METHOD,
+            target.putString(VaultSettingsKeys.AUTH_METHOD,
                 Constants.AuthMethod.PASSWORD.name.lowercase())
-            settings.putString(VaultSettingsKeys.ENCRYPTION,
+            target.putString(VaultSettingsKeys.ENCRYPTION,
                 Constants.EncryptionType.PASSWORD.name.lowercase())
-            settings.putString(VaultSettingsKeys.AUTH_KDF, Constants.KDF_ARGON2ID)
-            settings.putString(VaultSettingsKeys.AUTH_CREDENTIALS, base64Url(derived.password))
-            settings.putString(VaultSettingsKeys.AUTH_SALT, base64Url(salt))
-            settings.putInt(VaultSettingsKeys.AUTH_MEMORY_KIB, memoryKiB)
-            settings.putInt(VaultSettingsKeys.AUTH_ITERATIONS, iterations)
-            settings.putInt(VaultSettingsKeys.AUTH_PARALLELISM, parallelism)
+            target.putString(VaultSettingsKeys.AUTH_KDF, Constants.KDF_ARGON2ID)
+            target.putString(VaultSettingsKeys.AUTH_CREDENTIALS, base64Url(derived.password))
+            target.putString(VaultSettingsKeys.AUTH_SALT, base64Url(salt))
+            target.putInt(VaultSettingsKeys.AUTH_MEMORY_KIB, memoryKiB)
+            target.putInt(VaultSettingsKeys.AUTH_ITERATIONS, iterations)
+            target.putInt(VaultSettingsKeys.AUTH_PARALLELISM, parallelism)
             // SecretKeySpec copies the bytes, so wiping the derived material leaves the key intact.
             return SecretKeySpec(derived.key, "AES")
         } finally {
@@ -379,10 +370,32 @@ class PasswordVault(
                 VaultContainer.openWithKey(key, it).fill(0)
                 VaultContainer.header(it)
             }
-            vaultFile.writeAtomic(if (header != null) VaultContainer.seal(key, header, plain)
-                else CryptoPrimitives.encrypt(key, plain))
+            val ciphertext = if (header != null) VaultContainer.seal(key, header, plain)
+                else CryptoPrimitives.encrypt(key, plain)
+            // Authenticate the complete candidate before allowing a persistent promotion.
+            (if (header != null) VaultContainer.openWithKey(key, ciphertext)
+                else CryptoPrimitives.decrypt(key, ciphertext)).fill(0)
+            val workflow = com.fairuniversal.offlineotp.domain.PersistenceWorkflow(false, false)
+            check(workflow.verified(true)); check(workflow.beginPromotion(true))
+            try { vaultFile.writeAtomic(ciphertext); check(workflow.promoted()) }
+            catch (error: Exception) { workflow.promotionFailed(); throw error }
         } finally {
             Arrays.fill(plain, 0.toByte())
+        }
+    }
+
+    /** Credential generation is memory-only until the self-contained file is promoted. */
+    private class CredentialSettings : KeyValueSettings {
+        private val strings = linkedMapOf<String, String>()
+        private val ints = linkedMapOf<String, Int>()
+        override fun getString(key: String, default: String) = strings[key] ?: default
+        override fun getInt(key: String, default: Int) = ints[key] ?: default
+        override fun putString(key: String, value: String) { strings[key] = value }
+        override fun putInt(key: String, value: Int) { ints[key] = value }
+        override fun remove(key: String) { strings.remove(key); ints.remove(key) }
+        fun publish(target: KeyValueSettings) {
+            strings.forEach { (key, value) -> target.putString(key, value) }
+            ints.forEach { (key, value) -> target.putInt(key, value) }
         }
     }
 
