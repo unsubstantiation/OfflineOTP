@@ -5,7 +5,6 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.View
-import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -52,14 +51,18 @@ open class PasswordEntryDialog @JvmOverloads constructor(
     private val okButton: Button
     private val tooShortWarning: TextView
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        // AppCompat's content hierarchy exists now; this dialog owns its IME/system insets.
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.installDialog(window)
+    }
+
     init {
         setTitle(R.string.dialog_title_enter_password)
         setOnCancelListener {
             if (!passwordAccepted) cancelCallback?.onPasswordCanceled()
         }
         setContentView(R.layout.dialog_password_entry)
-        // Resize with the IME so the buttons stay visible above the keyboard (#805).
-        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val passwordLayout = requireNotNull(findViewById<TextInputLayout>(R.id.passwordInputLayout))
         passwordInput = requireNotNull(findViewById(R.id.passwordInput))

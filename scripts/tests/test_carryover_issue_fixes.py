@@ -173,14 +173,16 @@ class DialogImeTest(unittest.TestCase):
 
     def test_entry_dialog_resizes_with_the_ime(self):
         text = read(KOTLIN_APP / "Dialogs/ManualEntryDialog.kt")
-        self.assertIn("SOFT_INPUT_ADJUST_RESIZE", text)
+        self.assertIn("ActivityContentInsets.installDialog(", text)
+        self.assertNotIn("SOFT_INPUT_ADJUST_RESIZE", text)
         dialog = ET.parse(LAYOUTS / "dialog_manual_entry.xml").getroot()
         self.assertEqual("ScrollView", dialog.tag,
                          "the entry form must stay scrollable so Save/Cancel remain reachable")
 
     def test_password_dialog_resizes_with_the_ime(self):
         text = read(KOTLIN_APP / "Dialogs/PasswordEntryDialog.kt")
-        self.assertIn("SOFT_INPUT_ADJUST_RESIZE", text)
+        self.assertIn("ActivityContentInsets.installDialog(", text)
+        self.assertNotIn("SOFT_INPUT_ADJUST_RESIZE", text)
 
 
 if __name__ == "__main__":

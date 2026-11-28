@@ -145,7 +145,10 @@ class OpenPgpKeyFileModeTest(unittest.TestCase):
         self.assertNotIn("FLAG_GRANT_WRITE_URI_PERMISSION", picker)
         self.assertIn("takePersistableUriPermission", activity)
         self.assertIn("handleOpenPgpKeyFileResult", activity)
-        self.assertIn("refreshOpenPgpKeyFileSummaries", activity)
+        handler = activity.split("private fun handleOpenPgpKeyFileResult", 1)[1].split("fun showStorageLocation", 1)[0]
+        self.assertIn("setOpenPGPRecipientFiles(picked)", handler)
+        self.assertIn("setOpenPGPSecretFile(picked.first())", handler)
+        self.assertIn("publishSettingsOverview()", handler)
 
     def test_the_sandbox_compiles_the_new_sources(self):
         run = (ROOT / "scripts/kotlin-sandbox/run.sh").read_text(encoding="utf-8")

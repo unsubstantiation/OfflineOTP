@@ -6,12 +6,6 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.preference.CheckBoxPreference
-import android.preference.EditTextPreference
-import android.preference.ListPreference
-import android.preference.PreferenceCategory
-import android.preference.PreferenceFragment
-import android.preference.PreferenceManager
 import android.provider.DocumentsContract
 import android.util.Log
 import android.view.View
@@ -21,9 +15,6 @@ import android.view.ViewGroup
 import androidx.appcompat.widget.Toolbar
 
 
-import org.openintents.openpgp.util.OpenPgpAppPreference
-import org.openintents.openpgp.util.OpenPgpKeyPreference
-import com.fairuniversal.offlineotp.Preferences.CredentialsPreference
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.AndroidPreferencesPort
 import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
@@ -116,7 +107,6 @@ import javax.crypto.SecretKey
 open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result>(),
     SharedPreferences.OnSharedPreferenceChangeListener, EncryptionHelper.EncryptionChangeCallback {
 
-    private var fragment: SettingsFragment? = null
     private var settingsOverview: SettingsOverviewComposeView? = null
     private var overviewPickerPending = false
     private var overviewGeneration = -1L
@@ -257,16 +247,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             }
         }
 
-        val settingsFragment = SettingsFragment()
-        fragment = settingsFragment
-        settingsFragment.setEncryptionKey(encryptionKey)
-        settingsFragment.setEncryptionChangeCallback(this)
-
-        getFragmentManager().beginTransaction()
-            .replace(R.id.settings_legacy_content, settingsFragment)
-            .commit()
-
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+        // Compose is the only settings UI. Platform backup stays disabled without inflating
+        // an invisible native preference tree merely to initialize a disabled checkbox.
+        if (settings!!.getAndroidBackupServiceEnabled()) settings!!.setAndroidBackupServiceEnabled(false)
+        val sharedPreferences = settings!!.preferenceStore()
         prefs = sharedPreferences
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         overviewGeneration = VaultSession.generation()
@@ -506,7 +490,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 when (result.getIntExtra("result_code", 0)) {
                     1 -> {
                         val key = result.getLongExtra("sign_key_id", 0L)
-                        val saved = PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity).edit()
+                        val saved = settings!!.preferenceStore().edit()
                             .putLong(getString(R.string.settings_key_openpgp_key_sign), key).commit()
                         closeSigningSelection()
                         if (!saved) showSettingsFeedback(R.string.settings_save_failed)
@@ -561,10 +545,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 if (owned && overviewSessionReady() && canGoBack && VaultSession.isCurrent(generation) &&
                     settings!!.getOpenPGPMode() == OpenPgpMode.PROVIDER &&
                     (provider.isEmpty() || installedPgpProviders().any { it.first == provider })) {
-                    val saved = PreferenceManager.getDefaultSharedPreferences(this).edit()
+                    val saved = settings!!.preferenceStore().edit()
                         .putString(getString(R.string.settings_key_openpgp_provider), provider).commit()
                     if (!saved) showSettingsFeedback(R.string.settings_save_failed)
-                    fragment?.pgpSigningKey?.setOpenPgpProvider(provider)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -731,7 +714,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         publishSettingsOverview()
                     } else {
                         val availability = BiometricKeyStore.availability(this)
-                        if (availability.isAvailable) promptBiometricEnrollment(null, this)
+                        if (availability.isAvailable) promptBiometricEnrollment(this)
                         else showSettingsFeedback(if (availability == BiometricKeyStore.Availability.NOT_ENROLLED)
                             R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable)
                     }
@@ -741,7 +724,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
     }
 
-    private fun promptBiometricEnrollment(pref: CheckBoxPreference?, host: SettingsActivity) {
+    private fun promptBiometricEnrollment(host: SettingsActivity) {
         val ctx = host
         if (!host.overviewSessionReady() || !host.canGoBack) return
         host.dismissBiometricPrompt()
@@ -799,12 +782,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                                         if (!owned()) return@save
                                         pending = false
                                         if (success) {
-                                            pref?.isChecked = true
                                             host.dismissBiometricPrompt()
                                             host.publishSettingsOverview()
                                             host.showSettingsFeedback(R.string.settings_toast_biometric_turned_on)
                                         } else {
-                                            pref?.isChecked = false
                                             val msg = when (error) {
                                                 BiometricKeyStore.BiometricError.NOT_ENROLLED ->
                                                     getString(R.string.settings_toast_biometric_not_enrolled)
@@ -1131,7 +1112,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         } else if (!panic && chosen.isNotEmpty()) {
                             // Same runtime-permission handoff as the native preference; no work is
                             // scheduled and permission denial does not change the configured set.
-                            fragment?.let { NotificationHelper.requestNotificationPermission(it) }
+                            NotificationHelper.requestNotificationPermission(this)
                         }
                         publishSettingsOverview()
                     }
@@ -1637,7 +1618,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
-        val settingsFragment = fragment ?: return
         if (isFinishing() || key == null) return
         if (key == getString(R.string.settings_key_backup_broadcasts) &&
                 !settings!!.isEncryptedBackupBroadcastEnabled()) {
@@ -1668,12 +1648,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 }
 
                 settings!!.setAndroidBackupServiceEnabled(false)
-                settingsFragment.useAndroidSync?.let {
-                    it.isEnabled = false
-                    it.isChecked = false
-                }
-            } else {
-                settingsFragment.useAndroidSync?.isEnabled = false
             }
         } else if (key == getString(R.string.settings_key_enable_android_backup_service)) {
             Log.d(SettingsActivity::class.java.simpleName,
@@ -1685,7 +1659,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             showSettingsFeedback(message)
         }
 
-        settingsFragment.updateAutoBackup()
         publishSettingsOverview()
     }
 
@@ -1702,7 +1675,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         settingsOverview?.close()
         dismissSettingsPrompts()
         encryptionKey = null
-        fragment?.setEncryptionKey(null)
         cancelBackgroundTask()
         finish()
     }
@@ -1712,7 +1684,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         try {
             KeyStoreHelper.wipeKeys(this)
             try { BiometricKeyStore.clear(this) } catch (_: Exception) { }
-            PreferenceManager.getDefaultSharedPreferences(this)
+            settings!!.preferenceStore()
                 .edit()
                 .remove(getString(R.string.settings_key_backup_password_enc))
                 .apply()
@@ -1720,7 +1692,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 DatabaseHelper.wipeDatabase(this)
                 generateNewEncryptionKey()
             }
-            fragment?.updateAutoBackup()
         } finally {
             clearingKeyStore = false
         }
@@ -1739,12 +1710,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     VaultSession.activate(key, unlockAttempt.generation) !is SessionCommandResult.Applied) {
                 VaultSession.lock()
                 encryptionKey = null
-                fragment?.setEncryptionKey(null)
                 finish()
                 return
             }
             encryptionKey = key
-            fragment?.setEncryptionKey(key)
             encryptionChanged = true
             overviewGeneration = VaultSession.generation()
             publishSettingsOverview()
@@ -1774,9 +1743,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         encryptionChanged = true
         overviewGeneration = VaultSession.generation()
 
-        fragment?.encryption?.value = newEncryptionType.name.lowercase(Locale.ROOT)
-        fragment?.setEncryptionKey(newEncryptionKey)
-        fragment?.updateAutoBackup()
         publishSettingsOverview()
     }
 
@@ -1918,7 +1884,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         }
         if (multiple) settings!!.setOpenPGPRecipientFiles(picked)
         else settings!!.setOpenPGPSecretFile(picked.first())
-        fragment?.refreshOpenPgpKeyFileSummaries()
+        publishSettingsOverview()
     }
 
     /** Shows the read-only private vault directory and managed filenames through the shared Compose dialog. */
@@ -2120,7 +2086,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         importFeedback = PreferencesImportFeedback(overviewGeneration, result.applied,
             result.unknownKeys.size, result.includesSecrets)
         // The screen the user is looking at may now describe settings that changed underneath it.
-        fragment?.refreshOpenPgpKeyFileSummaries()
         if (!isFinishing()) recreate()
     }
 
@@ -2183,9 +2148,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         } else if (requestCode == Constants.INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES ||
                 requestCode == Constants.INTENT_SETTINGS_OPENPGP_SECRET_FILE) {
             if (resultCode == RESULT_OK && !isFinishing()) handleOpenPgpKeyFileResult(requestCode, data)
-        } else {
-            // Handled in OpenPgpKeyPreference
-            fragment?.pgpSigningKey?.handleOnActivityResult(requestCode, resultCode, data)
         }
     }
 
@@ -2202,335 +2164,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         dismissSettingsPrompts()
         prefs?.unregisterOnSharedPreferenceChangeListener(this)
         encryptionKey = null
-        fragment?.setEncryptionKey(null)
         prefs = null
 
         super.onDestroy()
     }
 
-    /** The preference screen itself; encryption changes are forwarded to the activity. */
-    open class SettingsFragment : PreferenceFragment() {
-        var catUI: PreferenceCategory? = null
-
-        private var settings: Settings? = null
-
-        private var credentialsPreference: CredentialsPreference? = null
-        private var encryptionKey: SecretKey? = null
-        private var encryptionChangeCallback: EncryptionHelper.EncryptionChangeCallback? = null
-
-        var encryption: ListPreference? = null
-        private var useAutoBackup: ListPreference? = null
-
-        var useAndroidSync: CheckBoxPreference? = null
-
-        private var pgpEncryptionKey: EditTextPreference? = null
-        private var pgpMode: ListPreference? = null
-        private var pgpProviderPreference: OpenPgpAppPreference? = null
-        private var pgpSigningKeyPreference: OpenPgpKeyPreference? = null
-        private var pgpVerifyPreference: CheckBoxPreference? = null
-        private var pgpRecipientFiles: android.preference.Preference? = null
-        private var pgpSecretFile: android.preference.Preference? = null
-
-        var pgpSigningKey: OpenPgpKeyPreference? = null
-        var themeMode: ListPreference? = null
-        var themeBlack: CheckBoxPreference? = null
-        var theme: ListPreference? = null
-
-        /** Shows the data-loss warning before the encryption type is switched. */
-        fun encryptionChangeWithDialog(encryptionType: EncryptionType) {
-            val activity = getActivity() as? SettingsActivity ?: return
-            activity.confirmSharedEncryptionChange(encryptionType)
-        }
-
-        /** Enables the selector only while the selected backup credentials and location are available. */
-        fun updateAutoBackup() {
-            val autoBackup = useAutoBackup ?: return
-            autoBackup.isEnabled = BackupHelper.autoBackupType(getActivity()!!) == Constants.BackupType.ENCRYPTED
-
-            if (autoBackup.isEnabled) {
-                autoBackup.setSummary(R.string.settings_desc_auto_backup_password_enc)
-            } else {
-                autoBackup.setSummary(R.string.settings_desc_auto_backup_requirements)
-            }
-        }
-
-        /** Passes the new key on to the credentials preference, if it is already created. */
-        fun setEncryptionKey(encryptionKey: SecretKey?) {
-            this.encryptionKey = encryptionKey
-
-            credentialsPreference?.setOldEncryptionKey(encryptionKey)
-        }
-
-        /** Shows only the preferences belonging to the selected OpenPGP engine. */
-        private fun applyOpenPgpMode(mode: OpenPgpMode) {
-            val provider = mode == OpenPgpMode.PROVIDER
-            pgpProviderPreference?.isEnabled = provider
-            pgpSigningKeyPreference?.isEnabled = provider
-            pgpVerifyPreference?.isEnabled = provider
-            pgpEncryptionKey?.isEnabled = provider && !pgpProviderPreference?.value.isNullOrEmpty()
-            pgpRecipientFiles?.isEnabled = !provider
-            pgpSecretFile?.isEnabled = !provider
-        }
-
-        /** Reports how many recipient files and whether a secret key are selected. */
-        fun refreshOpenPgpKeyFileSummaries() {
-            val currentSettings = settings ?: return
-            val recipients = currentSettings.getOpenPGPRecipientFiles().size
-            pgpRecipientFiles?.summary = if (recipients == 0)
-                getString(R.string.settings_desc_openpgp_files_unset)
-            else getString(R.string.settings_desc_openpgp_recipient_count, recipients)
-            pgpSecretFile?.summary = if (currentSettings.getOpenPGPSecretFile().isEmpty())
-                getString(R.string.settings_desc_openpgp_files_unset)
-            else getString(R.string.settings_desc_openpgp_secret_file)
-        }
-
-        /** Passes the callback on to the credentials preference, if it is already created. */
-        fun setEncryptionChangeCallback(changeCallback: EncryptionHelper.EncryptionChangeCallback?) {
-            encryptionChangeCallback = changeCallback
-
-            credentialsPreference?.setEncryptionChangeCallback(changeCallback)
-        }
-
-        public override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
-
-            val currentSettings = Settings(getActivity()!!)
-            settings = currentSettings
-
-            val sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity()!!.getBaseContext())
-
-            addPreferencesFromResource(R.xml.preferences)
-
-            val credentials = findPreference(getString(R.string.settings_key_auth)) as? CredentialsPreference
-            credentialsPreference = credentials
-            credentials?.setOldEncryptionKey(encryptionKey)
-            credentials?.setEncryptionChangeCallback(encryptionChangeCallback)
-
-            val blockAutofill = findPreference(getString(R.string.settings_key_block_autofill)) as? CheckBoxPreference
-            val autoUnlockAfterAutofill =
-                findPreference(getString(R.string.settings_key_auto_unlock_after_autofill)) as? CheckBoxPreference
-            blockAutofill?.isEnabled = true
-            blockAutofill?.setSummary(R.string.settings_desc_block_autofill)
-            autoUnlockAfterAutofill?.isEnabled = true
-            autoUnlockAfterAutofill?.setSummary(R.string.settings_desc_auto_unlock_after_autofill)
-
-            // Encryption and theme
-            catUI = findPreference(getString(R.string.settings_key_cat_ui)) as? PreferenceCategory
-            encryption = findPreference(getString(R.string.settings_key_encryption)) as? ListPreference
-            themeMode = findPreference(getString(R.string.settings_key_theme_mode)) as? ListPreference
-            themeBlack = findPreference(getString(R.string.settings_key_theme_black_auto)) as? CheckBoxPreference
-            theme = findPreference(getString(R.string.settings_key_theme)) as? ListPreference
-
-            encryption?.setOnPreferenceChangeListener { _, o ->
-                val newEncryption = o as? String ?: return@setOnPreferenceChangeListener false
-                val encryptionType = EncryptionType.valueOf(newEncryption.uppercase(Locale.ROOT))
-                val oldEncryptionType = currentSettings.getEncryption()
-                val authMethod = currentSettings.getAuthMethod()
-
-                if (encryptionType != oldEncryptionType) {
-                    if (encryptionType == EncryptionType.PASSWORD) {
-                        val settingsActivity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                        if (authMethod != AuthMethod.PASSWORD) {
-                            settingsActivity.showSettingsNotice(
-                                R.string.settings_dialog_title_error,
-                                R.string.settings_dialog_msg_encryption_invalid_with_auth
-                            )
-                            return@setOnPreferenceChangeListener false
-                        } else {
-                            if (currentSettings.getAuthCredentials().isEmpty()) {
-                                settingsActivity.showSettingsNotice(
-                                    R.string.settings_dialog_title_error,
-                                    R.string.settings_dialog_msg_encryption_invalid_without_credentials
-                                )
-                                return@setOnPreferenceChangeListener false
-                            }
-                        }
-
-                        encryptionChangeWithDialog(EncryptionType.PASSWORD)
-                    } else if (encryptionType == EncryptionType.KEYSTORE) {
-                        encryptionChangeWithDialog(EncryptionType.KEYSTORE)
-                    }
-                }
-
-                false
-            }
-
-            // Backup location
-            val backupLocation = findPreference(getString(R.string.settings_key_backup_location))
-
-            if (currentSettings.isBackupLocationSet()) {
-                backupLocation?.setSummary(R.string.settings_desc_backup_location_set)
-            } else {
-                backupLocation?.setSummary(R.string.settings_desc_backup_location)
-            }
-
-            backupLocation?.setOnPreferenceClickListener {
-                (getActivity()!! as SettingsActivity).requestBackupAccess()
-                true
-            }
-
-            // Portable preferences: the file is plaintext, so the export asks about the backup
-            // password before writing and the import says what it will overwrite.
-            findPreference(getString(R.string.settings_key_preferences_export))?.setOnPreferenceClickListener {
-                (getActivity()!! as SettingsActivity).confirmPreferencesExport()
-                true
-            }
-
-            findPreference(getString(R.string.settings_key_preferences_import))?.setOnPreferenceClickListener {
-                (getActivity()!! as SettingsActivity).requestPreferencesImport()
-                true
-            }
-
-            findPreference(getString(R.string.settings_key_storage_location))?.setOnPreferenceClickListener {
-                (getActivity()!! as SettingsActivity).showStorageLocation()
-                true
-            }
-
-            // OpenPGP
-            val pgpProvider = findPreference(getString(R.string.settings_key_openpgp_provider)) as? OpenPgpAppPreference
-            pgpProviderPreference = pgpProvider
-            pgpEncryptionKey = findPreference(getString(R.string.settings_key_openpgp_key_encrypt)) as? EditTextPreference
-            val signingKey = findPreference(getString(R.string.settings_key_openpgp_key_sign)) as? OpenPgpKeyPreference
-            pgpSigningKey = signingKey
-            pgpSigningKeyPreference = signingKey
-            pgpVerifyPreference = findPreference(getString(R.string.settings_key_openpgp_verify)) as? CheckBoxPreference
-            pgpMode = findPreference(getString(R.string.settings_key_openpgp_mode)) as? ListPreference
-            pgpRecipientFiles = findPreference(getString(R.string.settings_key_openpgp_recipient_files))
-            pgpSecretFile = findPreference(getString(R.string.settings_key_openpgp_secret_file))
-
-            signingKey?.setOpenPgpProvider(pgpProvider?.value)
-
-            pgpEncryptionKey?.isEnabled = !pgpProvider?.value.isNullOrEmpty()
-
-            pgpProvider?.setOnPreferenceChangeListener { _, newValue ->
-                pgpEncryptionKey?.isEnabled = !(newValue as? String).isNullOrEmpty()
-                signingKey?.setOpenPgpProvider(newValue as? String)
-
-                true
-            }
-
-            // The two engines have disjoint settings; showing the inactive ones would suggest they
-            // still apply. The stored values are kept so switching back restores the configuration.
-            pgpMode?.value = OpenPgpMode.preferenceValue(currentSettings.getOpenPGPMode())
-            applyOpenPgpMode(currentSettings.getOpenPGPMode())
-            pgpMode?.setOnPreferenceChangeListener { _, newValue ->
-                val mode = OpenPgpMode.parse(newValue as? String)
-                currentSettings.setOpenPGPMode(mode)
-                applyOpenPgpMode(mode)
-                true
-            }
-
-            pgpRecipientFiles?.setOnPreferenceClickListener {
-                (getActivity()!! as SettingsActivity).requestOpenPgpKeyFiles(true)
-                true
-            }
-            pgpSecretFile?.setOnPreferenceClickListener {
-                (getActivity()!! as SettingsActivity).requestOpenPgpKeyFiles(false)
-                true
-            }
-            refreshOpenPgpKeyFileSummaries()
-
-            val loginBackup = findPreference(getString(R.string.settings_key_auto_backup_use_login)) as? CheckBoxPreference
-            loginBackup?.isChecked = LoginBackupPolicy.usesLoginPassword(getActivity()!!)
-            loginBackup?.setOnPreferenceChangeListener { _, value ->
-                val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                if (!activity.overviewSessionReady() || !activity.canGoBack) return@setOnPreferenceChangeListener false
-                val oldKey = getString(R.string.settings_key_backup_password)
-                val oldPasswordPresent = !sharedPref.getString(oldKey, "").isNullOrEmpty()
-                if (value == true && oldPasswordPresent) {
-                    // Reuse the guarded shared route, not a second destructive callback implementation.
-                    activity.confirmLegacyBackupPasswordRemoval()
-                    false
-                } else true
-            }
-            useAutoBackup = findPreference(getString(R.string.settings_key_auto_backup_password_enc)) as? ListPreference
-            updateAutoBackup()
-
-            val backupBroadcasts = findPreference(getString(R.string.settings_key_backup_broadcasts))
-            backupBroadcasts?.setOnPreferenceChangeListener { _, newValue ->
-                if (newValue is Set<*> && newValue.isNotEmpty()) {
-                    NotificationHelper.requestNotificationPermission(this)
-                }
-                true
-            }
-
-            val androidSync = findPreference(getString(R.string.settings_key_enable_android_backup_service))
-                as? CheckBoxPreference
-            useAndroidSync = androidSync
-            androidSync?.isEnabled = false
-            androidSync?.setSummary(R.string.security_platform_backup_disabled)
-            if (androidSync?.isEnabled != true)
-                androidSync?.isChecked = false
-
-            // Fingerprint quick unlock — opt-in, password-confirmed, device-only vault key.
-            val biometricPref = findPreference(getString(R.string.settings_key_biometric_enabled)) as? CheckBoxPreference
-            if (biometricPref != null) {
-                val isPasswordVault = currentSettings.getEncryption() == EncryptionType.PASSWORD &&
-                    currentSettings.getAuthMethod() == com.fairuniversal.offlineotp.Utilities.Constants.AuthMethod.PASSWORD
-                biometricPref.isEnabled = isPasswordVault
-                biometricPref.isChecked = isPasswordVault && BiometricKeyStore.isEnabled(getActivity()!!) &&
-                    BiometricKeyStore.hasStoredKey(getActivity()!!)
-                if (!isPasswordVault) {
-                    biometricPref.summary = getString(R.string.settings_desc_biometric) + " " +
-                        getString(R.string.settings_dialog_msg_encryption_invalid_with_auth)
-                } else {
-                    biometricPref.summary = getString(R.string.settings_desc_biometric)
-                }
-                biometricPref.setOnPreferenceChangeListener { _, newValue ->
-                    val enable = newValue as? Boolean ?: return@setOnPreferenceChangeListener false
-                    val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                    if (!activity.overviewSessionReady() || !activity.canGoBack) return@setOnPreferenceChangeListener false
-                    val passwordVaultNow = currentSettings.getEncryption() == EncryptionType.PASSWORD &&
-                        currentSettings.getAuthMethod() == AuthMethod.PASSWORD
-                    if (enable) {
-                        if (!passwordVaultNow) {
-                            activity.showSettingsFeedback(R.string.settings_dialog_msg_encryption_invalid_with_auth)
-                            return@setOnPreferenceChangeListener false
-                        }
-                        val avail = BiometricKeyStore.availability(activity)
-                        if (!avail.isAvailable) {
-                            val msg = if (avail == BiometricKeyStore.Availability.NOT_ENROLLED)
-                                R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable
-                            activity.showSettingsFeedback(msg)
-                            return@setOnPreferenceChangeListener false
-                        }
-                        // Ask for vault password first — an unlocked phone must not be enough to add a shortcut.
-                        activity.promptBiometricEnrollment(biometricPref, activity)
-                        false
-                    } else {
-                        try {
-                            BiometricKeyStore.clear(activity)
-                        } catch (_: Exception) { }
-                        activity.showSettingsFeedback(R.string.settings_toast_biometric_turned_off)
-                        true
-                    }
-                }
-            }
-
-            if (sharedPref.contains(getString(R.string.settings_key_special_features)) &&
-                    sharedPref.getBoolean(getString(R.string.settings_key_special_features), false)) {
-                addPreferencesFromResource(R.xml.preferences_special)
-
-                val clearKeyStore = findPreference(getString(R.string.settings_key_clear_keystore))
-                clearKeyStore?.setOnPreferenceClickListener {
-                    val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceClickListener false
-                    activity.showSharedKeyStoreReset()
-                    false
-                }
-            }
-            // Theme mode needs Android 10+; on older devices hide both options. With mode "auto" the manual
-            // theme choice is unused, otherwise the black-theme toggle is.
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                catUI?.removePreference(themeMode!!)
-                catUI?.removePreference(themeBlack!!)
-            } else {
-                if (sharedPref.getString(getString(R.string.settings_key_theme_mode),
-                        getString(R.string.settings_default_theme_mode)) == "auto")
-                    catUI?.removePreference(theme!!)
-                else
-                    catUI?.removePreference(themeBlack!!)
-            }
-        }
-
-    }
 }

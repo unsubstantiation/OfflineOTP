@@ -3058,33 +3058,34 @@ fun main() {
         }
     }
 
+    check("Settings host transactions use the same existing preference store") {
+        val context = Context()
+        val original = android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val settings = Settings(context)
+        expect(settings.preferenceStore() === original, { "Compose settings switched preference files" })
+    }
+
     check("the notification permission request is gated on Android 13 and a missing grant") {
         class FakeActivity(private val granted: Boolean) : android.app.Activity() {
             override fun checkSelfPermission(permission: String): Int =
                 if (granted && permission == android.Manifest.permission.POST_NOTIFICATIONS) PackageManager.PERMISSION_GRANTED
                 else PackageManager.PERMISSION_DENIED
         }
-        class FakeFragment(private val hostActivity: android.app.Activity?) : android.app.Fragment() {
-            override fun getActivity(): android.app.Activity? = hostActivity
-        }
         val sdk = android.os.Build.VERSION.SDK_INT
         try {
             android.os.Build.VERSION.SDK_INT = 32
-            val beforeTiramisu = FakeFragment(FakeActivity(granted = false))
+            val beforeTiramisu = FakeActivity(granted = false)
             NotificationHelper.requestNotificationPermission(beforeTiramisu)
             expect(beforeTiramisu.requested.isEmpty(), { "asked for a runtime permission before Android 13" })
 
             android.os.Build.VERSION.SDK_INT = 33
-            val missing = FakeFragment(FakeActivity(granted = false))
+            val missing = FakeActivity(granted = false)
             NotificationHelper.requestNotificationPermission(missing)
             expect(missing.requested == listOf(listOf("android.permission.POST_NOTIFICATIONS") to 1),
                     { "request ${missing.requested}" })
-            val granted = FakeFragment(FakeActivity(granted = true))
+            val granted = FakeActivity(granted = true)
             NotificationHelper.requestNotificationPermission(granted)
             expect(granted.requested.isEmpty(), { "asked again although granted" })
-            val detached = FakeFragment(null)
-            NotificationHelper.requestNotificationPermission(detached)
-            expect(detached.requested.isEmpty(), { "a detached fragment asked" })
         } finally {
             android.os.Build.VERSION.SDK_INT = sdk
         }
@@ -4353,6 +4354,7 @@ fun main() {
             "commitVaultSettings(Ljava/lang/String;Lcom/fairuniversal/offlineotp/Utilities/Constants\$EncryptionType;Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;Lcom/fairuniversal/offlineotp/Utilities/Settings\$PreparedCredentials;Z)Z",
             "deriveVaultCredentials(Ljava/lang/String;)Lcom/fairuniversal/offlineotp/Utilities/EncryptionHelper\$PBKDF2Credentials;",
             "disableAutomaticBackups()V",
+            "preferenceStore()Landroid/content/SharedPreferences;",
             "getAllTagsToggle()Z",
             "getAndroidBackupServiceEnabled()Z",
             "getAuthCredentials()Ljava/lang/String;",
@@ -5755,16 +5757,13 @@ fun main() {
         expect(BaseActivity::class.java.isAssignableFrom(main),
                 { "MainActivity lost its BaseActivity base" })
 
-        // The settings screen and its fragment keep their names, their nesting and their bases.
+        // The activity remains stable; the obsolete hidden preference fragment is intentionally gone.
         val settings = load("com.fairuniversal.offlineotp.Activities.SettingsActivity")
         expect(!Modifier.isFinal(settings.modifiers), { "SettingsActivity must stay extendable" })
         expect(BackgroundTaskActivity::class.java.isAssignableFrom(settings),
                 { "SettingsActivity lost its BackgroundTaskActivity base" })
-        val settingsFragment = load("com.fairuniversal.offlineotp.Activities.SettingsActivity\$SettingsFragment")
-        expect(Modifier.isStatic(settingsFragment.modifiers) && Modifier.isPublic(settingsFragment.modifiers),
-                { "SettingsFragment must stay a public static nested class" })
-        expect(android.preference.PreferenceFragment::class.java.isAssignableFrom(settingsFragment),
-                { "SettingsFragment lost its PreferenceFragment base" })
+        expect(settings.declaredClasses.none { android.app.Fragment::class.java.isAssignableFrom(it) },
+                { "Settings must not retain a deprecated platform fragment" })
 
         // The intro wizard keeps its four slides under their original names.
         val intro = load("com.fairuniversal.offlineotp.Activities.IntroScreenActivity")
@@ -10019,16 +10018,16 @@ fun main() {
             val biometricSelection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
             biometricSelection.confirmSelection(0)
             expect(!BiometricKeyStore.isEnabled(activity), { "shared biometric disabling failed" })
-            val enroll = type.getDeclaredMethod("promptBiometricEnrollment", android.preference.CheckBoxPreference::class.java,
+            val enroll = type.getDeclaredMethod("promptBiometricEnrollment",
                 com.fairuniversal.offlineotp.Activities.SettingsActivity::class.java).apply { isAccessible = true }
-            enroll.invoke(activity, null, activity)
+            enroll.invoke(activity, activity)
             val enrollment = activity.biometricPrompt as com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
             val confirmEnrollment = enrollment.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(enrollment) as (String) -> String?
             activity.dismissBiometricPrompt()
             expect(confirmEnrollment("stale-password") != null && !BiometricKeyStore.isEnabled(activity),
                 { "dismissed biometric enrollment accepted a password" })
             val staleDismiss = enrollment.javaClass.getDeclaredField("onDismiss").apply { isAccessible = true }.get(enrollment) as () -> Unit
-            enroll.invoke(activity, null, activity)
+            enroll.invoke(activity, activity)
             val newerEnrollment = activity.biometricPrompt
             staleDismiss()
             expect(activity.biometricPrompt === newerEnrollment, { "stale biometric dismiss closed a replacement prompt" })
@@ -10328,6 +10327,30 @@ fun main() {
         expect(view.paddingBottom == 305, { "IME and navigation insets were added rather than unioned" })
         dispatch(androidx.core.view.Insets(48, 0, 0, 0), androidx.core.view.Insets(60, 0, 0, 0), none)
         expect(view.paddingLeft == 62 && view.paddingBottom == 5, { "landscape cutout/navigation or keyboard dismissal failed" })
+    }
+
+    check("Dialog content owns IME insets independently from the activity") {
+        val content = android.view.View(Context())
+        content.setPadding(1, 2, 3, 4)
+        val dialogWindow = object : android.view.Window() {
+            override val decorView = object : android.view.View(Context()) {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : android.view.View> findViewById(id: Int): T? =
+                    if (id == android.R.id.content) content as T else null
+            }
+        }
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.installDialog(null)
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.installDialog(dialogWindow)
+        val keyboard = androidx.core.view.WindowInsetsCompat(mapOf(
+            1 to androidx.core.view.Insets(0, 24, 0, 48),
+            4 to androidx.core.view.Insets(0, 0, 0, 300)))
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(content, keyboard)
+        expect(content.paddingTop == 26 && content.paddingBottom == 304,
+            { "dialog content overlaps system bars or keyboard" })
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(content, keyboard)
+        expect(content.paddingBottom == 304, { "dialog padding accumulated on IME redispatch" })
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(content, androidx.core.view.WindowInsetsCompat())
+        expect(content.paddingBottom == 4, { "dialog keyboard dismissal retained IME padding" })
     }
 
     check("Email import password bridge permits failure retry but rejects consumed and dismissed reads") {

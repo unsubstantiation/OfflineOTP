@@ -261,6 +261,11 @@ class Notification(
 
 /** A context subclass so a fragment can hand one back; no lifecycle is modelled. */
 open class Activity : Context() {
+    val requested = ArrayList<Pair<List<String>, Int>>()
+    fun requestPermissions(permissions: Array<String>, requestCode: Int) {
+        requested.add(permissions.toList() to requestCode)
+    }
+
     open fun <T : View> findViewById(id: Int): T? = null
     /** The base-context hook supplied by Android before activity creation. */
     open fun attachBaseContext(newBase: Context) {}

@@ -33,6 +33,12 @@ Some operations intentionally live in nested dialogs rather than the main menu.
 
 ## Boundaries
 
+- Android Settings uses only the shared Compose overview and guarded dialogs; the
+  hidden platform `PreferenceFragment` and duplicate widget callbacks were removed.
+  Preference transactions still use the existing store. Notification permission
+  requests use the activity, not a hidden fragment. Legacy preference classes and
+  XML-default initialization elsewhere still need modernization; this is not a
+  claim of zero deprecation warnings or a passing CodeQL/native build.
 - Android's alternate toolbar Tools dialog now includes Settings and OATH-key
   management, matching the main Compose menu's secondary capabilities.
 - Informational tool rows display label, description and value without becoming

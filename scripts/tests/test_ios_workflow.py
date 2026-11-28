@@ -36,7 +36,7 @@ class IosWorkflowTest(unittest.TestCase):
         self.assertEqual("temurin", java["with"]["distribution"])
         self.assertEqual("17", java["with"]["java-version"])
         self.assertEqual("15859902", android["with"]["cmdline-tools-version"])
-        self.assertIn("platforms;android-37", android["with"]["packages"])
+        self.assertIn("platforms;android-37.0", android["with"]["packages"])
         self.assertIn("build-tools;37.0.0", android["with"]["packages"])
         compile_step = self.step("Build required Compose presentation XCFramework")
         self.assertLess(self.steps.index(java), self.steps.index(compile_step))

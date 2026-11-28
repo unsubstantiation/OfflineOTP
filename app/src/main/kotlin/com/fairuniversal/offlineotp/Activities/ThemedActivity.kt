@@ -26,10 +26,8 @@ import android.content.Context
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 
-import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.LocaleContextHelper
 import com.fairuniversal.offlineotp.Utilities.Settings
-import com.fairuniversal.offlineotp.Utilities.Tools
 
 import java.util.Locale
 
@@ -50,9 +48,8 @@ abstract class ThemedActivity : AppCompatActivity() {
 
         setTheme(current.getTheme())
 
-        // Match the navigation bar to the theme colors
-        getWindow().setNavigationBarColor(Tools.getThemeColor(this, R.attr.navigationBarColor))
-
+        // System bars are owned by the theme and the edge-to-edge inset host below.
+        // Do not call deprecated Window color setters (ignored on newer Android releases).
         super.onCreate(savedInstanceState)
         com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.install(this)
     }

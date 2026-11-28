@@ -241,6 +241,9 @@ open class Settings(private val context: Context) {
         }
     }
 
+    /** The existing store used by host transactions; opening it here preserves legacy file identity. */
+    open fun preferenceStore(): SharedPreferences = settings
+
     /** Lets a listener react to changed preference values. */
     open fun registerPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
         settings.registerOnSharedPreferenceChangeListener(listener)

@@ -20,6 +20,12 @@ Android's target/minimum SDK and Apple's deployment target are unchanged.
 
 ## Compatibility decisions and remaining holds
 
+- **SDK package identity:** CI installs `platforms;android-37.0`, not the nonexistent
+  `platforms;android-37`. Compile SDK remains 37 and build-tools remain 37.0.0.
+  The package spelling is recorded in the
+  [GitHub runner SDK inventory](https://github.com/actions/runner-images/blob/1ede08b87c78b9a8871f4761a20f9b5fd94796c4/images/ubuntu/Ubuntu2404-Readme.md#android).
+  The sdkmanager deprecation warning is separate from the missing-package failure.
+
 - **Supported build chain:** Gradle 9.7.0 and AGP 9.3.1 are the upper bounds in
   [Kotlin 2.4.21's compatibility table](https://github.com/JetBrains/kotlin-web-site/blob/master/docs/v.list).
   AGP was deliberately aligned down from the pre-existing, unsupported 9.5.0 pin.
