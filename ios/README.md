@@ -7,7 +7,8 @@ the official YubiKit SDK is intended to remain in Swift.
 
 **Status:** the last reported iOS build failed. Subsequent source/workflow fixes
 have local checks but no recorded successful native run. All non-iOS builds/platforms
-are user-reported verified. See the [cutover inventory](../docs/ios-kotlin-cutover.md).
+are user-reported verified. CodeQL also exposed iOS metadata compilation errors;
+the [source fixes](../docs/ios-kotlin-cutover.md#metadata-compilation-follow-up) await a successful rerun.
 
 ## Requirements
 

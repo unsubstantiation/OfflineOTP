@@ -9,11 +9,15 @@ are historical snapshots, not competing descriptions of the shipping architectur
 | --- | --- |
 | Android, Debian, Windows and macOS | User reports all non-iOS builds/workflows and platform checks verified |
 | iOS | Confirmed failed build; Kotlin cutover and workflow fixes await a successful native run |
+| CodeQL | Java/Kotlin autobuild failed compiling iOS metadata; source fixes await a successful rerun. Python, Rust and Actions analysis passed in that run |
 | Local follow-up checks | Shared presentation/host JVM tests, Python regressions and architecture/shell checks pass; these do not replace native execution |
 
 The non-iOS report does not supply a per-scenario artifact/device log. Preserve it
 as user-reported verification, not an independent security audit or a guarantee for
 later changes. Do not describe those platforms as wholly untested.
+
+See the [failure and source-fix details](ios-kotlin-cutover.md#metadata-compilation-follow-up).
+CodeQL default setup remains unchanged; no replacement workflow or skipped metadata task is used.
 
 ## Source architecture
 

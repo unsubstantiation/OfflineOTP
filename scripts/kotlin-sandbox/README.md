@@ -49,7 +49,7 @@ only compiled/shape-checked, and some third-party behavior is substituted.
 
 No composable is executed or measured. No real Android window, resources, IME,
 KeyStore, camera, file provider, permission prompt or UIKit service is exercised.
-Stub APIs can accept calls that the real SDK rejects. Handwritten Foundation/Vision/
+Stub APIs can accept calls that the real SDK rejects. Handwritten Foundation, imaging and
 pasteboard signatures are not Kotlin/Native or Apple ABI verification.
 
 These scripts perform no Gradle dependency resolution, Android manifest/resource

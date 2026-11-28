@@ -37,12 +37,14 @@ and runner labels do not establish coverage of a requested OS version.
 
 ## iOS follow-up
 
-1. Confirm framework compilation and Swift exports against the real Apple SDK.
-2. Confirm the Xcode app links required Compose and OpenPGP code and bundles resources.
-3. Run relevant integration tests on simulator/device; app compilation alone does not run them.
-4. Exercise lifecycle/privacy, Files-provider cancellation, password recovery,
+1. Rerun `:ui-foundation:compileIosMainKotlinMetadata` and unchanged CodeQL autobuild
+   after the [source fixes](ios-kotlin-cutover.md#metadata-compilation-follow-up).
+2. Confirm framework compilation and Swift exports against the real Apple SDK.
+3. Confirm the Xcode app links required Compose and OpenPGP code and bundles resources.
+4. Run relevant integration tests on simulator/device; app compilation alone does not run them.
+5. Exercise lifecycle/privacy, Files-provider cancellation, password recovery,
    interrupted writes, biometric cancellation and NFC/USB-C capabilities separately.
-5. Continue the [Kotlin cutover](ios-kotlin-cutover.md); a green legacy Swift suite
+6. Continue the [Kotlin cutover](ios-kotlin-cutover.md); a green legacy Swift suite
    is not an acceptance criterion for the shared implementation.
 
 Use the [device checklist](shared-ui-device-checklist.md),
