@@ -8,7 +8,6 @@ import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -308,9 +307,6 @@ object ManualEntryDialog {
         activeDialog?.dismiss()
         val dialog = builder.create()
         activeDialog = dialog
-        // Keep [Save]/[Cancel] reachable while the IME is open: resize the dialog window and let
-        // the ScrollView in dialog_manual_entry scroll instead of panning the buttons off-screen.
-        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.setOnDismissListener {
             if (activeDialog === dialog) activeDialog = null
             secretInput.setText("")
@@ -324,6 +320,8 @@ object ManualEntryDialog {
             otpUriInput.setText("")
         }
         dialog.show()
+        // The content exists after show(); reserve IME space without deprecated resize flags.
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.installDialog(dialog.window)
 
         val positiveButton = requireNotNull(dialog.getButton(AlertDialog.BUTTON_POSITIVE))
 
@@ -392,7 +390,7 @@ object ManualEntryDialog {
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
                             return@setOnClickListener
                         }
-                        if (!adapter.replaceEntry(oldEntry!!, replacement)) {
+                        if (!adapter.replaceEntry(oldEntry, replacement)) {
                             replacement.destroy()
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
@@ -416,7 +414,7 @@ object ManualEntryDialog {
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
                             return@setOnClickListener
                         }
-                        if (!adapter.replaceEntry(oldEntry!!, replacement)) {
+                        if (!adapter.replaceEntry(oldEntry, replacement)) {
                             replacement.destroy()
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
@@ -430,7 +428,7 @@ object ManualEntryDialog {
                             digitsText, periodText, algorithm,
                             tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
-                        val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
+                        val existingSecret = oldEntry.getSecretEncoded()
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, existingSecret,
                                 digitsText, periodText, algorithm,
@@ -455,7 +453,7 @@ object ManualEntryDialog {
                             digitsText, counterText, algorithm,
                             tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
-                        val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
+                        val existingSecret = oldEntry.getSecretEncoded()
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, existingSecret,
                                 digitsText, counterText, algorithm,
@@ -480,7 +478,7 @@ object ManualEntryDialog {
                             digitsText, periodText, algorithm,
                             tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
-                        val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
+                        val existingSecret = oldEntry.getSecretEncoded()
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, existingSecret,
                                 digitsText, periodText, algorithm,
@@ -587,7 +585,7 @@ object ManualEntryDialog {
         if (!isNewEntry) {
             otpUriInput.visibility = View.GONE
             applyOtpUriButton.visibility = View.GONE
-            val oldType = oldEntry!!.getType()
+            val oldType = oldEntry.getType()
 
             typeInput.setSelection(typeAdapter.getPosition(oldType))
             issuerInput.setText(oldEntry.getIssuer())

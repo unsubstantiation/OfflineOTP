@@ -39,8 +39,7 @@ object R {
         const val colorOtp = 0x7f020001
         const val dialogPreferenceStyle = 0x7f020002
         const val dialogTheme = 0x7f020003
-        const val navigationBarColor = 0x7f020004
-        const val textColorSecondary = 0x7f020005
+        const val textColorSecondary = 0x7f020004
     }
     object color {
         const val colorPrimary = 0x7f030000

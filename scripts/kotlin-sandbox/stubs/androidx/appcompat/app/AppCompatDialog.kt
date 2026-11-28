@@ -42,6 +42,8 @@ open class AppCompatDialog(val context: Context, theme: Int) {
         dismissals++
     }
 
+    protected open fun onCreate(savedInstanceState: android.os.Bundle?) {}
+
     fun show() {}
 
     companion object {

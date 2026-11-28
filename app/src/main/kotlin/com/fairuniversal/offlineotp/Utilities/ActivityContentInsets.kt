@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.Utilities
 
 import android.app.Activity
 import android.view.View
+import android.view.Window
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -11,6 +12,14 @@ object ActivityContentInsets {
     fun install(activity: Activity) {
         val content = activity.findViewById<View>(android.R.id.content) ?: return
         WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false)
+        applyTo(content)
+    }
+
+    /** Dialogs need their own inset owner; the activity listener cannot protect another window. */
+    fun installDialog(window: Window?) {
+        if (window == null) return
+        val content = window.decorView.findViewById<View>(android.R.id.content) ?: return
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         applyTo(content)
     }
 

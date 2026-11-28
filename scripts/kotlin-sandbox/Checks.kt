@@ -10330,6 +10330,30 @@ fun main() {
         expect(view.paddingLeft == 62 && view.paddingBottom == 5, { "landscape cutout/navigation or keyboard dismissal failed" })
     }
 
+    check("Dialog content owns IME insets independently from the activity") {
+        val content = android.view.View(Context())
+        content.setPadding(1, 2, 3, 4)
+        val dialogWindow = object : android.view.Window() {
+            override val decorView = object : android.view.View(Context()) {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : android.view.View> findViewById(id: Int): T? =
+                    if (id == android.R.id.content) content as T else null
+            }
+        }
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.installDialog(null)
+        com.fairuniversal.offlineotp.Utilities.ActivityContentInsets.installDialog(dialogWindow)
+        val keyboard = androidx.core.view.WindowInsetsCompat(mapOf(
+            1 to androidx.core.view.Insets(0, 24, 0, 48),
+            4 to androidx.core.view.Insets(0, 0, 0, 300)))
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(content, keyboard)
+        expect(content.paddingTop == 26 && content.paddingBottom == 304,
+            { "dialog content overlaps system bars or keyboard" })
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(content, keyboard)
+        expect(content.paddingBottom == 304, { "dialog padding accumulated on IME redispatch" })
+        androidx.core.view.ViewCompat.dispatchApplyWindowInsets(content, androidx.core.view.WindowInsetsCompat())
+        expect(content.paddingBottom == 4, { "dialog keyboard dismissal retained IME padding" })
+    }
+
     check("Email import password bridge permits failure retry but rejects consumed and dismissed reads") {
         var reads = 0
         val page = com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView(
