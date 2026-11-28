@@ -13,7 +13,7 @@ class ComposeDesktopValidationTest(unittest.TestCase):
         self.assertEqual({'workflow_dispatch': None}, triggers)
         self.assertEqual({'contents': 'read'}, workflow['permissions'])
         job = workflow['jobs']['desktop']
-        self.assertEqual(['ubuntu-24.04', 'windows-2022', 'macos-14'], job['strategy']['matrix']['os'])
+        self.assertEqual(['ubuntu-24.04', 'windows-2022', 'macos-15'], job['strategy']['matrix']['os'])
         for step in job['steps']:
             if 'uses' in step:
                 self.assertRegex(step['uses'], r'@[0-9a-f]{40}$')
@@ -24,6 +24,24 @@ class ComposeDesktopValidationTest(unittest.TestCase):
         self.assertIn('if: always()', text)
         self.assertNotIn('secrets.', text)
         self.assertNotIn('continue-on-error', text)
+
+    def test_sdk_substitute_suite_still_runs_in_ci_outside_real_sdk_tests(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/compose-desktop-validation.yml').read_text())
+        job = workflow['jobs']['scripted-hardware']
+        steps = str(job['steps'])
+        self.assertIn('bootstrap-toolchain.sh', steps)
+        self.assertIn('compile-desktop.sh', steps)
+        self.assertNotIn('continue-on-error', steps)
+        scripted = ROOT / 'scripts/kotlin-sandbox/desktop-tests/com/fairuniversal/offlineotp/desktop/hardware/HardwareKeyManagerTest.kt'
+        self.assertTrue(scripted.is_file())
+        self.assertIn('OathSandbox', scripted.read_text())
+        gate = (ROOT / 'scripts/kotlin-sandbox/compile-desktop.sh').read_text()
+        self.assertIn('"$SANDBOX/desktop-tests"', gate)
+        for source in (ROOT / 'desktop/src/test').rglob('*.kt'):
+            self.assertNotIn('import com.yubico.yubikit.oath.OathSandbox', source.read_text())
+            self.assertNotIn('import com.yubico.yubikit.fido.client.FidoSandbox', source.read_text())
+        fixture = (ROOT / 'desktop/src/test/kotlin/com/yubico/yubikit/oath/CredentialFixture.kt').read_text()
+        self.assertIn('Credential("test-device", id.toByteArray(Charsets.UTF_8), type, false)', fixture)
 
     def test_cutover_ledger_records_reported_verification_without_inventing_evidence(self):
         text = (ROOT / 'docs/compose-desktop-cutover.md').read_text()

@@ -40,6 +40,13 @@ It runs shared presentation tests and headless scheduler tests, then checks host
 seams with [compile-only Compose/platform stubs](stubs-compose/README.md).
 No Swing UI fallback or obsolete table/display test suite is built.
 
+`compile-desktop.sh` also runs `desktop-tests/HardwareKeyManagerTest` (nested in
+its package directories), which requires scripted `OathSandbox`/`FidoSandbox`
+substitutes. It is not part of Gradle's real-SDK test source set. The Compose
+desktop validation workflow runs both the real Gradle matrix and this separate
+scripted suite; moving it does not drop its cases from CI. Ordinary desktop tests
+use an SDK-shaped credential fixture shared with the sandbox.
+
 ## What passing means
 
 Checks cover known OTP/crypto vectors, document bounds, format routing, generation-
