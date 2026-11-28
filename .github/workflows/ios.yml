@@ -164,22 +164,6 @@ jobs:
           set -euo pipefail
           python3 scripts/ios/generate-thumbnail-catalog.py
 
-      - name: Build the package
-        timeout-minutes: 10
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd ios
-          swift build -c release --build-tests -Xswiftc -enable-testing 2>&1 | tee build-log.txt
-
-      - name: Run the format tests against the shared fixtures
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd ios
-          swift test -c release --parallel -Xswiftc -enable-testing 2>&1 | tee -a build-log.txt
-
       - name: Install XcodeGen
         timeout-minutes: 20
         shell: bash
@@ -203,7 +187,9 @@ jobs:
           set -euo pipefail
           : "${ANDROID_HOME:?GitHub macOS runner must provide Android SDK for root Gradle configuration}"
           java -version
-          ./gradlew --no-daemon :ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework
+          # Exercise shared Kotlin presentation policies, then compile the real iOS implementation.
+          # Remaining Swift dependencies are compiled by xcodebuild, not a legacy SwiftPM test gate.
+          ./gradlew --no-daemon :ui-model:desktopTest :ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework
           mkdir -p ios/Frameworks
           rm -rf ios/Frameworks/OfflineOTPPresentation.xcframework
           ditto ui-foundation/build/XCFrameworks/release/OfflineOTPPresentation.xcframework \

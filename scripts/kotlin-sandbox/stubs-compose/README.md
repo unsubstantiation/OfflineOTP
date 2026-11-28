@@ -30,3 +30,10 @@ The Android stub keeps `ComposeView` final and exposes `AbstractComposeView.Cont
 custom-view extension point, matching [AndroidX source](https://github.com/androidx/androidx/blob/ca175c23e35c88a0a4517e7d1bc01764a60e3dbf/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/ComposeView.android.kt).
 The earlier `open ComposeView` stub hid an invalid subclass in the Android seam. Keep API
 restrictions as well as method signatures: permissive stubs can accept code real artifacts reject.
+
+### Kotlin iOS service adapters
+
+The iOS-only Foundation date, UIKit pasteboard/image and Vision barcode signatures allow the Kotlin
+clipboard and QR-image adapters to participate in source type-checking. Their implementations
+throw if executed: neither OS expiry, pasteboard isolation nor QR detection is simulated. Real
+Kotlin/Native compilation and device pasteboard checks remain necessary.

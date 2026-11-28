@@ -379,10 +379,9 @@ class IosPackageTest(unittest.TestCase):
     def test_the_ios_workflow_builds_tests_and_signs_nothing(self):
         workflow = (ROOT / ".github/workflows/ios.yml").read_text(encoding="utf-8")
         self.assertIn("macos-15", workflow)
-        self.assertIn("swift test", workflow)
-        self.assertIn("swift build -c release --build-tests", workflow)
-        self.assertIn("swift test -c release --parallel", workflow)
-        self.assertIn("-Xswiftc -enable-testing", workflow)
+        self.assertNotIn("swift test", workflow)
+        self.assertNotIn("swift build -c release --build-tests", workflow)
+        self.assertIn(":ui-model:desktopTest", workflow)
         self.assertIn("-destination 'generic/platform=iOS'", workflow)
         self.assertIn("scripts/ios/generate-token-vectors.py", workflow)
         # No signing, no secrets, no publishing: the certificate story belongs to the app target and

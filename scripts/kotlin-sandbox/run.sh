@@ -238,6 +238,7 @@ APP_SOURCES=(
     "$ROOT/ui-model/src/jvmHostMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableEntryDrag.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableInputBounds.kt"
+    "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCodeFormat.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/VaultRenderContract.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableThumbnailAssets.kt"

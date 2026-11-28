@@ -66,7 +66,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         ios_vault = (IOS_KIT / "PasswordVault.swift").read_text(encoding="utf-8")
         ios_store = (IOS_APP / "VaultStore.swift").read_text(encoding="utf-8")
         ios_settings = (IOS_APP / "ComposeVaultHost.swift").read_text(encoding="utf-8")
-        ios_clip = (IOS_APP / "Clipboard.swift").read_text(encoding="utf-8")
+        ios_clip = (ROOT / "ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/platform/IosClipboard.kt").read_text(encoding="utf-8")
         android_main = (ANDROID / "Activities/MainActivity.kt").read_text(encoding="utf-8")
 
         # Password change
@@ -83,7 +83,9 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn("ScreenTimerController", android_main)
 
         # 30s clipboard auto-clear
-        self.assertIn("expirySeconds: TimeInterval = 30", ios_clip)
+        policy = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCodeFormat.kt").read_text()
+        self.assertIn("const val expirySeconds: Double = 30.0", policy)
+        self.assertIn("PortableClipboardPolicy.expiry", ios_clip)
 
     def test_otp_uri_import_multi_tag_filter_and_reordering_exist_across_clients(self):
         android_dialog = (ANDROID / "Dialogs/ManualEntryDialog.kt").read_text(encoding="utf-8")

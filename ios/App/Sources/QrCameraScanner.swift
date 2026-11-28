@@ -24,7 +24,7 @@ final class QrCaptureViewController: UIViewController {
     override func loadView() {
         guard DataScannerViewController.isSupported, DataScannerViewController.isAvailable else {
             view = UIView(frame: UIScreen.main.bounds)
-            view.backgroundColor = ForestPalette.background
+            view.backgroundColor = IosHostPalette.shared.background
             DispatchQueue.main.async {
                 self.dismiss(animated: false)
                 self.onUnavailable()
@@ -32,7 +32,7 @@ final class QrCaptureViewController: UIViewController {
             return
         }
         let container = UIView(frame: UIScreen.main.bounds)
-        container.backgroundColor = ForestPalette.background
+        container.backgroundColor = IosHostPalette.shared.background
         let scanner = DataScannerViewController(
             recognizedDataTypes: [.barcode(symbologies: [.qr])],
             qualityLevel: .accurate,

@@ -1,5 +1,18 @@
 # OfflineOTP for iOS — the format layer
 
+## Current Kotlin cutover
+
+The Swift package and hosts described below are **remaining migration code**, not
+the target architecture. The approved end state is Kotlin/shared Compose, with
+only a narrow Swift bridge to the YubiKit SDK. See the [live cutover inventory](../docs/ios-kotlin-cutover.md).
+
+Code formatting/countdown policy, palette/About bindings, expiring clipboard IO and QR-image decoding now
+have Kotlin replacements and the corresponding Swift implementations are removed.
+The iOS release workflow runs shared Kotlin presentation tests, compiles the real
+Compose XCFramework and builds the Xcode app; it no longer runs the standalone
+SwiftPM tests described in the legacy instructions below. The remaining Swift
+package is still compiled as an app dependency until the engine cutover finishes.
+
 Two things live here:
 
 1. **`OfflineOTPKit`** — a Swift package with the parts of an iOS client that must agree with the

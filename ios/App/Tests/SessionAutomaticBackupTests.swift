@@ -161,10 +161,10 @@ final class SessionAutomaticBackupTests: XCTestCase {
         await fulfillment(of: [second], timeout: 2)
         XCTAssertEqual(["first", "latest"], sealed)
         XCTAssertEqual(900, timers.last?.delay)
-        timers[0].action(); XCTAssertTrue(queued.isEmpty())
+        timers[0].action(); XCTAssertTrue(queued.isEmpty)
         let retired = try XCTUnwrap(timers.last)
         backup.disable(); retired.action(); backup.vaultChanged()
-        XCTAssertTrue(queued.isEmpty()); XCTAssertFalse(backup.enabled)
+        XCTAssertTrue(queued.isEmpty); XCTAssertFalse(backup.enabled)
     }
 
     @MainActor

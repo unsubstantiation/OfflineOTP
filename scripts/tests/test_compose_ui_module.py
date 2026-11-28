@@ -377,7 +377,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
-            {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
+            {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "PortableCodeFormatTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
              "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt", "PortablePresentationTest.kt", "VaultRenderContractTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same

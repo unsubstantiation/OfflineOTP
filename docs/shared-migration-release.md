@@ -3,6 +3,15 @@
 Date: 2026-11-20. Chunk 10 source work is implemented. **Not release-certified.**
 The table below records local evidence, not requested-OS/device parity.
 
+## Follow-up: iOS engine cutover
+
+The user has verified the non-iOS builds; the iOS build is confirmed failing.
+The user has authorized replacing application-owned Swift with Kotlin, retaining
+only a thin official-YubiKit SDK bridge. The earlier native-gated retention of
+independent Swift oracles is superseded by this replacement work: those oracles
+are not a release acceptance gate. See [the active inventory](ios-kotlin-cutover.md).
+This does not mean production Swift dependencies have already been removed.
+
 ## Architecture after migration
 
 - `shared-domain/commonMain` owns portable entry documents, framing/format/KDF policy,

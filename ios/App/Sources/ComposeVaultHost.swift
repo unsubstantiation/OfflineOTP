@@ -20,7 +20,7 @@ final class VaultComposeViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = ForestPalette.background
+        view.backgroundColor = IosHostPalette.shared.background
         coordinator.refresh()
         let composed = coordinator.presentation.viewController(
             vaultActions: coordinator, surfaceActions: coordinator)
@@ -228,11 +228,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             let previous: String
             if revealed, store.showPreviousToken, (entry.kind == .totp || entry.kind == .steam),
                let older = try? entry.code(unixTime: Int64(now.timeIntervalSince1970) - Int64(entry.period)) {
-                previous = CodeFormat.grouped(older, groupSize: store.tokenGroupSize)
+                previous = PortableCodeFormat.shared.grouped(code: older, groupSize: Int32(store.tokenGroupSize))
             } else {
                 previous = ""
             }
-            let seconds = CodeFormat.secondsRemaining(kind: kind, period: entry.period, now: now) ?? 0
+            let seconds = PortableCodeFormat.shared.secondsRemaining(kind: kind, period: Int32(entry.period), unixSeconds: Int64(now.timeIntervalSince1970))?.intValue ?? 0
             let nonDefaultPeriod = entry.kind == .motp || entry.period != 30
             let showCountdown = store.showIndividualTimeouts || nonDefaultPeriod
             let title = entry.issuer.isEmpty ? (entry.label.isEmpty ? "Untitled entry" : entry.label) : entry.issuer
@@ -258,7 +258,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 title: title,
                 subtitle: revealed && !entry.label.isEmpty && !entry.issuer.isEmpty ? entry.label : "",
                 concealedTitle: entry.label.isEmpty ? "Concealed" : entry.label,
-                code: revealed ? CodeFormat.grouped(code ?? "", groupSize: store.tokenGroupSize) : "",
+                code: revealed ? PortableCodeFormat.shared.grouped(code: code ?? "", groupSize: Int32(store.tokenGroupSize)) : "",
                 previousCode: previous,
                 metadata: metadata,
                 secondsLeft: Int32(seconds),
@@ -566,8 +566,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message(store.message ?? "Token not copied: the vault could not be saved.")
             return
         }
-        Clipboard.copy(fresh)
-        message("Token copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
+        IosClipboard.shared.copy(code: fresh)
+        message("Token copied — the clipboard clears in \(Int(IosClipboard.shared.expirySeconds)) s")
     }
 
     private func copySecret(_ secret: String, label: String, at index: Int) {
@@ -575,8 +575,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message(store.message ?? "Not copied: the vault could not be saved.")
             return
         }
-        Clipboard.copy(secret)
-        message("\(label) copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
+        IosClipboard.shared.copy(code: secret)
+        message("\(label) copied — the clipboard clears in \(Int(IosClipboard.shared.expirySeconds)) s")
     }
 
     // MARK: - Shared dialogs
@@ -3043,7 +3043,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if command == "link", parts.count > 1 {
             let allowedIds = ["website", "releases", "changelog", "license", "source", "issues",
                               "author1", "author2", "originalAuthor", "originalApp", "contributors", "support"]
-            guard allowedIds.contains(where: { AboutInfo.url(id: $0) == parts[1] }),
+            guard allowedIds.contains(where: { AboutInfo.shared.url(id: $0) == parts[1] }),
                   let url = URL(string: parts[1]),
                   ["http", "https"].contains(url.scheme ?? "") else {
                 return "Unsupported link."
@@ -3053,7 +3053,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
         if command == "aboutLink", parts.count > 1,
            ["website", "issues"].contains(parts[1]),
-           let url = URL(string: AboutInfo.url(id: parts[1])),
+           let url = URL(string: AboutInfo.shared.url(id: parts[1])),
            ["http", "https"].contains(url.scheme ?? "") {
             onOpenLink(url)
             return nil
@@ -3227,7 +3227,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "hardwareCopy":
             guard surfaceKey == "hardwareOath", !hardwareBusy,
                   let code = hardwareCode, let expires = hardwareCodeExpiry, expires > Date() else { return "Code expired." }
-            guard Clipboard.copy(code, expiresAt: expires) else { return "Code expired." }
+            guard IosClipboard.shared.copyUntil(code: code, expiresAtEpochSeconds: expires.timeIntervalSince1970) else { return "Code expired." }
             hardwareMessage = "Code copied. Clipboard clears automatically."
             return nil
         case "hideIssuer":

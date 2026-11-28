@@ -18,7 +18,7 @@ IOS = ROOT / "ios"
 APP = IOS / "App"
 SOURCES = APP / "Sources"
 APP_TESTS = APP / "Tests"
-PALETTE = (SOURCES / "ForestPalette.swift").read_text(encoding="utf-8")
+PALETTE = (ROOT / "ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/platform/IosHostPalette.kt").read_text(encoding="utf-8")
 KIT = IOS / "Sources/OfflineOTPKit"
 UTILITIES = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
 ANDROID_VALUES = ROOT / "app/src/main/res/values"
@@ -421,17 +421,16 @@ class IosAppTest(unittest.TestCase):
             "OTP_AMBER": "otpAmber",
             "OTP_AMBER_MUTED": "otpAmberMuted",
         }
-        self.assertIn("import UIKit", PALETTE)
+        self.assertIn("import platform.UIKit.UIColor", PALETTE)
         self.assertNotIn("import SwiftUI", PALETTE)
         for kotlin_name, swift_name in tokens.items():
             palette_name = {"thumbnail": "thumbnailBackground"}.get(swift_name, swift_name)
             kotlin = re.search(rf"val {palette_name} = Color\(0xFF([0-9A-Fa-f]{{2}})([0-9A-Fa-f]{{2}})([0-9A-Fa-f]{{2}})\)", forest)
             self.assertIsNotNone(kotlin, f"{palette_name} missing from Compose palette")
             red, green, blue = (int(group, 16) for group in kotlin.groups())
-            swift_member = swift_name[0].lower() + swift_name[1:]
-            expected = (f"public static let {swift_member} = UIColor(red: 0x{red:02X} / 255, "
-                        f"green: 0x{green:02X} / 255, blue: 0x{blue:02X} / 255, alpha: 1)")
-            self.assertIn(expected, PALETTE, f"{swift_member} drifted from ForestTheme.{kotlin_name}")
+            expected = (f"val {palette_name} = UIColor(red = 0x{red:02X} / 255.0, "
+                        f"green = 0x{green:02X} / 255.0, blue = 0x{blue:02X} / 255.0, alpha = 1.0)")
+            self.assertIn(expected, PALETTE, f"{palette_name} drifted from ForestTheme.{kotlin_name}")
 
     def test_the_password_rules_match_the_other_clients(self):
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
@@ -447,14 +446,15 @@ class IosAppTest(unittest.TestCase):
         self.assertIn('"That password does not open this vault."', store)
 
     def test_a_copied_code_expires(self):
-        clipboard = (SOURCES / "Clipboard.swift").read_text(encoding="utf-8")
-        match = re.search(r"expirySeconds: TimeInterval = (\d+)", clipboard)
+        clipboard = (ROOT / "ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/platform/IosClipboard.kt").read_text(encoding="utf-8")
+        policy = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCodeFormat.kt").read_text()
+        match = re.search(r"expirySeconds: Double = (\d+)", policy)
         self.assertIsNotNone(match)
         seconds = int(match.group(1))
         self.assertGreater(seconds, 0)
         self.assertLessEqual(seconds, 60)
-        self.assertIn(".expirationDate", clipboard)
-        self.assertIn("UTType.utf8PlainText.identifier", clipboard)
+        self.assertIn("UIPasteboardOptionExpirationDate", clipboard)
+        self.assertIn("public.utf8-plain-text", clipboard)
 
     def test_the_tabs_are_the_other_clients_tabs(self):
         """Five tabs, the same order, the same titles, and no entry kind without a home."""
@@ -757,8 +757,8 @@ class IosAppTest(unittest.TestCase):
         root = (SOURCES / "AppRootViewController.swift").read_text(encoding="utf-8")
         self.assertIn('if kind == "qrCamera" { self.scanQr() }', root)
         self.assertIn("QrCaptureViewController(", root)
-        reader = (SOURCES / "QrImageReader.swift").read_text(encoding="utf-8")
-        self.assertIn("import Vision", reader)
+        reader = (ROOT / "ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/platform/IosQrImageReader.kt").read_text(encoding="utf-8")
+        self.assertIn("import platform.Vision", reader)
         self.assertIn("VNDetectBarcodesRequest", reader)
         # Image import remains permission-free; live scan is a separate QR-only VisionKit adapter.
         self.assertNotIn("AVCaptureDevice", reader)
@@ -967,11 +967,12 @@ class IosAppTest(unittest.TestCase):
 
     def test_a_code_is_announced_one_character_at_a_time_and_fits_a_thumb(self):
         """TalkBack and VoiceOver read the same Compose semantics, not a SwiftUI copy."""
-        code = (SOURCES / "CodeFormat.swift").read_text(encoding="utf-8")
-        self.assertIn("public static func spoken(_ code: String) -> String", code)
-        self.assertIn('code.map(String.init).joined(separator: " ")', code)
-        self.assertIn("public static func remainingDescription(_ seconds: Int?) -> String", code)
-        self.assertIn('seconds == 1 ? "1 second left"', code)
+        code = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableCodeFormat.kt").read_text()
+        self.assertIn("fun spoken(code: String): String", code)
+        self.assertIn('code.toCharArray().joinToString(" ")', code)
+        self.assertIn("fun remainingDescription(seconds: Int?): String", code)
+        self.assertIn('1 -> "1 second left"', code)
+        self.assertFalse((SOURCES / "CodeFormat.swift").exists())
 
         renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8") + card_render_chain()
         self.assertIn('"Code " + it.toCharArray().joinToString(" ")', renderer)
@@ -1022,9 +1023,9 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("runs-on: ubuntu-24.04", WORKFLOW)
         self.assertIn("build-ios-xcframework.sh --arm64-only", WORKFLOW)
         self.assertIn("ARCHS=arm64", WORKFLOW)
-        self.assertIn("swift build -c release --build-tests", WORKFLOW)
-        self.assertIn("swift test -c release --parallel", WORKFLOW)
-        self.assertIn("-Xswiftc -enable-testing", WORKFLOW)
+        self.assertNotIn("swift test", WORKFLOW)
+        self.assertNotIn("swift build -c release --build-tests", WORKFLOW)
+        self.assertIn(":ui-model:desktopTest", WORKFLOW)
         self.assertNotIn("-scheme OfflineOTPKit", WORKFLOW)
 
     def test_the_password_edit_sheet_matches_its_initializer(self):
