@@ -35,6 +35,26 @@ class IosKotlinCutoverTest(unittest.TestCase):
         self.assertIn("filterIsInstance<VNBarcodeObservation>()", adapter)
         self.assertNotIn("AVCaptureDevice", adapter)
 
+    def test_clipboard_imports_foundation_extension_property(self):
+        adapter = (NATIVE / "IosClipboard.kt").read_text()
+        self.assertIn("import platform.Foundation.timeIntervalSince1970", adapter)
+        stub = (ROOT / "scripts/kotlin-sandbox/stubs-compose/ios/platform/Foundation/NSDate.kt").read_text()
+        self.assertIn("val NSDate.timeIntervalSince1970", stub)
+        self.assertNotIn("    val timeIntervalSince1970", stub)
+
+    def test_ci_backed_images_render_to_owned_cgimage_for_vision(self):
+        adapter = (NATIVE / "IosQrImageReader.kt").read_text()
+        self.assertIn("import platform.CoreImage.CIContext", adapter)
+        self.assertIn("CIContext().createCGImage(ciImage, fromRect = ciImage.extent) ?: return null", adapter)
+        self.assertIn("sourceCgImage ?: renderedCgImage ?: return null", adapter)
+        self.assertIn("finally {", adapter)
+        self.assertIn("if (renderedCgImage != null) CGImageRelease(renderedCgImage)", adapter)
+        self.assertNotIn("VNImageRequestHandler(ciImage", adapter)
+        self.assertNotIn(" as ", adapter)
+        # Do not let a fictitious overload make this exact metadata error pass again.
+        stub = (ROOT / "scripts/kotlin-sandbox/stubs-compose/ios/platform/Vision/Barcode.kt").read_text()
+        self.assertNotIn("StubCIImage", stub)
+
     def test_ci_validates_shared_kotlin_and_the_app_not_retired_package_tests(self):
         workflow = (ROOT / ".github/workflows/ios.yml").read_text()
         self.assertIn(":ui-model:desktopTest", workflow)

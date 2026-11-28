@@ -5,6 +5,7 @@ package com.fairuniversal.offlineotp.ui.platform
 import com.fairuniversal.offlineotp.ui.portable.PortableClipboardPolicy
 import platform.Foundation.NSDate
 import platform.Foundation.dateWithTimeIntervalSince1970
+import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIPasteboard
 import platform.UIKit.UIPasteboardOptionExpirationDate
 import platform.UIKit.UIPasteboardOptionLocalOnly
