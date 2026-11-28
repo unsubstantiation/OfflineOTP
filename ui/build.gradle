@@ -32,14 +32,11 @@ kotlin {
                 // api so hosts can build frames and filters without depending on :ui-model themselves.
                 api project(':ui-model')
 
-                // The `compose.*` aliases are deprecated in Compose Multiplatform 1.10 in favour of
-                // explicit coordinates, but the plugin still resolves them to one consistent set of
-                // versions (Material 3's artifact version differs from the rest of the line). Keep the
-                // aliases until every artifact is pinned explicitly and verified against a real build.
-                implementation compose.runtime
-                implementation compose.foundation
-                implementation compose.material3
-                api compose.ui // Public Android host extends AbstractComposeView.
+                // Pin libraries explicitly: deprecated aliases can lag behind the plugin release.
+                implementation 'org.jetbrains.compose.runtime:runtime:1.12.2'
+                implementation 'org.jetbrains.compose.foundation:foundation:1.12.2'
+                implementation 'org.jetbrains.compose.material3:material3:1.12.0-alpha03'
+                api 'org.jetbrains.compose.ui:ui:1.12.2' // Public Android host extends AbstractComposeView.
 
                 implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
             }

@@ -99,7 +99,7 @@ jobs:
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           cmdline-tools-version: '15859902'
-          packages: 'platform-tools platforms;android-37 build-tools;36.0.0'
+          packages: 'platform-tools platforms;android-37 build-tools;37.0.0'
 
       - name: Verify wrapper and compile debug app plus instrumentation
         shell: bash
@@ -182,7 +182,7 @@ jobs:
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           cmdline-tools-version: '15859902'
-          packages: 'platform-tools platforms;android-37 build-tools;36.0.0 ndk;30.0.16248370'
+          packages: 'platform-tools platforms;android-37 build-tools;37.0.0 ndk;30.0.16248370'
 
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable action
         with:
@@ -300,20 +300,20 @@ jobs:
                      app/build/outputs/apk/play/release/app-play-release.apk; do
             test -f "$apk"
             echo "::group::Verifying $apk"
-            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
-            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$apk"
+            "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk"
+            "$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -v 4 "$apk"
             echo "--- badging for $apk ---"
-            "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -E "package:|application:|uses-sdk" || true
-            if "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -q "name='com.fairuniversal.offlineotp.dev'"; then
+            "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" | grep -E "package:|application:|uses-sdk" || true
+            if "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" | grep -q "name='com.fairuniversal.offlineotp.dev'"; then
               echo "::error::Release APK has .dev applicationId: $apk"
               exit 1
             fi
-            if ! "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -q "name='com.fairuniversal.offlineotp'"; then
+            if ! "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" | grep -q "name='com.fairuniversal.offlineotp'"; then
               echo "::error::Release APK package is not com.fairuniversal.offlineotp: $apk"
-              "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | head -n 20
+              "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" | head -n 20
               exit 1
             fi
-            if "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -q "testOnly='1'"; then
+            if "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" | grep -q "testOnly='1'"; then
               echo "::error::Release APK is testOnly: $apk"
               exit 1
             fi

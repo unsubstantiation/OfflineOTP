@@ -187,7 +187,7 @@ The Rust backend signs *inside* the encrypted message using SHA-256, selecting a
 unrevoked/unexpired bound secret subkey or an eligible primary signing key. Missing/invalid signing
 keys, wrong passphrases, unusable signing capabilities, or absent/old native libraries fail without
 an unsigned retry. The JVM signed route intentionally does not fall back to PGPainless. UniFFI
-bindings were regenerated with pinned **0.28.3**, and the generation drift check passed. Rebuild the
+bindings were regenerated with pinned **0.31.0**, and the generation drift check passed. Rebuild the
 native binaries/XCFramework alongside the bindings before native testing.
 
 **In-app restore does not currently verify signer identity.** Signing is not a claim of trusted

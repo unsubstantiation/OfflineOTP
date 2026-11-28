@@ -3,7 +3,7 @@ package uniffi.offlineotp_openpgp
 /**
  * Byte-array facade over the generated UniFFI functions.
  *
- * UniFFI 0.28 lowers `sequence<u8>` to `List<UByte>` on Kotlin. The JVM OpenPGP
+ * UniFFI lowers `sequence<u8>` to `List<UByte>` on Kotlin. The JVM OpenPGP
  * ports speak `ByteArray`, so this small adapter keeps the conversion in one
  * place and gives the reflective loaders a stable, native-looking API. It is
  * compiled only where the generated bindings and JNA are on the classpath

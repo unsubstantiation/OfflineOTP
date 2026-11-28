@@ -1,6 +1,6 @@
 # Unified OpenPGP backend packaging
 
-The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21.1 + UniFFI 0.32.2).
+The cryptography lives in `rust/offlineotp-openpgp` (rpgp 0.21.1 + UniFFI 0.31.0).
 The foreign-language contract is `rust/offlineotp-openpgp/src/offlineotp_openpgp.udl`.
 `rust/offlineotp-openpgp/uniffi.toml` keeps the generated loaders pointed at the
 packaged `offlineotp_openpgp` library name.
@@ -14,12 +14,13 @@ Generated bindings are committed so a JVM/Swift build does not need to run bindg
 ## Regenerate bindings
 
 ```sh
-cargo install uniffi --features cli --bin uniffi-bindgen --version 0.32.2 --locked
+cargo install uniffi --features cli --bin uniffi-bindgen --version 0.31.0 --locked
 scripts/openpgp/generate-bindings.sh          # write
 scripts/openpgp/generate-bindings.sh --check  # fail on drift
 ```
 
-UDL mode generates bindings without compiling Rust. Native compilation and the
+UDL mode uses Cargo workspace metadata (`--metadata-no-deps`) without compiling
+Rust. Native compilation and the
 crate's security tests still require a Rust toolchain:
 
 ```sh

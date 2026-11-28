@@ -37,7 +37,7 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         self.assertIn('crate-type = ["cdylib", "staticlib", "lib"]', text)
         self.assertIn('rust-version = "1.88"', text)
         self.assertIn('pgp = { version = "=0.21.1"', text)
-        self.assertIn('uniffi = "=0.32.2"', text)
+        self.assertIn('uniffi = "=0.31.0"', text)
         self.assertIn('thiserror = "=2.0', text)
         self.assertIn('rand = "=0.8', text)
         self.assertIn('zeroize = "=1.9', text)

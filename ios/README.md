@@ -12,8 +12,8 @@ the [source fixes](../docs/ios-kotlin-cutover.md#metadata-compilation-follow-up)
 
 ## Requirements
 
-- macOS with full Xcode, an iPhoneOS SDK and Swift 6.1+ (required by pinned YubiKit).
-- JDK 17; Android SDK platform 37/build-tools 36.0.0 for root Gradle configuration.
+- macOS with full Xcode, an iPhoneOS SDK and Swift 6.2+ (required by pinned packages).
+- JDK 17; Android SDK platform 37/build-tools 37.0.0 for root Gradle configuration.
 - Rust/rustup, XcodeGen and Python 3; network access to resolve dependencies.
 - No signing identity for the unsigned CI device build. Device installation and
   distribution require an appropriate signing/provisioning process.

@@ -34,7 +34,8 @@ dependencies {
     implementation project(':ui')
 
     // Skiko/AWT binding for the current operating system; the Gradle plugin picks the artifact.
-    implementation compose.desktop.currentOs
+    // Retain the plugin's platform chooser, but not its older default library version.
+    implementation(compose.desktop.currentOs) { version { strictly '1.12.2' } }
     testImplementation 'junit:junit:4.13.2'
 }
 

@@ -2,11 +2,6 @@ name: Compose desktop validation
 
 on:
   workflow_dispatch:
-    inputs:
-      regenerate_uniffi:
-        description: 'Regenerate committed UniFFI bindings and push them to this branch after Rust tests pass'
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -32,7 +27,7 @@ jobs:
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           cmdline-tools-version: '15859902'
-          packages: 'platform-tools platforms;android-37 build-tools;36.0.0'
+          packages: 'platform-tools platforms;android-37 build-tools;37.0.0'
       - name: Verify wrapper provenance
         shell: bash
         run: python scripts/check_build_inputs.py
@@ -84,47 +79,3 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           path: reports/compose-desktop-validation/scripted-hardware.log
-
-  regenerate-uniffi:
-    name: Regenerate and test UniFFI bindings (manual opt-in)
-    if: ${{ inputs.regenerate_uniffi && github.ref_type == 'branch' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.ref_name }}
-      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca
-        with:
-          toolchain: 1.100.0
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: rust
-      - name: Install the exact official generator
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(python3 -c 'import tomllib; print(tomllib.load(open("rust/offlineotp-openpgp/Cargo.toml", "rb"))["dependencies"]["uniffi"].removeprefix("="))')"
-          cargo install uniffi --features cli --bin uniffi-bindgen --version "=$version" --locked
-      - name: Regenerate bindings and test the native implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/openpgp/generate-bindings.sh
-          bash scripts/openpgp/generate-bindings.sh --check
-          cargo test --manifest-path rust/Cargo.toml
-      - name: Commit only the generated bindings to the selected branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add rust/bindings/kotlin/uniffi/offlineotp_openpgp/offlineotp_openpgp.kt \
-            ios/Sources/offlineotp_openpgp/offlineotp_openpgp.swift \
-            rust/bindings/swift/offlineotp_openpgpFFI.h \
-            rust/bindings/swift/offlineotp_openpgpFFI.modulemap
-          if git diff --cached --quiet; then exit 0; fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Regenerate UniFFI bindings with the pinned official generator'
-          git push origin "HEAD:${GITHUB_REF_NAME}"

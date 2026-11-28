@@ -2,7 +2,7 @@
 
 Do not edit `offlineotp_openpgp.kt` or the Swift/header files by hand. They are
 generated from `rust/offlineotp-openpgp/src/offlineotp_openpgp.udl` by
-`scripts/openpgp/generate-bindings.sh` (uniffi-bindgen 0.28.3).
+`scripts/openpgp/generate-bindings.sh` (uniffi-bindgen 0.31.0).
 
 `kotlin/uniffi/offlineotp_openpgp/NativeApi.kt` is the one hand-written file here:
 it adapts UniFFI's `List<UByte>` surface to the `ByteArray` OpenPgpPort used by the

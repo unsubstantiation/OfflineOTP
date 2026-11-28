@@ -30,7 +30,7 @@ class DesktopPackagingTest(unittest.TestCase):
         self.assertIn("dependsOn ':desktop-compose:packageDesktop'", engine)
         self.assertIn("from(tasks.named('stageOpenPgpNative')) { into 'lib/native' }", self.build)
         self.assertIn("'-Djna.library.path=$APPDIR/native'", self.build)
-        self.assertIn("implementation compose.desktop.currentOs", self.build)
+        self.assertIn("implementation(compose.desktop.currentOs) { version { strictly '1.12.2' } }", self.build)
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn('System.getProperty("jna.library.path") == null', host)
         self.assertIn('java.io.File(location.parentFile, "native")', host)

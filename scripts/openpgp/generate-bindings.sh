@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Regenerate (or check) the committed UniFFI bindings from the reviewed UDL contract.
 #
-# Requires uniffi-bindgen 0.32.2 on PATH (or UNIFFI_BINDGEN=/path/to/uniffi-bindgen).
-# UDL mode does not need a compiled Rust library, so this runs on any host with the
-# bindgen CLI. Native compilation/tests still require cargo and the platform toolchains.
+# Requires uniffi-bindgen 0.31.0 on PATH (or UNIFFI_BINDGEN=/path/to/uniffi-bindgen).
+# UDL mode does not need a compiled Rust library. Cargo is required for workspace
+# metadata only; native compilation/tests additionally require the platform toolchains.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -12,7 +12,7 @@ BINDGEN="${UNIFFI_BINDGEN:-uniffi-bindgen}"
 MODE="${1:-generate}"
 
 if ! command -v "$BINDGEN" >/dev/null 2>&1; then
-    echo "uniffi-bindgen 0.32.2 is required (cargo install uniffi --features cli --bin uniffi-bindgen --version 0.32.2)" >&2
+    echo "uniffi-bindgen 0.31.0 is required (cargo install uniffi --features cli --bin uniffi-bindgen --version 0.31.0)" >&2
     exit 2
 fi
 
@@ -20,17 +20,20 @@ if [[ "$MODE" != generate && "$MODE" != --check ]]; then
     echo "usage: $0 [generate|--check]" >&2
     exit 2
 fi
-if [[ "$("$BINDGEN" --version)" != "uniffi-bindgen 0.32.2" ]]; then
-    echo "uniffi-bindgen must match the pinned runtime (0.32.2)" >&2
+if [[ "$("$BINDGEN" --version)" != "uniffi-bindgen 0.31.0" ]]; then
+    echo "uniffi-bindgen must match the pinned runtime (0.31.0)" >&2
     exit 2
 fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# All exported types are in this UDL; external dependency metadata is unnecessary.
+# Use a deterministic workspace cwd rather than the caller's directory.
+cd "$ROOT/rust"
 CONFIG="$ROOT/rust/offlineotp-openpgp/uniffi.toml"
-"$BINDGEN" generate "$UDL" --language kotlin --out-dir "$TMP/kotlin" --no-format --crate offlineotp_openpgp --config "$CONFIG"
-"$BINDGEN" generate "$UDL" --language swift --out-dir "$TMP/swift" --no-format --crate offlineotp_openpgp --config "$CONFIG"
+"$BINDGEN" generate "$UDL" --language kotlin --out-dir "$TMP/kotlin" --no-format --metadata-no-deps --crate offlineotp_openpgp --config "$CONFIG"
+"$BINDGEN" generate "$UDL" --language swift --out-dir "$TMP/swift" --no-format --metadata-no-deps --crate offlineotp_openpgp --config "$CONFIG"
 
 commit_file() {
     local src="$1" dst="$2"
