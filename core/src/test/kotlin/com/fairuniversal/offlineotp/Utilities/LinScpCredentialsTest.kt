@@ -22,6 +22,65 @@ class LinScpCredentialsTest {
     private val sampleTunnelPrivate =
         "-----BEGIN OPENSSH PRIVATE KEY-----\nYmFzdGlvbi1rZXktdjEAAAA=\n-----END OPENSSH PRIVATE KEY-----\n"
 
+    @Test fun expandedLinScpMetadataSurvivesImportVaultReloadAndBothExportModes() {
+        // Assemble PWD1 directly from the upstream spec, not our encoder. TLS
+        // values reach the upstream maximum: 384 KiB raw = 512 KiB Base64.
+        val blob = Base64.getEncoder().encodeToString(ByteArray(384 * 1024) { (it % 251).toByte() })
+        val session = """{"name":"TLS session","protocol":"webdavs","host":"dav.example","port":443,"folder":"Work/Servers","local_directory":"/local","remote_directory":"/remote","key_password":"key-passphrase","proxy_password":"proxy-secret","tunnel":{"enabled":true,"host":"jump.example","password":"jump-secret","passphrase":"jump-key-secret"},"extra_fields":{"other_local_dir":"/other","alt_hostname":"dr.example","alt_port":"2223","auth_gssapi":"1","s3_region":"ap-southeast-1","color":"#22aa88","note":"retained","future_option":"opaque"}}"""
+        val pairs = listOf("url" to "webdavs://dav.example:443", "username" to "alice", "password" to "server-secret",
+            "linscp_session_json" to session, "linscp_ca_cert_b64" to blob,
+            "linscp_tls_cert_b64" to blob, "linscp_tls_key_b64" to blob,
+            "linscp_cached_hostkeys_b64" to Base64.getEncoder().encodeToString("dav.example:22=pin".toByteArray()),
+            "linscp_transfer_preset_b64" to Base64.getEncoder().encodeToString("[Custom]\nmode=binary\n".toByteArray()),
+            "linscp_future_blob" to "opaque future data")
+        fun document(fields: List<Pair<String, String>>): ByteArray {
+            val buffer = java.io.ByteArrayOutputStream()
+            java.io.DataOutputStream(buffer).use { out ->
+                out.writeInt(0x50574431); out.writeInt(fields.size)
+                for ((name, value) in fields) for (field in listOf(name, value)) {
+                    val bytes = field.toByteArray(StandardCharsets.UTF_8)
+                    out.writeInt(bytes.size); out.write(bytes); bytes.fill(0)
+                }
+            }
+            val raw = buffer.toByteArray()
+            return try {
+                JSONArray().put(JSONObject().put("type", "PASSWORD").put("label", "TLS session")
+                    .put("secret", String(org.apache.commons.codec.binary.Base32().encode(raw), StandardCharsets.US_ASCII)))
+                    .toString().toByteArray(StandardCharsets.UTF_8)
+            } finally { raw.fill(0) }
+        }
+        fun verify(entries: List<Entry>) {
+            assertEquals(1, entries.size)
+            val fields = entries.single().getPasswordFields()
+            assertEquals(pairs.map { it.first }.toSet(), fields.columns().toSet())
+            for ((name, value) in pairs) assertEquals(value, fields.value(name))
+        }
+        val source = document(pairs)
+        val imported = LinScpCredentials.importBytes(source)
+        try {
+            verify(imported)
+            val reloaded = VaultJson.stringToEntries(VaultJson.entriesToString(imported))
+            try {
+                verify(reloaded)
+                for (encrypted in listOf(false, true)) {
+                    val exported = if (encrypted) LinScpCredentials.exportVault(reloaded, "metadata-test-password")
+                        else LinScpCredentials.exportPlain(reloaded)
+                    try {
+                        val reopened = LinScpCredentials.importBytes(exported, if (encrypted) "metadata-test-password" else null)
+                        try { verify(reopened) } finally { reopened.forEach { it.destroy() } }
+                    } finally { exported.fill(0) }
+                }
+            } finally { reloaded.forEach { it.destroy() } }
+        } finally { imported.forEach { it.destroy() }; source.fill(0) }
+        val oversized = document(pairs.take(3) + ("linscp_tls_key_b64" to (blob + "A")))
+        try {
+            try {
+                LinScpCredentials.importBytes(oversized).forEach { it.destroy() }
+                fail("Expected oversized field rejection")
+            } catch (_: IllegalArgumentException) { /* all-or-nothing, never truncate */ }
+        } finally { oversized.fill(0) }
+    }
+
     @Test fun newPlainDocumentKeepsAllSessionSettingsAndUsesDistinctFilename() {
         val numericIni = LinScpCredentials.importBytes("[123 server]\n# comment\nhost=server.example\nusername=alice\npassword=secret\n".toByteArray())
         try { assertEquals("123 server", numericIni.single().getLabel()) } finally { numericIni.forEach { it.destroy() } }

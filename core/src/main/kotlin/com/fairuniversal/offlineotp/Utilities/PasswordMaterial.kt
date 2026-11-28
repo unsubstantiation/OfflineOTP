@@ -1,7 +1,7 @@
 package com.fairuniversal.offlineotp.Utilities
 
 
-/** Bounded payload for one imported password, retaining every source CSV column. */
+/** Bounded PWD1 credential payload retaining source CSV columns and opaque LinSCP metadata. */
 object PasswordMaterial {
     const val MAX_BYTES = BrowserPasswordCsv.MAX_FILE_BYTES
     private const val MAGIC = 0x50574431 // PWD1

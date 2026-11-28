@@ -6,10 +6,14 @@ class CredentialFields(val names: List<String>, val values: List<String>) {
 
 /** Shared binary credential framing. Native engines retain ownership, crypto and OS access. */
 class CredentialMaterialCodec {
+    companion object {
+        // LinSCP embeds Base64 TLS blobs up to 384 KiB in PWD1 fields.
+        const val MAX_PASSWORD_FIELD_BYTES = 512 * 1024
+    }
     fun passwordEncode(names: List<String>, values: List<String>): ByteArray? = safely {
         require(names.size == values.size && names.size in 1..64)
         val fields = names.indices.flatMap { listOf(names[it], values[it]) }
-        val bytes = encode(0x50574431, names.size, fields, 4 * 1024 * 1024, 65536)
+        val bytes = encode(0x50574431, names.size, fields, 4 * 1024 * 1024, MAX_PASSWORD_FIELD_BYTES)
         if (passwordDecode(bytes) == null) { bytes.fill(0); throw IllegalArgumentException() }
         bytes
     }
@@ -18,7 +22,7 @@ class CredentialMaterialCodec {
         val reader = Reader(bytes); require(reader.int() == 0x50574431)
         val count = reader.int(); require(count in 1..64)
         val names = ArrayList<String>(); val values = ArrayList<String>()
-        repeat(count) { names.add(reader.text(65536)); values.add(reader.text(65536)) }
+        repeat(count) { names.add(reader.text(MAX_PASSWORD_FIELD_BYTES, MAX_PASSWORD_FIELD_BYTES)); values.add(reader.text(MAX_PASSWORD_FIELD_BYTES, MAX_PASSWORD_FIELD_BYTES)) }
         require(reader.done())
         val normalized = names.map { it.trim().lowercase() }
         require(normalized.none { it.isEmpty() } && normalized.toSet().size == count)
@@ -78,6 +82,7 @@ class CredentialMaterialCodec {
                 val bytes = field.encodeToByteArray(throwOnInvalidSequence = true); encoded.add(bytes)
                 size += 4L + bytes.size; require(size <= maxBytes)
                 if (magic == null) require(bytes.size <= 32768)
+                else require(bytes.size <= MAX_PASSWORD_FIELD_BYTES)
             }
             val out = ByteArray(size.toInt()); var offset = 0
             fun int(value: Int) { for (shift in 24 downTo 0 step 8) out[offset++] = (value ushr shift).toByte() }
@@ -93,8 +98,8 @@ class CredentialMaterialCodec {
             require(offset <= bytes.size - 4)
             var value = 0; repeat(4) { value = (value shl 8) or (bytes[offset++].toInt() and 255) }; return value
         }
-        fun text(limit: Int): String {
-            val size = int(); require(size >= 0 && size <= bytes.size - offset)
+        fun text(limit: Int, maxBytes: Int = Int.MAX_VALUE): String {
+            val size = int(); require(size >= 0 && size <= maxBytes && size <= bytes.size - offset)
             val value = bytes.decodeToString(offset, offset + size, throwOnInvalidSequence = true)
             offset += size; require(value.length <= limit); return value
         }

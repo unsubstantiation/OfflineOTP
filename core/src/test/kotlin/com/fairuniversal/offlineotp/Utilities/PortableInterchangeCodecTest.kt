@@ -61,7 +61,31 @@ class PortableInterchangeCodecTest {
         assertNull(codec.exportCsv(listOf("password"), List(2001) { CsvRecord(listOf("x")) }))
         val material = CredentialMaterialCodec()
         assertNull(material.sshEncode("", "x".repeat(32769)))
-        assertNull(material.passwordEncode(listOf("url", "username", "password"), listOf("x", "y", "z".repeat(65537))))
+        assertNull(material.passwordEncode(listOf("url", "username", "password"), listOf("x", "y", "z".repeat(CredentialMaterialCodec.MAX_PASSWORD_FIELD_BYTES + 1))))
+    }
+    @Test fun passwordFieldLimitIsUtf8BytesAndRetainsOverallPayloadBound() {
+        val material = CredentialMaterialCodec()
+        val limit = CredentialMaterialCodec.MAX_PASSWORD_FIELD_BYTES
+        val names = listOf("url", "username", "password", "linscp_tls_key_b64")
+        val values = listOf("sftp://host", "alice", "secret", "a".repeat(limit))
+        val encoded = material.passwordEncode(names, values)!!
+        try {
+            assertEquals(values, material.passwordDecode(encoded)!!.values)
+            // A hostile wire payload bypassing our encoder must still be rejected.
+            val oversized = encoded + 'a'.code.toByte()
+            val lengthOffset = encoded.size - limit - 4
+            for (i in 0..3) oversized[lengthOffset + i] = ((limit + 1) ushr (24 - i * 8)).toByte()
+            try { assertNull(material.passwordDecode(oversized)) } finally { oversized.fill(0) }
+        } finally { encoded.fill(0) }
+        assertNull(material.passwordEncode(names, values.dropLast(1) + "a".repeat(limit + 1)))
+        // Under the character limit but above the byte limit must also be refused.
+        assertNull(material.passwordEncode(names, values.dropLast(1) + "λ".repeat(limit / 2 + 1)))
+        val unicode = material.passwordEncode(names, values.dropLast(1) + "λ".repeat(limit / 2))!!
+        try { assertNotNull(material.passwordDecode(unicode)) } finally { unicode.fill(0) }
+        val manyNames = listOf("url", "username", "password") + (1..8).map { "linscp_blob_$it" }
+        assertNull(material.passwordEncode(manyNames, List(manyNames.size) { "a".repeat(limit) }))
+        // CSV has its own deliberately smaller field bound.
+        assertEquals(64 * 1024, com.fairuniversal.offlineotp.domain.BrowserCsvCodec.MAX_FIELD_CHARS)
     }
     @Test fun provisioningRejectsUnsafeUriAndNoncanonicalSeedsWithoutFallback() {
         for (input in listOf("otpauth://totp@evil/x?secret=$seed", "otpauth://totp:80/x?secret=$seed",
